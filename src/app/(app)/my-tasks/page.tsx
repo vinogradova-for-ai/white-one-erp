@@ -2,8 +2,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { getMyTasks } from "@/lib/queries/my-tasks";
 import { formatDate } from "@/lib/format";
-import { PRODUCT_STATUS_COLORS, ORDER_STATUS_COLORS } from "@/lib/constants";
-import { ProductStatus, OrderStatus } from "@prisma/client";
+import { PhotoThumb } from "@/components/common/photo-thumb";
 
 export default async function MyTasksPage() {
   const session = await auth();
@@ -26,33 +25,29 @@ export default async function MyTasksPage() {
 
       <div className="space-y-2">
         {tasks.map((t) => {
-          const colors =
-            t.type === "product"
-              ? PRODUCT_STATUS_COLORS[t.status as ProductStatus]
-              : ORDER_STATUS_COLORS[t.status as OrderStatus];
           const urgencyClass = t.isDelayed
             ? "border-red-300 bg-red-50"
             : t.urgencyDays !== null && t.urgencyDays <= 3
               ? "border-amber-200 bg-amber-50"
               : "border-slate-200 bg-white";
+          const typeLabel = t.type === "model" ? "Фасон" : t.type === "order" ? "Заказ" : "Образец";
           return (
             <Link
               key={`${t.type}-${t.id}`}
               href={t.url}
-              className={`block rounded-2xl border p-4 transition hover:shadow-sm ${urgencyClass}`}
+              className={`flex gap-3 rounded-2xl border p-4 transition hover:shadow-sm ${urgencyClass}`}
             >
-              <div className="flex items-start justify-between gap-3">
+              <PhotoThumb url={t.photoUrl} size={56} />
+              <div className="flex min-w-0 flex-1 items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500">
-                      {t.type === "product" ? "Изделие" : "Заказ"}
-                    </span>
-                    <span className={`inline-block rounded px-2 py-0.5 text-xs ${colors}`}>
+                    <span className="text-xs text-slate-500">{typeLabel}</span>
+                    <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">
                       {t.statusLabel}
                     </span>
                   </div>
-                  <div className="mt-1 font-medium text-slate-900">{t.title}</div>
-                  <div className="mt-0.5 text-xs text-slate-500">{t.subtitle}</div>
+                  <div className="mt-1 font-medium text-slate-900 line-clamp-1">{t.title}</div>
+                  <div className="mt-0.5 text-xs text-slate-500 line-clamp-1">{t.subtitle}</div>
                 </div>
                 <div className="text-right">
                   {t.deadline ? (
@@ -65,9 +60,7 @@ export default async function MyTasksPage() {
                         <div className={`text-xs ${t.isDelayed ? "text-red-600" : "text-slate-500"}`}>
                           {t.urgencyDays < 0
                             ? `Просрочено на ${Math.abs(t.urgencyDays)} дн.`
-                            : t.urgencyDays === 0
-                              ? "Сегодня"
-                              : `Через ${t.urgencyDays} дн.`}
+                            : t.urgencyDays === 0 ? "Сегодня" : `Через ${t.urgencyDays} дн.`}
                         </div>
                       )}
                     </>

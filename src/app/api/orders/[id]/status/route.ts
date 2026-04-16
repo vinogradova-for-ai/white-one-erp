@@ -1,9 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
-import { assertCan } from "@/lib/rbac";
 import { orderStatusChangeSchema } from "@/lib/validators/order";
-import { canMoveOrderStatus, ORDER_STATUS_DATE_FIELDS } from "@/lib/status-machine/order-statuses";
+import { OrderStatus } from "@prisma/client";
+
+const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  PREPARATION: ["FABRIC_ORDERED"],
+  FABRIC_ORDERED: ["SEWING"],
+  SEWING: ["QC"],
+  QC: ["READY_SHIP", "SEWING"],
+  READY_SHIP: ["IN_TRANSIT"],
+  IN_TRANSIT: ["WAREHOUSE_MSK"],
+  WAREHOUSE_MSK: ["PACKING"],
+  PACKING: ["SHIPPED_WB"],
+  SHIPPED_WB: ["ON_SALE"],
+  ON_SALE: [],
+};
+
+const DATE_FIELDS: Partial<Record<OrderStatus, string>> = {
+  FABRIC_ORDERED: "decisionDate",
+  SEWING: "sewingStartDate",
+  QC: "readyAtFactoryDate",
+  READY_SHIP: "readyAtFactoryDate",
+  IN_TRANSIT: "shipmentDate",
+  WAREHOUSE_MSK: "arrivalActualDate",
+  PACKING: "arrivalActualDate",
+  SHIPPED_WB: "wbShipmentDate",
+  ON_SALE: "saleStartDate",
+};
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -13,21 +37,19 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const order = await prisma.order.findFirst({ where: { id, deletedAt: null } });
     if (!order) return NextResponse.json({ error: { code: "not_found" } }, { status: 404 });
 
-    assertCan(session.user.role, "order.updateStatus", order.ownerId, session.user.id);
-
     const { toStatus, comment } = orderStatusChangeSchema.parse(await req.json());
-    const check = canMoveOrderStatus(order.status, toStatus, session.user.role);
-    if (!check.ok) {
-      return NextResponse.json({ error: { code: "invalid_transition", message: check.reason } }, { status: 400 });
-    }
-    if (check.requiresComment && !comment?.trim()) {
+
+    const allowed = ORDER_TRANSITIONS[order.status];
+    const isAdmin = session.user.role === "OWNER" || session.user.role === "DIRECTOR";
+
+    if (!allowed.includes(toStatus) && !isAdmin) {
       return NextResponse.json(
-        { error: { code: "comment_required", message: "Откат статуса требует комментарий" } },
+        { error: { code: "invalid_transition", message: "Нельзя перепрыгнуть статус" } },
         { status: 400 },
       );
     }
 
-    const dateField = ORDER_STATUS_DATE_FIELDS[toStatus];
+    const dateField = DATE_FIELDS[toStatus];
     const updated = await prisma.$transaction(async (tx) => {
       const upd = await tx.order.update({
         where: { id },

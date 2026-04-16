@@ -1,6 +1,7 @@
-// White One ERP — Prisma schema
-// Два ядра: Product (каталог) + Order (заказы на производство)
-// + лог статусов, план продаж, фабрики, пользователи, уведомления, аудит
+// White One ERP v2 — Prisma schema
+// Фокус: продуктовая разработка. WB-метрики вне системы.
+// Ядра: ProductModel (фасон) + ProductVariant (цветовой вариант) + Order.
+// Дополнительно: Sample (образец), Idea (идея), SizeGrid (размерные сетки).
 
 generator client {
   provider      = "prisma-client-js"
@@ -17,62 +18,92 @@ datasource db {
 // ======================================================
 
 enum Role {
-  OWNER           // Алёна
-  DIRECTOR        // Даша
-  PRODUCT_MANAGER // Вера, Оля
-  ASSISTANT       // Настя
-  CONTENT_MANAGER // Катя
-  LOGISTICS       // Таня
-  CUSTOMS         // Элина
-  WB_MANAGER      // Вика, Лиза
-  INTERN          // Стажёры
-}
-
-enum Brand {
-  WHITE_ONE
-  SERDCEBIENIE
+  OWNER
+  DIRECTOR
+  PRODUCT_MANAGER
+  ASSISTANT
+  CONTENT_MANAGER
+  LOGISTICS
+  CUSTOMS
+  WB_MANAGER
+  INTERN
 }
 
 enum DevelopmentType {
-  OWN     // Собственный дизайн
-  REPEAT  // Повтор чужого образца
+  OWN
+  REPEAT
 }
 
-enum ProductStatus {
-  IDEA                   // Идея
-  SKETCH                 // Эскиз утверждён
-  PATTERNS               // Лекала готовы
-  SAMPLE                 // Образец прошит
-  CORRECTIONS            // Корректировки
-  SIZE_CHART             // Размерная сетка
-  APPROVED               // Финальное утверждение
-  READY_FOR_PRODUCTION   // Готов к производству
+// Упрощённая машина статусов (5 вместо 8).
+// Корректировки и размерная сетка — подэтапы SAMPLE через чекбоксы.
+enum ProductModelStatus {
+  IDEA
+  PATTERNS
+  SAMPLE
+  APPROVED
+  IN_PRODUCTION
+}
+
+enum ProductVariantStatus {
+  DRAFT
+  READY_TO_ORDER
+  DISCONTINUED
 }
 
 enum OrderType {
-  SEASONAL  // Сезонный
-  RESTOCK   // Досорт
-  TEST      // Тест
+  SEASONAL
+  RESTOCK
+  TEST
 }
 
 enum OrderStatus {
-  PREPARATION       // Подготовка
-  FABRIC_ORDERED    // Ткань заказана
-  SEWING            // В пошиве
-  QC                // ОТК
-  READY_SHIP        // Готов к отгрузке
-  IN_TRANSIT        // В доставке
-  WAREHOUSE_MSK     // На складе Москва
-  PACKING           // Упаковка
-  SHIPPED_WB        // Отгружен на WB
-  ON_SALE           // В продаже
+  PREPARATION
+  FABRIC_ORDERED
+  SEWING
+  QC
+  READY_SHIP
+  IN_TRANSIT
+  WAREHOUSE_MSK
+  PACKING
+  SHIPPED_WB
+  ON_SALE
 }
 
 enum DeliveryMethod {
-  CARGO     // Карго
-  AIR       // Авиа
-  RAIL      // ЖД
-  DOMESTIC  // Внутри РФ
+  CARGO
+  AIR
+  RAIL
+  DOMESTIC
+}
+
+enum SampleStatus {
+  REQUESTED       // Заказан на фабрике
+  IN_SEWING       // В пошиве
+  DELIVERED       // Доставлен в Москву
+  APPROVED        // Утверждён
+  READY_FOR_SHOOT // Готов для фотосессии
+  RETURNED        // Возвращён / утилизирован
+}
+
+enum IdeaStatus {
+  NEW
+  CONSIDERING
+  PROMOTED
+  REJECTED
+}
+
+enum IdeaPriority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum QcDefectCategory {
+  SEWING    // Пошив
+  FABRIC    // Ткань
+  FITTINGS  // Фурнитура
+  SIZE      // Размер
+  OTHER
 }
 
 enum NotificationChannel {
@@ -82,12 +113,14 @@ enum NotificationChannel {
 }
 
 enum NotificationType {
-  DELAY              // Задержка этапа
-  INCOMING_DELIVERY  // Скоро приедет товар
-  PAYMENT_DUE        // Скоро платёж
-  PLAN_GAP           // Разрыв план/факт > 20%
-  STATUS_CHANGED     // Сменён статус
-  ISSUE              // Проблема (ручная пометка)
+  DELAY
+  INCOMING_DELIVERY
+  PAYMENT_DUE
+  PLAN_GAP
+  STATUS_CHANGED
+  ISSUE
+  SAMPLE_READY
+  QC_REQUIRED
 }
 
 enum AuditAction {
@@ -99,33 +132,40 @@ enum AuditAction {
   EXPORT
 }
 
+enum Currency {
+  RUB
+  CNY
+}
+
 // ======================================================
 // USER
 // ======================================================
 
 model User {
-  id             String   @id @default(cuid())
-  email          String   @unique
-  passwordHash   String
-  name           String
-  role           Role     @default(INTERN)
-  isActive       Boolean  @default(true)
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role     @default(INTERN)
+  isActive     Boolean  @default(true)
 
-  // Telegram-привязка
-  telegramChatId       BigInt?  @unique
-  telegramLinkCode     String?
-  telegramLinkedAt     DateTime?
+  telegramChatId   BigInt?   @unique
+  telegramLinkCode String?
+  telegramLinkedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Отношения
-  ownedProducts   Product[]            @relation("ProductOwner")
-  ownedOrders     Order[]              @relation("OrderOwner")
-  productLogs     ProductStatusLog[]   @relation("ProductStatusLogActor")
-  orderLogs       OrderStatusLog[]     @relation("OrderStatusLogActor")
-  auditLogs       AuditLog[]
-  notifications   Notification[]
+  ownedModels       ProductModel[]       @relation("ModelOwner")
+  ownedOrders       Order[]              @relation("OrderOwner")
+  modelLogs         ProductModelStatusLog[] @relation("ModelStatusActor")
+  variantLogs       ProductVariantStatusLog[] @relation("VariantStatusActor")
+  orderLogs         OrderStatusLog[]     @relation("OrderStatusActor")
+  sampleLogs        SampleStatusLog[]    @relation("SampleStatusActor")
+  approvedSamples   Sample[]             @relation("SampleApprover")
+  ideasCreated      Idea[]               @relation("IdeaCreator")
+  auditLogs         AuditLog[]
+  notifications     Notification[]
 
   @@index([role])
   @@index([isActive])
@@ -136,114 +176,222 @@ model User {
 // ======================================================
 
 model Factory {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  country     String                  // "Россия", "Китай" (Гуанчжоу), etc.
-  city        String?
-  contactName String?
-  contactInfo String?
-  capacityPerMonth Int?               // Мощность в штуках (для вида "Загрузка фабрик")
-  notes       String?
-  isActive    Boolean  @default(true)
+  id               String   @id @default(cuid())
+  name             String   @unique
+  country          String
+  city             String?
+  contactName      String?
+  contactInfo      String?
+  capacityPerMonth Int?
+  notes            String?
+  isActive         Boolean  @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  preferredForProducts Product[] @relation("ProductPreferredFactory")
-  orders               Order[]
+  preferredForModels ProductModel[] @relation("ModelPreferredFactory")
+  orders             Order[]
 
   @@index([isActive])
 }
 
 // ======================================================
-// PRODUCT (каталог изделий)
+// SIZE GRID (справочник размерных сеток)
 // ======================================================
 
-model Product {
-  id       String @id @default(cuid())
-  sku      String @unique                     // Артикул: П_038_шоколад_безэполет
-  name     String                              // Человекочитаемое название
-  brand    Brand
-  developmentType DevelopmentType @default(OWN)
+model SizeGrid {
+  id        String   @id @default(cuid())
+  name      String   @unique                 // "40-60 пальто", "42-52 стандарт", "XS-XXL"
+  sizes     String[]                         // ["40", "42", "44", "46", "48", "50"]
+  notes     String?
 
-  // Классификация
-  category     String                          // Пальто / Брюки / Лето / Сердцебиение / Новые товары
-  subcategory  String?                         // Пальто Классика Миди / Палаццо оверсайз / ...
-  color        String
-  fabric       String?
-  sizeChart    String?                         // "40-60", "42-52", ...
-  hsCode       String?                         // ТНВЭД
+  createdAt DateTime @default(now())
+
+  models ProductModel[]
+}
+
+// ======================================================
+// PRODUCT MODEL (фасон)
+// ======================================================
+
+model ProductModel {
+  id           String          @id @default(cuid())
+  name         String                                           // "Пальто Классика Двубортное Миди"
+  category     String                                           // Пальто / Брюки / Лето / Новые товары
+  subcategory  String?                                          // Пальто Классика Миди / Палаццо оверсайз / ...
+
+  // Теги вместо коллекций — свободный массив, автоподсказка из существующих
+  tags         String[]                                         // ["Осень 2026", "Офис"]
+
+  // Размерная сетка
+  sizeGridId   String?
+  sizeGrid     SizeGrid?       @relation(fields: [sizeGridId], references: [id])
+
+  // Ткань — простые опциональные поля (не отдельная сущность)
+  fabricName           String?
+  fabricConsumption    Decimal? @db.Decimal(6, 2)               // метров на единицу
+  fabricPricePerMeter  Decimal? @db.Decimal(12, 2)
+  fabricCurrency       Currency?                                // RUB | CNY
 
   // Производство
-  preferredFactoryId String?
-  preferredFactory   Factory? @relation("ProductPreferredFactory", fields: [preferredFactoryId], references: [id])
-  countryOfOrigin    String                    // "Россия" / "Китай"
-  packagingType      String?
+  countryOfOrigin      String                                   // "Россия" / "Китай" / "Кыргызстан"
+  preferredFactoryId   String?
+  preferredFactory     Factory? @relation("ModelPreferredFactory", fields: [preferredFactoryId], references: [id])
 
-  // Финансы (вводимые) — валюта по полю purchaseCurrency
-  purchasePriceCny      Decimal? @db.Decimal(12, 2)   // Цена закупки в юанях
-  purchasePriceRub      Decimal? @db.Decimal(12, 2)   // или сразу в рублях
-  cnyRubRate            Decimal? @db.Decimal(10, 4)   // Курс на момент фиксации (если указана CNY)
-  packagingCost         Decimal  @default(0) @db.Decimal(12, 2)
-  wbLogisticsCost       Decimal  @default(0) @db.Decimal(12, 2)
-  wbPrice               Decimal? @db.Decimal(12, 2)   // Цена продаж WB (до СПП)
-  customerPrice         Decimal? @db.Decimal(12, 2)   // Цена для клиента (после СПП)
-  wbCommissionPct       Decimal  @default(0) @db.Decimal(5, 2)
-  drrPct                Decimal  @default(0) @db.Decimal(5, 2)
-  plannedRedemptionPct  Decimal? @db.Decimal(5, 2)
-  factRedemptionPct     Decimal? @db.Decimal(5, 2)
+  developmentType DevelopmentType @default(OWN)
+  isRepeat         Boolean         @default(false)
+  previousVersionId String?                                     // Ссылка на предыдущую версию (self-ref)
+  previousVersion   ProductModel?  @relation("ModelVersioning", fields: [previousVersionId], references: [id])
+  nextVersions      ProductModel[] @relation("ModelVersioning")
 
-  // Финансы (расчётные, хранятся для скорости сортировки)
-  fullCost              Decimal? @db.Decimal(12, 2)   // (CNY × rate × 1+buffer% OR purchaseRub) + packaging + logistics
-  marginBeforeDrr       Decimal? @db.Decimal(12, 2)
-  marginAfterDrrPct     Decimal? @db.Decimal(6, 2)
-  roi                   Decimal? @db.Decimal(6, 2)
-  markupPct             Decimal? @db.Decimal(6, 2)
+  // Документация — именованные слоты
+  patternsUrl       String?
+  patternVersion    String?                                     // v1 / v2 / v3
+  techPackUrl       String?
+  sampleApprovalUrl String?                                     // фото финально утверждённого образца
 
-  // Габариты и литраж (для экономики WB)
-  lengthCm    Decimal? @db.Decimal(6, 1)
-  widthCm     Decimal? @db.Decimal(6, 1)
-  heightCm    Decimal? @db.Decimal(6, 1)
-  weightG     Int?
-  liters      Decimal? @db.Decimal(6, 2)       // Ш × В × Д
+  // Фото модели (общие, без цвета). Обязательно минимум 1 после SAMPLE.
+  photoUrls         String[]
 
-  // Статус разработки
-  status       ProductStatus @default(IDEA)
-  ownerId      String
-  owner        User   @relation("ProductOwner", fields: [ownerId], references: [id])
+  // Подэтапы SAMPLE (флаги, не статусы)
+  correctionsNeeded Boolean @default(false)
+  sizeChartReady    Boolean @default(false)
 
-  // Даты этапов разработки (плановые, заполняются ответственным)
-  sketchDate          DateTime?
-  patternsDate        DateTime?
-  sampleDate          DateTime?
-  correctionsDate     DateTime?
-  sizeChartDate       DateTime?
-  approvedDate        DateTime?
-  readyForProdDate    DateTime?
-  plannedLaunchMonth  Int?                      // YYYYMM, для стыковки с MonthlyPlan
+  status     ProductModelStatus @default(IDEA)
+  ownerId    String
+  owner      User           @relation("ModelOwner", fields: [ownerId], references: [id])
 
-  // Ссылки (Google Drive) и фото
-  patternsUrl  String?
-  techDocsUrl  String?
-  sampleUrl    String?
-  photoUrls    String[]
+  // Даты этапов
+  patternsDate DateTime?
+  sampleDate   DateTime?
+  approvedDate DateTime?
+  productionStartDate DateTime?
+  plannedLaunchMonth Int?                                       // YYYYMM
 
   notes     String?
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  deletedAt DateTime?                            // Soft delete
+  deletedAt DateTime?
 
-  orders     Order[]
-  statusLogs ProductStatusLog[]
+  variants    ProductVariant[]
+  samples     Sample[]
+  statusLogs  ProductModelStatusLog[]
+  promotedFromIdea Idea?                                       @relation("IdeaPromoted")
 
-  @@index([sku])
   @@index([status])
-  @@index([brand])
-  @@index([category])
   @@index([ownerId])
+  @@index([category])
   @@index([deletedAt])
   @@index([plannedLaunchMonth])
+}
+
+// ======================================================
+// PRODUCT VARIANT (цветовой вариант)
+// ======================================================
+
+model ProductVariant {
+  id             String  @id @default(cuid())
+  productModelId String
+  productModel   ProductModel @relation(fields: [productModelId], references: [id])
+
+  sku            String  @unique                // П_038_шоколад_безэполет
+  colorName      String                          // шоколад
+  pantoneCode    String?                         // 18-1418 TCX
+
+  // Фото — КРИТИЧНО. Минимум 1 фото валидируется на уровне формы.
+  photoUrls      String[]
+
+  // Размерная пропорция по умолчанию { "42": 10, "44": 25, ... } (%)
+  defaultSizeProportion Json?
+
+  // Финансы (вводимые)
+  purchasePriceCny     Decimal? @db.Decimal(12, 2)
+  purchasePriceRub     Decimal? @db.Decimal(12, 2)
+  cnyRubRate           Decimal? @db.Decimal(10, 4)
+  packagingCost        Decimal  @default(0) @db.Decimal(12, 2)
+  wbLogisticsCost      Decimal  @default(0) @db.Decimal(12, 2)
+  wbPrice              Decimal? @db.Decimal(12, 2)
+  customerPrice        Decimal? @db.Decimal(12, 2)
+  wbCommissionPct      Decimal  @default(0) @db.Decimal(5, 2)
+  drrPct               Decimal  @default(0) @db.Decimal(5, 2)
+  plannedRedemptionPct Decimal? @db.Decimal(5, 2)
+
+  // Финансы (расчётные)
+  fullCost             Decimal? @db.Decimal(12, 2)
+  marginBeforeDrr      Decimal? @db.Decimal(12, 2)
+  marginAfterDrrPct    Decimal? @db.Decimal(6, 2)
+  roi                  Decimal? @db.Decimal(6, 2)
+  markupPct            Decimal? @db.Decimal(6, 2)
+
+  // Габариты (могут переопределяться на уровне варианта)
+  lengthCm Decimal? @db.Decimal(6, 1)
+  widthCm  Decimal? @db.Decimal(6, 1)
+  heightCm Decimal? @db.Decimal(6, 1)
+  weightG  Int?
+  liters   Decimal? @db.Decimal(6, 2)
+
+  hsCode   String?                               // ТНВЭД (может различаться по цвету)
+  packagingType String?
+
+  status ProductVariantStatus @default(DRAFT)
+
+  notes    String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  orders     Order[]
+  samples    Sample[]
+  statusLogs ProductVariantStatusLog[]
+
+  @@index([productModelId])
+  @@index([sku])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+// ======================================================
+// SAMPLE (образец — отдельный pipeline)
+// ======================================================
+
+model Sample {
+  id               String       @id @default(cuid())
+  productModelId   String
+  productModel     ProductModel @relation(fields: [productModelId], references: [id])
+  productVariantId String?
+  productVariant   ProductVariant? @relation(fields: [productVariantId], references: [id])
+
+  status SampleStatus @default(REQUESTED)
+
+  requestDate       DateTime @default(now())
+  sewingStartDate   DateTime?
+  deliveredDate     DateTime?
+  approvedDate      DateTime?
+  readyForShootDate DateTime?
+  returnedDate      DateTime?
+
+  // Утверждение
+  approvedById      String?
+  approvedBy        User?    @relation("SampleApprover", fields: [approvedById], references: [id])
+  approvalComment   String?
+  approvedPhotoUrl  String?
+
+  // Контент-отдел: когда планируется съёмка
+  plannedShootDate  DateTime?
+  shootCompleted    Boolean  @default(false)
+
+  photoUrls         String[]
+  notes             String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  statusLogs SampleStatusLog[]
+
+  @@index([productModelId])
+  @@index([productVariantId])
+  @@index([status])
 }
 
 // ======================================================
@@ -251,18 +399,22 @@ model Product {
 // ======================================================
 
 model Order {
-  id          String      @id @default(cuid())
-  orderNumber String      @unique              // "ORD-2026-0001"
-  productId   String
-  product     Product     @relation(fields: [productId], references: [id])
+  id               String          @id @default(cuid())
+  orderNumber      String          @unique
+  productVariantId String
+  productVariant   ProductVariant  @relation(fields: [productVariantId], references: [id])
 
   orderType   OrderType
-  season      String?                          // "Осень 2026", "Весна 2026", ...
-  launchMonth Int                              // YYYYMM — для агрегации план/факт
+  season      String?
+  launchMonth Int
 
   quantity    Int
 
-  // Снимки финансов (копируются из Product в момент создания — чтобы изменения цен в каталоге не ломали историю)
+  // Размерная матрица — план и факт
+  sizeDistribution       Json?                                  // { "42": 50, "44": 120, ... }
+  sizeDistributionActual Json?                                  // По факту приёмки
+
+  // Снимки финансов (копируются из variant в момент создания)
   snapshotFullCost         Decimal? @db.Decimal(12, 2)
   snapshotWbPrice          Decimal? @db.Decimal(12, 2)
   snapshotCustomerPrice    Decimal? @db.Decimal(12, 2)
@@ -270,58 +422,64 @@ model Order {
   snapshotDrrPct           Decimal? @db.Decimal(5, 2)
   snapshotRedemptionPct    Decimal? @db.Decimal(5, 2)
 
-  // Расчётные (хранятся)
-  batchCost               Decimal? @db.Decimal(14, 2)  // qty × fullCost
-  plannedRevenue          Decimal? @db.Decimal(14, 2)  // qty × customerPrice × redemption%
-  plannedMargin           Decimal? @db.Decimal(14, 2)
-  actualRevenue           Decimal? @db.Decimal(14, 2)
-  actualMargin            Decimal? @db.Decimal(14, 2)
+  // Расчётные
+  batchCost      Decimal? @db.Decimal(14, 2)
+  plannedRevenue Decimal? @db.Decimal(14, 2)
+  plannedMargin  Decimal? @db.Decimal(14, 2)
 
   // Производство
-  factoryId       String?
-  factory         Factory?    @relation(fields: [factoryId], references: [id])
-  ownerId         String
-  owner           User        @relation("OrderOwner", fields: [ownerId], references: [id])
-  deliveryMethod  DeliveryMethod?
+  factoryId      String?
+  factory        Factory? @relation(fields: [factoryId], references: [id])
+  ownerId        String
+  owner          User     @relation("OrderOwner", fields: [ownerId], references: [id])
+  deliveryMethod DeliveryMethod?
 
-  // Статус
   status OrderStatus @default(PREPARATION)
 
   // Даты этапов
-  decisionDate            DateTime?  // Дата решения о запуске
-  handedToFactoryDate     DateTime?
-  sewingStartDate         DateTime?
-  readyAtFactoryDate      DateTime?
-  shipmentDate            DateTime?
-  arrivalPlannedDate      DateTime?
-  arrivalActualDate       DateTime?
-  packingDoneDate         DateTime?
-  wbShipmentDate          DateTime?
-  saleStartDate           DateTime?
+  decisionDate         DateTime?
+  handedToFactoryDate  DateTime?
+  sewingStartDate      DateTime?
+  readyAtFactoryDate   DateTime?
+  shipmentDate         DateTime?
+  arrivalPlannedDate   DateTime?
+  arrivalActualDate    DateTime?
+  packingDoneDate      DateTime?
+  wbShipmentDate       DateTime?
+  saleStartDate        DateTime?
 
-  // Оплаты (inline в MVP)
-  paymentTerms         String?                // "30/70", "после продажи"
-  prepaymentAmount     Decimal? @db.Decimal(14, 2)
-  prepaymentDate       DateTime?
-  prepaymentPaid       Boolean  @default(false)
-  finalPaymentAmount   Decimal? @db.Decimal(14, 2)
-  finalPaymentDate     DateTime?
-  finalPaymentPaid     Boolean  @default(false)
+  // Оплаты
+  paymentTerms       String?
+  prepaymentAmount   Decimal?  @db.Decimal(14, 2)
+  prepaymentDate     DateTime?
+  prepaymentPaid     Boolean   @default(false)
+  finalPaymentAmount Decimal?  @db.Decimal(14, 2)
+  finalPaymentDate   DateTime?
+  finalPaymentPaid   Boolean   @default(false)
 
   // Упаковка
-  packagingType      String?
-  packagingOrdered   Boolean @default(false)
+  packagingType    String?
+  packagingOrdered Boolean @default(false)
 
   // ВЭД
-  specReady          Boolean @default(false)
-  specUrl            String?
-  declarationReady   Boolean @default(false)
-  declarationUrl     String?
+  specReady        Boolean @default(false)
+  specUrl          String?
+  declarationReady Boolean @default(false)
+  declarationUrl   String?
 
-  // Флаги и WB
-  isDelayed          Boolean @default(false)   // Пересчитывается cron'ом
-  hasIssue           Boolean @default(false)
-  wbCardReady        Boolean @default(false)   // Для вида "Контент и карточки"
+  // QC — секция на заказе, не отдельный модуль
+  qcDate              DateTime?
+  qcQuantityOk        Int?
+  qcQuantityDefects   Int?
+  qcDefectsPhotoUrl   String?
+  qcDefectCategory    QcDefectCategory?
+  qcReplacedByFactory Boolean  @default(false)
+  qcResolutionNote    String?
+
+  // Флаги
+  isDelayed   Boolean @default(false)
+  hasIssue    Boolean @default(false)
+  wbCardReady Boolean @default(false)
 
   notes     String?
   createdAt DateTime  @default(now())
@@ -331,32 +489,45 @@ model Order {
   statusLogs OrderStatusLog[]
 
   @@index([orderNumber])
-  @@index([productId])
+  @@index([productVariantId])
   @@index([status])
   @@index([launchMonth])
   @@index([ownerId])
   @@index([factoryId])
   @@index([deletedAt])
   @@index([isDelayed])
-  @@index([hasIssue])
 }
 
 // ======================================================
 // STATUS LOGS
 // ======================================================
 
-model ProductStatusLog {
-  id          String         @id @default(cuid())
-  productId   String
-  product     Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
-  fromStatus  ProductStatus?
-  toStatus    ProductStatus
-  changedById String
-  changedBy   User           @relation("ProductStatusLogActor", fields: [changedById], references: [id])
-  comment     String?
-  changedAt   DateTime       @default(now())
+model ProductModelStatusLog {
+  id             String              @id @default(cuid())
+  productModelId String
+  productModel   ProductModel        @relation(fields: [productModelId], references: [id], onDelete: Cascade)
+  fromStatus     ProductModelStatus?
+  toStatus       ProductModelStatus
+  changedById    String
+  changedBy      User                @relation("ModelStatusActor", fields: [changedById], references: [id])
+  comment        String?
+  changedAt      DateTime            @default(now())
 
-  @@index([productId, changedAt])
+  @@index([productModelId, changedAt])
+}
+
+model ProductVariantStatusLog {
+  id               String               @id @default(cuid())
+  productVariantId String
+  productVariant   ProductVariant       @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+  fromStatus       ProductVariantStatus?
+  toStatus         ProductVariantStatus
+  changedById      String
+  changedBy        User                 @relation("VariantStatusActor", fields: [changedById], references: [id])
+  comment          String?
+  changedAt        DateTime             @default(now())
+
+  @@index([productVariantId, changedAt])
 }
 
 model OrderStatusLog {
@@ -366,21 +537,34 @@ model OrderStatusLog {
   fromStatus  OrderStatus?
   toStatus    OrderStatus
   changedById String
-  changedBy   User         @relation("OrderStatusLogActor", fields: [changedById], references: [id])
+  changedBy   User         @relation("OrderStatusActor", fields: [changedById], references: [id])
   comment     String?
   changedAt   DateTime     @default(now())
 
   @@index([orderId, changedAt])
 }
 
+model SampleStatusLog {
+  id          String        @id @default(cuid())
+  sampleId    String
+  sample      Sample        @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  fromStatus  SampleStatus?
+  toStatus    SampleStatus
+  changedById String
+  changedBy   User          @relation("SampleStatusActor", fields: [changedById], references: [id])
+  comment     String?
+  changedAt   DateTime      @default(now())
+
+  @@index([sampleId, changedAt])
+}
+
 // ======================================================
-// MONTHLY PLAN (план продаж)
+// MONTHLY PLAN
 // ======================================================
 
 model MonthlyPlan {
   id              String  @id @default(cuid())
-  yearMonth       Int                                   // YYYYMM
-  brand           Brand
+  yearMonth       Int
   category        String
   plannedRevenue  Decimal @db.Decimal(14, 2)
   plannedQuantity Int?
@@ -389,44 +573,67 @@ model MonthlyPlan {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([yearMonth, brand, category])
+  @@unique([yearMonth, category])
   @@index([yearMonth])
 }
 
 // ======================================================
-// NOTIFICATION
+// IDEA (пул идей)
+// ======================================================
+
+model Idea {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  tags        String[]
+  priority    IdeaPriority @default(MEDIUM)
+  status      IdeaStatus   @default(NEW)
+
+  createdById String
+  createdBy   User         @relation("IdeaCreator", fields: [createdById], references: [id])
+
+  rejectedReason   String?
+  promotedToModelId String?       @unique
+  promotedToModel   ProductModel? @relation("IdeaPromoted", fields: [promotedToModelId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([priority])
+  @@index([createdById])
+}
+
+// ======================================================
+// NOTIFICATION / AUDIT
 // ======================================================
 
 model Notification {
-  id         String               @id @default(cuid())
+  id         String              @id @default(cuid())
   userId     String
-  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   channel    NotificationChannel
   type       NotificationType
   title      String
   body       String
-  entityType String?                                   // "Product" / "Order"
+  entityType String?
   entityId   String?
   sentAt     DateTime?
   readAt     DateTime?
-  createdAt  DateTime             @default(now())
+  createdAt  DateTime            @default(now())
 
   @@index([userId, readAt])
   @@index([createdAt])
 }
-
-// ======================================================
-// AUDIT LOG
-// ======================================================
 
 model AuditLog {
   id         String      @id @default(cuid())
   userId     String?
   user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   action     AuditAction
-  entityType String                                   // "Product" / "Order" / "MonthlyPlan" / "User"
+  entityType String
   entityId   String
-  changes    Json?                                    // diff { field: [old, new] }
+  changes    Json?
   createdAt  DateTime    @default(now())
 
   @@index([entityType, entityId])

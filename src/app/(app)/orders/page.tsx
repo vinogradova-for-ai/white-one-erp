@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate, formatNumber, yearMonthToLabel } from "@/lib/format";
-import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_TYPE_LABELS, BRAND_LABELS } from "@/lib/constants";
+import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_TYPE_LABELS } from "@/lib/constants";
+import { PhotoThumb } from "@/components/common/photo-thumb";
 import { OrderStatus } from "@prisma/client";
 
 export default async function OrdersPage({
@@ -23,7 +24,14 @@ export default async function OrdersPage({
     orderBy: { updatedAt: "desc" },
     take: 200,
     include: {
-      product: { select: { sku: true, name: true, brand: true, category: true } },
+      productVariant: {
+        select: {
+          sku: true,
+          colorName: true,
+          photoUrls: true,
+          productModel: { select: { name: true, category: true } },
+        },
+      },
       factory: { select: { name: true } },
       owner: { select: { name: true } },
     },
@@ -64,38 +72,32 @@ export default async function OrdersPage({
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
-              <Th>№</Th>
-              <Th>Изделие</Th>
-              <Th>Бренд</Th>
-              <Th>Тип</Th>
-              <Th>Месяц</Th>
-              <Th className="text-right">Кол-во</Th>
-              <Th className="text-right">Себест.</Th>
-              <Th className="text-right">Выручка</Th>
-              <Th>Статус</Th>
-              <Th>Фабрика</Th>
-              <Th>Прибытие</Th>
-              <Th>Ответ.</Th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Фото</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">№</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Изделие</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Тип</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Месяц</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Кол-во</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Выручка</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Статус</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Фабрика</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Прибытие</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Ответ.</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {orders.map((o) => (
               <tr key={o.id} className={`hover:bg-slate-50 ${o.isDelayed ? "bg-red-50/40" : ""}`}>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  <Link href={`/orders/${o.id}`} className="font-mono text-xs text-slate-700 hover:underline">
-                    {o.orderNumber}
-                  </Link>
-                </td>
+                <td className="px-3 py-2"><PhotoThumb url={o.productVariant.photoUrls[0]} size={40} /></td>
+                <td className="px-3 py-2"><Link href={`/orders/${o.id}`} className="font-mono text-xs hover:underline">{o.orderNumber}</Link></td>
                 <td className="px-3 py-2">
-                  <div className="text-slate-900">{o.product.name}</div>
-                  <div className="font-mono text-xs text-slate-500">{o.product.sku}</div>
+                  <div className="text-slate-900">{o.productVariant.productModel.name}</div>
+                  <div className="text-xs text-slate-500">{o.productVariant.colorName} · <span className="font-mono">{o.productVariant.sku}</span></div>
                 </td>
-                <td className="px-3 py-2 text-xs text-slate-600">{BRAND_LABELS[o.product.brand]}</td>
                 <td className="px-3 py-2 text-xs text-slate-600">{ORDER_TYPE_LABELS[o.orderType]}</td>
                 <td className="px-3 py-2 text-xs text-slate-600 capitalize">{yearMonthToLabel(o.launchMonth)}</td>
-                <td className="px-3 py-2 text-right text-xs text-slate-700">{formatNumber(o.quantity)}</td>
-                <td className="px-3 py-2 text-right text-xs text-slate-700">{formatCurrency(o.batchCost?.toString())}</td>
-                <td className="px-3 py-2 text-right text-xs text-slate-700">{formatCurrency(o.plannedRevenue?.toString())}</td>
+                <td className="px-3 py-2 text-right text-xs">{formatNumber(o.quantity)}</td>
+                <td className="px-3 py-2 text-right text-xs">{formatCurrency(o.plannedRevenue?.toString())}</td>
                 <td className="px-3 py-2">
                   <span className={`inline-block rounded px-2 py-0.5 text-xs ${ORDER_STATUS_COLORS[o.status]}`}>
                     {ORDER_STATUS_LABELS[o.status]}
@@ -110,18 +112,8 @@ export default async function OrdersPage({
             ))}
           </tbody>
         </table>
-        {orders.length === 0 && (
-          <div className="p-12 text-center text-sm text-slate-500">Заказов не найдено</div>
-        )}
+        {orders.length === 0 && <div className="p-12 text-center text-sm text-slate-500">Заказов не найдено</div>}
       </div>
     </div>
-  );
-}
-
-function Th({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return (
-    <th className={`px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 ${className}`}>
-      {children}
-    </th>
   );
 }

@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 
-export type ProductCostInput = {
+export type VariantEconomicsInput = {
   purchasePriceCny?: Prisma.Decimal | number | string | null;
   purchasePriceRub?: Prisma.Decimal | number | string | null;
   cnyRubRate?: Prisma.Decimal | number | string | null;
@@ -13,7 +13,7 @@ export type ProductCostInput = {
   plannedRedemptionPct?: Prisma.Decimal | number | string | null;
 };
 
-export type ProductCostOutput = {
+export type VariantEconomicsOutput = {
   fullCost: number | null;
   marginBeforeDrr: number | null;
   marginAfterDrrPct: number | null;
@@ -21,7 +21,7 @@ export type ProductCostOutput = {
   markupPct: number | null;
 };
 
-const COST_BUFFER = Number(process.env.COST_BUFFER_PCT ?? "5") / 100; // 5% по умолчанию
+const COST_BUFFER = Number(process.env.COST_BUFFER_PCT ?? "5") / 100;
 
 function toNum(v: Prisma.Decimal | number | string | null | undefined): number | null {
   if (v === null || v === undefined || v === "") return null;
@@ -31,19 +31,18 @@ function toNum(v: Prisma.Decimal | number | string | null | undefined): number |
 }
 
 /**
+ * Экономика цветового варианта.
+ *
  * Формула полной себестоимости:
- *   если задана цена в юанях: fullCost = CNY × rate × (1 + buffer) + packaging + wbLogistics
- *   если в рублях: fullCost = RUB + packaging + wbLogistics
+ *   Если CNY задано: fullCost = CNY × rate × (1 + buffer) + packaging + wbLogistics
+ *   Иначе RUB:       fullCost = RUB + packaging + wbLogistics
  *
- * Маржа до ДРР: plannedRevenuePerUnit − fullCost − WB_commission
- *   где plannedRevenuePerUnit = customerPrice × redemption%
- *         WB_commission = wbPrice × commission%
- *
- * Маржа после ДРР: маржа до ДРР − (plannedRevenue × ДРР%)
- * ROI: маржа после ДРР / fullCost
- * Наценка: (wbPrice − fullCost) / fullCost × 100%
+ * Маржа до ДРР (на единицу): customerPrice × redemption − fullCost − wbPrice × commission
+ * Маржа после ДРР %:        (маржа до ДРР − выручка × ДРР) / выручка
+ * ROI:                       маржа после ДРР / fullCost × 100
+ * Наценка %:                 (wbPrice − fullCost) / fullCost × 100
  */
-export function calculateProductEconomics(input: ProductCostInput): ProductCostOutput {
+export function calculateVariantEconomics(input: VariantEconomicsInput): VariantEconomicsOutput {
   const cny = toNum(input.purchasePriceCny);
   const rub = toNum(input.purchasePriceRub);
   const rate = toNum(input.cnyRubRate) ?? Number(process.env.CNY_RUB_RATE_DEFAULT ?? "13.5");
@@ -86,22 +85,25 @@ export function calculateProductEconomics(input: ProductCostInput): ProductCostO
 }
 
 export function calculateOrderEconomics(
-  product: ProductCostInput,
+  variant: VariantEconomicsInput & { fullCost?: Prisma.Decimal | number | string | null },
   quantity: number,
 ): {
   batchCost: number | null;
   plannedRevenue: number | null;
   plannedMargin: number | null;
 } {
-  const eco = calculateProductEconomics(product);
-  const customerPrice = toNum(product.customerPrice);
-  const redemption = (toNum(product.plannedRedemptionPct) ?? 0) / 100;
+  const fullCost = toNum(variant.fullCost) ?? calculateVariantEconomics(variant).fullCost;
+  const customerPrice = toNum(variant.customerPrice);
+  const redemption = (toNum(variant.plannedRedemptionPct) ?? 0) / 100;
 
-  const batchCost = eco.fullCost !== null ? round(eco.fullCost * quantity, 2) : null;
-  const plannedRevenue =
-    customerPrice !== null ? round(customerPrice * redemption * quantity, 2) : null;
-  const plannedMargin =
-    eco.marginBeforeDrr !== null ? round(eco.marginBeforeDrr * quantity, 2) : null;
+  const batchCost = fullCost !== null ? round(fullCost * quantity, 2) : null;
+  const plannedRevenue = customerPrice !== null ? round(customerPrice * redemption * quantity, 2) : null;
+
+  let plannedMargin: number | null = null;
+  if (fullCost !== null && customerPrice !== null && redemption > 0) {
+    const revenuePerUnit = customerPrice * redemption;
+    plannedMargin = round((revenuePerUnit - fullCost) * quantity, 2);
+  }
 
   return { batchCost, plannedRevenue, plannedMargin };
 }

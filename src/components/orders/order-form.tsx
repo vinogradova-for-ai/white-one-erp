@@ -1,40 +1,44 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ORDER_TYPE_LABELS, BRAND_LABELS, DELIVERY_METHOD_LABELS } from "@/lib/constants";
+import { ORDER_TYPE_LABELS, DELIVERY_METHOD_LABELS } from "@/lib/constants";
 import { formatCurrency } from "@/lib/format";
+import { PhotoThumb } from "@/components/common/photo-thumb";
 
-type ProductOption = {
+type VariantOption = {
   id: string;
   sku: string;
-  name: string;
-  brand: keyof typeof BRAND_LABELS;
+  colorName: string;
+  modelName: string;
+  photoUrl: string | null;
   customerPrice: string | null;
   fullCost: string | null;
   plannedRedemptionPct: string | null;
+  sizes: string[];
+  defaultSizeProportion: Record<string, number> | null;
   preferredFactoryId: string | null;
 };
 
 type Option = { id: string; name: string };
 
 export function OrderForm({
-  products,
+  variants,
   factories,
   users,
-  preselectedProductId,
+  preselectedVariantId,
 }: {
-  products: ProductOption[];
+  variants: VariantOption[];
   factories: Option[];
   users: Option[];
-  preselectedProductId?: string;
+  preselectedVariantId?: string;
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState({
-    productId: preselectedProductId ?? products[0]?.id ?? "",
+    productVariantId: preselectedVariantId ?? variants[0]?.id ?? "",
     orderType: "SEASONAL",
     season: "Осень 2026",
     launchMonth: "202609",
@@ -43,30 +47,46 @@ export function OrderForm({
     ownerId: users[0]?.id ?? "",
     deliveryMethod: "CARGO",
     paymentTerms: "30/70",
-    prepaymentAmount: "",
-    finalPaymentAmount: "",
-    packagingType: "полибэг",
     notes: "",
   });
 
-  const product = useMemo(() => products.find((p) => p.id === form.productId), [form.productId, products]);
+  const variant = useMemo(() => variants.find((v) => v.id === form.productVariantId), [variants, form.productVariantId]);
 
-  // Предпросмотр экономики
-  const preview = useMemo(() => {
-    if (!product || !form.quantity) return null;
+  // Размерная матрица — автоматически из пропорции × количество
+  const sizeDistribution = useMemo(() => {
+    if (!variant || !variant.defaultSizeProportion) return {};
     const qty = Number(form.quantity);
-    const cost = Number(product.fullCost ?? 0);
-    const price = Number(product.customerPrice ?? 0);
-    const redemption = Number(product.plannedRedemptionPct ?? 0) / 100;
+    if (!qty) return {};
+    const result: Record<string, number> = {};
+    const entries = Object.entries(variant.defaultSizeProportion);
+    let distributed = 0;
+    entries.forEach(([size, pct], idx) => {
+      if (idx === entries.length - 1) {
+        result[size] = qty - distributed;
+      } else {
+        const share = Math.floor((qty * pct) / 100);
+        result[size] = share;
+        distributed += share;
+      }
+    });
+    return result;
+  }, [variant, form.quantity]);
+
+  const [sizeOverride, setSizeOverride] = useState<Record<string, number> | null>(null);
+  const finalSizeDist = sizeOverride ?? sizeDistribution;
+  const sizeTotal = Object.values(finalSizeDist).reduce((a, b) => a + b, 0);
+
+  const preview = useMemo(() => {
+    if (!variant || !form.quantity) return null;
+    const qty = Number(form.quantity);
+    const cost = Number(variant.fullCost ?? 0);
+    const price = Number(variant.customerPrice ?? 0);
+    const redemption = Number(variant.plannedRedemptionPct ?? 0) / 100;
     return {
       batchCost: cost * qty,
       plannedRevenue: price * redemption * qty,
     };
-  }, [product, form.quantity]);
-
-  function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
-    setForm((f) => ({ ...f, [key]: value }));
-  }
+  }, [variant, form.quantity]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -74,18 +94,16 @@ export function OrderForm({
     setError(null);
     try {
       const payload = {
-        productId: form.productId,
+        productVariantId: form.productVariantId,
         orderType: form.orderType,
         season: form.season || null,
         launchMonth: Number(form.launchMonth),
         quantity: Number(form.quantity),
+        sizeDistribution: Object.keys(finalSizeDist).length > 0 ? finalSizeDist : null,
         factoryId: form.factoryId || null,
         ownerId: form.ownerId,
         deliveryMethod: form.deliveryMethod || null,
         paymentTerms: form.paymentTerms || null,
-        prepaymentAmount: form.prepaymentAmount ? Number(form.prepaymentAmount) : null,
-        finalPaymentAmount: form.finalPaymentAmount ? Number(form.finalPaymentAmount) : null,
-        packagingType: form.packagingType || null,
         notes: form.notes || null,
       };
       const res = await fetch("/api/orders", {
@@ -108,32 +126,75 @@ export function OrderForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      <Section title="Изделие и параметры">
-        <Field label="Изделие *" full>
-          <select required value={form.productId} onChange={(e) => update("productId", e.target.value)} className={inputCls}>
+      <Section title="Вариант и параметры">
+        <Field label="Цветовой вариант *" full>
+          <select
+            required
+            value={form.productVariantId}
+            onChange={(e) => {
+              setForm({ ...form, productVariantId: e.target.value });
+              setSizeOverride(null);
+            }}
+            className={inputCls}
+          >
             <option value="">— выберите —</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.sku} · {p.name} · {BRAND_LABELS[p.brand]}
+            {variants.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.sku} · {v.modelName} · {v.colorName}
               </option>
             ))}
           </select>
         </Field>
+
+        {variant && (
+          <div className="md:col-span-2 flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <PhotoThumb url={variant.photoUrl} size={56} />
+            <div className="text-sm">
+              <div className="font-medium">{variant.modelName}</div>
+              <div className="text-slate-500">{variant.colorName} · {variant.sku}</div>
+            </div>
+          </div>
+        )}
+
         <Field label="Тип заказа *">
-          <select value={form.orderType} onChange={(e) => update("orderType", e.target.value)} className={inputCls}>
+          <select value={form.orderType} onChange={(e) => setForm({ ...form, orderType: e.target.value })} className={inputCls}>
             {Object.entries(ORDER_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Field>
         <Field label="Сезон">
-          <input value={form.season} onChange={(e) => update("season", e.target.value)} className={inputCls} />
+          <input value={form.season} onChange={(e) => setForm({ ...form, season: e.target.value })} className={inputCls} />
         </Field>
-        <Field label="Месяц старта продаж (YYYYMM) *">
-          <input type="number" required value={form.launchMonth} onChange={(e) => update("launchMonth", e.target.value)} className={inputCls} placeholder="202609" />
+        <Field label="Месяц продаж (YYYYMM) *">
+          <input type="number" required value={form.launchMonth} onChange={(e) => setForm({ ...form, launchMonth: e.target.value })} className={inputCls} />
         </Field>
         <Field label="Количество, шт *">
-          <input type="number" required min={1} value={form.quantity} onChange={(e) => update("quantity", e.target.value)} className={inputCls} />
+          <input type="number" required min={1} value={form.quantity} onChange={(e) => { setForm({ ...form, quantity: e.target.value }); setSizeOverride(null); }} className={inputCls} />
         </Field>
       </Section>
+
+      {variant && variant.sizes.length > 0 && (
+        <Section title={`Распределение по размерам (сумма = ${sizeTotal})`}>
+          <div className="md:col-span-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
+            {variant.sizes.map((s) => (
+              <label key={s} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                <div className="text-center text-sm font-medium text-slate-900">{s}</div>
+                <input
+                  type="number"
+                  value={finalSizeDist[s] ?? 0}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    setSizeOverride({ ...finalSizeDist, [s]: val });
+                  }}
+                  className="mt-1 w-full rounded border border-slate-300 bg-white px-1 py-1 text-center text-xs"
+                />
+              </label>
+            ))}
+          </div>
+          <p className="md:col-span-2 text-xs text-slate-500">
+            Автоматически рассчитано по пропорции варианта — можно переопределить.
+          </p>
+        </Section>
+      )}
 
       {preview && (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
@@ -151,53 +212,41 @@ export function OrderForm({
         </div>
       )}
 
-      <Section title="Производство и ответственность">
+      <Section title="Производство">
         <Field label="Фабрика">
-          <select value={form.factoryId} onChange={(e) => update("factoryId", e.target.value)} className={inputCls}>
-            <option value="">— как в каталоге —</option>
+          <select value={form.factoryId} onChange={(e) => setForm({ ...form, factoryId: e.target.value })} className={inputCls}>
+            <option value="">— как в фасоне —</option>
             {factories.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
           </select>
         </Field>
         <Field label="Ответственный *">
-          <select value={form.ownerId} onChange={(e) => update("ownerId", e.target.value)} className={inputCls}>
+          <select value={form.ownerId} onChange={(e) => setForm({ ...form, ownerId: e.target.value })} className={inputCls}>
             {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
         </Field>
         <Field label="Способ доставки">
-          <select value={form.deliveryMethod} onChange={(e) => update("deliveryMethod", e.target.value)} className={inputCls}>
+          <select value={form.deliveryMethod} onChange={(e) => setForm({ ...form, deliveryMethod: e.target.value })} className={inputCls}>
             {Object.entries(DELIVERY_METHOD_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Field>
-        <Field label="Упаковка">
-          <input value={form.packagingType} onChange={(e) => update("packagingType", e.target.value)} className={inputCls} />
-        </Field>
-      </Section>
-
-      <Section title="Оплата">
         <Field label="Условия оплаты">
-          <input value={form.paymentTerms} onChange={(e) => update("paymentTerms", e.target.value)} className={inputCls} />
-        </Field>
-        <Field label="Предоплата, ₽">
-          <input type="number" step="0.01" value={form.prepaymentAmount} onChange={(e) => update("prepaymentAmount", e.target.value)} className={inputCls} />
-        </Field>
-        <Field label="Остаток, ₽">
-          <input type="number" step="0.01" value={form.finalPaymentAmount} onChange={(e) => update("finalPaymentAmount", e.target.value)} className={inputCls} />
+          <input value={form.paymentTerms} onChange={(e) => setForm({ ...form, paymentTerms: e.target.value })} className={inputCls} />
         </Field>
       </Section>
 
       <Section title="Примечания">
         <div className="md:col-span-2">
-          <textarea value={form.notes} onChange={(e) => update("notes", e.target.value)} rows={3} className={inputCls} />
+          <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} className={inputCls} />
         </div>
       </Section>
 
       {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
       <div className="sticky bottom-0 flex justify-end gap-2 border-t border-slate-200 bg-white pt-4">
-        <button type="button" onClick={() => router.back()} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700">
+        <button type="button" onClick={() => router.back()} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm">
           Отмена
         </button>
-        <button type="submit" disabled={saving || !form.productId} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+        <button type="submit" disabled={saving || !form.productVariantId} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
           {saving ? "Сохранение…" : "Создать заказ"}
         </button>
       </div>

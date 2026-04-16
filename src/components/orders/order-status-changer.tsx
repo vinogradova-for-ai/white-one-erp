@@ -3,8 +3,21 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_ORDER } from "@/lib/constants";
-import { ORDER_TRANSITIONS } from "@/lib/status-machine/order-statuses";
 import { OrderStatus } from "@prisma/client";
+
+// Жёсткая последовательность с возможностью возврата QC → SEWING
+const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  PREPARATION: ["FABRIC_ORDERED"],
+  FABRIC_ORDERED: ["SEWING"],
+  SEWING: ["QC"],
+  QC: ["READY_SHIP", "SEWING"],
+  READY_SHIP: ["IN_TRANSIT"],
+  IN_TRANSIT: ["WAREHOUSE_MSK"],
+  WAREHOUSE_MSK: ["PACKING"],
+  PACKING: ["SHIPPED_WB"],
+  SHIPPED_WB: ["ON_SALE"],
+  ON_SALE: [],
+};
 
 export function OrderStatusChanger({
   orderId,
@@ -63,13 +76,10 @@ export function OrderStatusChanger({
                   disabled={!isAllowed}
                   onClick={() => move(s)}
                   className={`block w-full rounded-lg px-3 py-2 text-left text-sm ${
-                    isAllowed
-                      ? "bg-slate-100 text-slate-900 hover:bg-slate-200"
-                      : "text-slate-400"
+                    isAllowed ? "bg-slate-100 text-slate-900 hover:bg-slate-200" : "text-slate-400"
                   }`}
                 >
                   {ORDER_STATUS_LABELS[s]}
-                  {!isAllowed && <span className="ml-2 text-xs">(недоступно)</span>}
                 </button>
               );
             })}
