@@ -66,7 +66,15 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
             </div>
           )}
         </div>
-        <ModelStatusChanger modelId={model.id} currentStatus={model.status} />
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href={`/models/${model.id}/edit`}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Редактировать
+          </Link>
+          <ModelStatusChanger modelId={model.id} currentStatus={model.status} />
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

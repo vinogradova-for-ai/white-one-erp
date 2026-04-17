@@ -4,11 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate, formatDateTime, formatNumber, yearMonthToLabel } from "@/lib/format";
 import {
   ORDER_STATUS_LABELS, ORDER_STATUS_COLORS,
-  ORDER_TYPE_LABELS, DELIVERY_METHOD_LABELS,
-  QC_DEFECT_LABELS,
+  ORDER_TYPE_LABELS, DELIVERY_METHOD_LABELS, QC_DEFECT_LABELS,
 } from "@/lib/constants";
-import { PhotoThumb, PhotoGallery } from "@/components/common/photo-thumb";
+import { PhotoThumb } from "@/components/common/photo-thumb";
 import { OrderStatusChanger } from "@/components/orders/order-status-changer";
+import { OrderReceivingForm } from "@/components/orders/order-receiving-form";
+import { OrderQcForm } from "@/components/orders/order-qc-form";
+import { InlineCheckbox } from "@/components/common/inline-checkbox";
+import { InlineUrlField } from "@/components/common/inline-url-field";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -33,46 +36,51 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const sizeDist = order.sizeDistribution as Record<string, number> | null;
   const actualDist = order.sizeDistributionActual as Record<string, number> | null;
   const sizes = order.productVariant.productModel.sizeGrid?.sizes ?? [];
+  const endpoint = `/api/orders/${order.id}`;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-3">
-            <PhotoThumb url={order.productVariant.photoUrls[0]} size={64} />
-            <div>
-              <div className="font-mono text-xs text-slate-500">{order.orderNumber}</div>
-              <h1 className="text-2xl font-semibold text-slate-900">
-                <Link href={`/variants/${order.productVariant.id}`} className="hover:underline">
-                  {order.productVariant.productModel.name}
-                </Link>
-                {" · "}
-                <span className="text-slate-700">{order.productVariant.colorName}</span>
-              </h1>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <span className={`rounded px-2 py-0.5 text-xs ${ORDER_STATUS_COLORS[order.status]}`}>
-                  {ORDER_STATUS_LABELS[order.status]}
-                </span>
-                <span className="text-xs text-slate-500">
-                  {ORDER_TYPE_LABELS[order.orderType]} · {yearMonthToLabel(order.launchMonth)}
-                </span>
-                {order.isDelayed && <span className="text-xs text-red-600">⚠ Задержка</span>}
-                {order.hasIssue && <span className="text-xs text-red-600">🔴 Проблема</span>}
-              </div>
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <PhotoThumb url={order.productVariant.photoUrls[0]} size={64} />
+          <div className="min-w-0">
+            <div className="font-mono text-xs text-slate-500">{order.orderNumber}</div>
+            <h1 className="text-2xl font-semibold text-slate-900">
+              <Link href={`/variants/${order.productVariant.id}`} className="hover:underline">
+                {order.productVariant.productModel.name}
+              </Link>
+              {" · "}
+              <span className="text-slate-700">{order.productVariant.colorName}</span>
+            </h1>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <span className={`rounded px-2 py-0.5 text-xs ${ORDER_STATUS_COLORS[order.status]}`}>
+                {ORDER_STATUS_LABELS[order.status]}
+              </span>
+              <span className="text-xs text-slate-500">
+                {ORDER_TYPE_LABELS[order.orderType]} · {yearMonthToLabel(order.launchMonth)} · {formatNumber(order.quantity)} шт
+              </span>
+              {order.isDelayed && <span className="text-xs text-red-600">⚠ Задержка</span>}
+              {order.hasIssue && <span className="text-xs text-red-600">🔴 Проблема</span>}
             </div>
           </div>
         </div>
-        <OrderStatusChanger orderId={order.id} currentStatus={order.status} />
+        <div className="flex gap-2">
+          <Link
+            href={`/orders/${order.id}/edit`}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Редактировать
+          </Link>
+          <OrderStatusChanger orderId={order.id} currentStatus={order.status} />
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card title="Параметры">
-          <Row label="Количество" value={`${formatNumber(order.quantity)} шт`} />
           <Row label="Фабрика" value={order.factory?.name ?? "—"} />
           <Row label="Ответственный" value={order.owner.name} />
           <Row label="Способ доставки" value={order.deliveryMethod ? DELIVERY_METHOD_LABELS[order.deliveryMethod] : "—"} />
           <Row label="Упаковка" value={order.packagingType ?? "—"} />
-          <Row label="Упаковка заказана" value={order.packagingOrdered ? "✓" : "Нет"} />
         </Card>
 
         <Card title="Экономика">
@@ -84,15 +92,17 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         <Card title="Оплаты">
           <Row label="Условия" value={order.paymentTerms ?? "—"} />
           <Row label="Предоплата" value={
-            order.prepaymentAmount
-              ? `${formatCurrency(order.prepaymentAmount.toString())} ${order.prepaymentPaid ? "✓" : "(не опл.)"}`
-              : "—"
+            order.prepaymentAmount ? formatCurrency(order.prepaymentAmount.toString()) : "—"
           } />
+          <div className="pt-1">
+            <InlineCheckbox label="Предоплата оплачена" checked={order.prepaymentPaid} endpoint={endpoint} field="prepaymentPaid" />
+          </div>
           <Row label="Остаток" value={
-            order.finalPaymentAmount
-              ? `${formatCurrency(order.finalPaymentAmount.toString())} ${order.finalPaymentPaid ? "✓" : "(не опл.)"}`
-              : "—"
+            order.finalPaymentAmount ? formatCurrency(order.finalPaymentAmount.toString()) : "—"
           } />
+          <div className="pt-1">
+            <InlineCheckbox label="Остаток оплачен" checked={order.finalPaymentPaid} endpoint={endpoint} field="finalPaymentPaid" />
+          </div>
         </Card>
 
         <Card title="Производство">
@@ -109,74 +119,78 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <Row label="Упаковка" value={formatDate(order.packingDoneDate)} />
         </Card>
 
-        <Card title="WB и ВЭД">
+        <Card title="WB">
           <Row label="Отгрузка на WB" value={formatDate(order.wbShipmentDate)} />
           <Row label="Старт продаж" value={formatDate(order.saleStartDate)} />
-          <Row label="Спецификация" value={order.specReady ? "Готова ✓" : "—"} />
-          <Row label="Декларация" value={order.declarationReady ? "Готова ✓" : "—"} />
-          <Row label="Карточка WB" value={order.wbCardReady ? "Готова ✓" : "—"} />
+          <div className="pt-1">
+            <InlineCheckbox label="Карточка WB готова" checked={order.wbCardReady} endpoint={endpoint} field="wbCardReady" />
+          </div>
         </Card>
       </div>
 
-      {/* Размерная матрица */}
-      {sizes.length > 0 && (sizeDist || actualDist) && (
-        <Card title={`Размерная матрица${order.productVariant.productModel.sizeGrid?.name ? ` (${order.productVariant.productModel.sizeGrid.name})` : ""}`}>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-2 py-2 text-left text-xs font-semibold text-slate-500">Размер</th>
-                  {sizes.map((s) => (
-                    <th key={s} className="px-2 py-2 text-center text-xs font-semibold text-slate-500">{s}</th>
-                  ))}
-                  <th className="px-2 py-2 text-center text-xs font-semibold text-slate-500">Итого</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-t border-slate-100">
-                  <td className="px-2 py-2 text-xs text-slate-600">План</td>
-                  {sizes.map((s) => (
-                    <td key={s} className="px-2 py-2 text-center text-sm">{sizeDist?.[s] ?? 0}</td>
-                  ))}
-                  <td className="px-2 py-2 text-center font-medium">{order.quantity}</td>
-                </tr>
-                {actualDist && (
-                  <tr className="border-t border-slate-100">
-                    <td className="px-2 py-2 text-xs text-slate-600">Факт</td>
-                    {sizes.map((s) => (
-                      <td key={s} className="px-2 py-2 text-center text-sm text-emerald-700">{actualDist[s] ?? 0}</td>
-                    ))}
-                    <td className="px-2 py-2 text-center font-medium text-emerald-700">
-                      {Object.values(actualDist).reduce((a, b) => a + b, 0)}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+      {/* === Секция упаковки (якорь #packing) === */}
+      <section id="packing">
+        <Card title="Упаковка">
+          <div className="space-y-2">
+            <InlineCheckbox label="Упаковка заказана" checked={order.packagingOrdered} endpoint={endpoint} field="packagingOrdered" />
+            {order.packagingType && <p className="text-xs text-slate-500">Тип: {order.packagingType}</p>}
           </div>
         </Card>
+      </section>
+
+      {/* === Секция ВЭД (якорь #customs) === */}
+      <section id="customs">
+        <Card title="ВЭД — документы">
+          <div className="space-y-3">
+            <InlineCheckbox label="Спецификация готова" checked={order.specReady} endpoint={endpoint} field="specReady" />
+            <InlineUrlField label="Ссылка на спецификацию" value={order.specUrl} endpoint={endpoint} field="specUrl" />
+            <div className="border-t border-slate-100 pt-3">
+              <InlineCheckbox label="Декларация готова" checked={order.declarationReady} endpoint={endpoint} field="declarationReady" />
+              <div className="mt-2">
+                <InlineUrlField label="Ссылка на декларацию" value={order.declarationUrl} endpoint={endpoint} field="declarationUrl" />
+              </div>
+            </div>
+          </div>
+        </Card>
+      </section>
+
+      {/* === Размерная матрица (план vs факт) === */}
+      {sizes.length > 0 && (
+        <section id="receiving">
+          <Card title="Приёмка — распределение по размерам">
+            <OrderReceivingForm
+              orderId={order.id}
+              sizes={sizes}
+              plannedDist={sizeDist}
+              actualDist={actualDist}
+              quantity={order.quantity}
+            />
+          </Card>
+        </section>
       )}
 
-      {/* ОТК */}
-      <Card title="ОТК (контроль качества)">
-        {order.qcDate || order.qcQuantityOk !== null ? (
-          <div className="space-y-2">
-            <Row label="Дата ОТК" value={formatDate(order.qcDate)} />
-            <Row label="Принято" value={order.qcQuantityOk !== null ? formatNumber(order.qcQuantityOk) : "—"} />
-            <Row label="Брак" value={order.qcQuantityDefects !== null ? formatNumber(order.qcQuantityDefects) : "—"} />
-            {order.qcDefectCategory && <Row label="Категория брака" value={QC_DEFECT_LABELS[order.qcDefectCategory]} />}
-            <Row label="Фабрика заменила" value={order.qcReplacedByFactory ? "Да" : "Нет"} />
-            {order.qcResolutionNote && <Row label="Решение" value={order.qcResolutionNote} />}
-            {order.qcDefectsPhotoUrl && (
-              <Row label="Фото дефектов" value={
-                <a href={order.qcDefectsPhotoUrl} target="_blank" rel="noopener" className="text-blue-600 hover:underline">открыть</a>
-              } />
-            )}
-          </div>
-        ) : (
-          <p className="text-sm text-slate-500">ОТК ещё не пройден</p>
-        )}
-      </Card>
+      {/* === ОТК === */}
+      <section id="qc">
+        <Card title="ОТК (контроль качества)">
+          <OrderQcForm
+            orderId={order.id}
+            initial={{
+              qcDate: order.qcDate,
+              qcQuantityOk: order.qcQuantityOk,
+              qcQuantityDefects: order.qcQuantityDefects,
+              qcDefectsPhotoUrl: order.qcDefectsPhotoUrl,
+              qcDefectCategory: order.qcDefectCategory,
+              qcReplacedByFactory: order.qcReplacedByFactory,
+              qcResolutionNote: order.qcResolutionNote,
+            }}
+          />
+          {order.qcDefectCategory && (
+            <p className="mt-3 text-xs text-slate-500">
+              Текущая категория брака: {QC_DEFECT_LABELS[order.qcDefectCategory]}
+            </p>
+          )}
+        </Card>
+      </section>
 
       {order.notes && (
         <Card title="Примечания">

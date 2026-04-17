@@ -5,6 +5,9 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { SAMPLE_STATUS_LABELS, SAMPLE_STATUS_COLORS } from "@/lib/constants";
 import { PhotoGallery } from "@/components/common/photo-thumb";
 import { SampleStatusChanger } from "@/components/samples/sample-status-changer";
+import { InlineCheckbox } from "@/components/common/inline-checkbox";
+import { InlineDateField } from "@/components/common/inline-date-field";
+import { InlineUrlField } from "@/components/common/inline-url-field";
 
 export default async function SampleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -28,6 +31,8 @@ export default async function SampleDetailPage({ params }: { params: Promise<{ i
     ? sample.productVariant.photoUrls
     : sample.productModel.photoUrls;
 
+  const endpoint = `/api/samples/${sample.id}`;
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between gap-4">
@@ -40,7 +45,7 @@ export default async function SampleDetailPage({ params }: { params: Promise<{ i
             {sample.productVariant && (
               <>
                 {" · "}
-                <Link href={`/variants/${sample.productVariant.id}`} className="hover:underline text-slate-700">
+                <Link href={`/variants/${sample.productVariant.id}`} className="text-slate-700 hover:underline">
                   {sample.productVariant.colorName}
                 </Link>
               </>
@@ -77,18 +82,35 @@ export default async function SampleDetailPage({ params }: { params: Promise<{ i
               {sample.approvalComment && (
                 <Row label="Комментарий" value={<span className="whitespace-pre-line">{sample.approvalComment}</span>} />
               )}
-              {sample.approvedPhotoUrl && (
-                <Row label="Фото утверждённого образца" value={
-                  <a href={sample.approvedPhotoUrl} target="_blank" rel="noopener" className="text-blue-600 hover:underline">открыть</a>
-                } />
-              )}
+              <div className="pt-2">
+                <InlineUrlField
+                  label="Фото утверждённого образца"
+                  value={sample.approvedPhotoUrl}
+                  endpoint={endpoint}
+                  field="approvedPhotoUrl"
+                />
+              </div>
             </Card>
           )}
 
-          <Card title="Для контент-отдела">
-            <Row label="Съёмка запланирована" value={formatDate(sample.plannedShootDate)} />
-            <Row label="Съёмка проведена" value={sample.shootCompleted ? "Да ✓" : "Нет"} />
-          </Card>
+          <section id="shoot-date">
+            <Card title="Фотосессия">
+              <InlineDateField
+                label="Съёмка запланирована на"
+                value={sample.plannedShootDate}
+                endpoint={endpoint}
+                field="plannedShootDate"
+              />
+              <div className="pt-2">
+                <InlineCheckbox
+                  label="Съёмка проведена"
+                  checked={sample.shootCompleted}
+                  endpoint={endpoint}
+                  field="shootCompleted"
+                />
+              </div>
+            </Card>
+          </section>
 
           {sample.notes && (
             <Card title="Примечания">
