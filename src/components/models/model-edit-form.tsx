@@ -175,24 +175,30 @@ export function ModelEditForm({
       </Section>
 
       <Section title="Целевая себестоимость (план на момент разработки)">
-        <Field label={`Таргет, ${isChina ? "¥" : "₽"}`}>
-          <input
-            type="number"
-            step="0.01"
-            value={isChina ? form.targetCostCny : form.targetCostRub}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                ...(isChina
-                  ? { targetCostCny: e.target.value }
-                  : { targetCostRub: e.target.value }),
-              })
-            }
-            className={inputCls}
-            placeholder={isChina ? "например, 120" : "например, 1500"}
-          />
+        <Field label="Таргет">
+          <div className="flex items-stretch gap-2">
+            <input
+              type="number"
+              step="0.01"
+              value={form.targetCostRub}
+              onChange={(e) => setForm({ ...form, targetCostRub: e.target.value })}
+              className={`${inputCls} flex-1`}
+              placeholder="₽"
+            />
+            <span className="self-center text-sm text-slate-400">₽</span>
+            <span className="self-center text-sm text-slate-300">/</span>
+            <input
+              type="number"
+              step="0.01"
+              value={form.targetCostCny}
+              onChange={(e) => setForm({ ...form, targetCostCny: e.target.value })}
+              className={`${inputCls} flex-1`}
+              placeholder="¥"
+            />
+            <span className="self-center text-sm text-slate-400">¥</span>
+          </div>
           <span className="mt-1 block text-xs text-slate-500">
-            Ориентировочная себестоимость до согласования с фабрикой. Точная фиксируется в заказе.
+            Введи в той валюте, в которой удобно. Можно обе. Прикидка до согласования с фабрикой.
           </span>
         </Field>
         <Field label="Комментарий к таргету">

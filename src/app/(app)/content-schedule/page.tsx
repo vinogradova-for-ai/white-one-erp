@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatDate } from "@/lib/format";
 import { VariantVisual } from "@/components/common/variant-visual";
@@ -5,78 +6,101 @@ import { ColorChip } from "@/components/common/color-chip";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
 
 /**
- * Артикулы для фотосессии — список того, что приедет в ближайшие 2 недели
- * и нужно подготовить под съёмку.
+ * Артикулы для фотосессии — все цветомодели, которые запущены в заказ.
+ * Для каждой показываем самый ранний активный заказ и его статус.
  */
 export default async function ContentSchedulePage() {
-  const in14Days = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
-
-  const incomingOrders = await prisma.order.findMany({
+  // Все строки заказов с активным (не отгруженным/не проданным) заказом
+  const lines = await prisma.orderLine.findMany({
     where: {
-      deletedAt: null,
-      status: { in: ["IN_TRANSIT", "WAREHOUSE_MSK", "PACKING"] },
-      arrivalPlannedDate: { lte: in14Days },
-    },
-    include: {
-      productModel: { select: { name: true, photoUrls: true } },
-      lines: {
-        select: {
-          productVariant: { select: { sku: true, colorName: true, photoUrls: true } },
-        },
-        orderBy: { createdAt: "asc" },
+      productVariant: { deletedAt: null },
+      order: {
+        deletedAt: null,
+        status: { notIn: ["SHIPPED_WB", "ON_SALE"] },
       },
     },
-    orderBy: { arrivalPlannedDate: "asc" },
+    include: {
+      productVariant: {
+        include: {
+          productModel: { select: { id: true, name: true, photoUrls: true } },
+        },
+      },
+      order: {
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          arrivalPlannedDate: true,
+          arrivalActualDate: true,
+        },
+      },
+    },
+    orderBy: [{ order: { arrivalPlannedDate: "asc" } }, { createdAt: "asc" }],
   });
+
+  // Группируем по variantId — оставляем строку с самым ранним прибытием
+  type Row = (typeof lines)[number];
+  const byVariant = new Map<string, Row>();
+  for (const line of lines) {
+    const existing = byVariant.get(line.productVariant.id);
+    if (!existing) {
+      byVariant.set(line.productVariant.id, line);
+      continue;
+    }
+    const a = existing.order.arrivalPlannedDate?.getTime() ?? Infinity;
+    const b = line.order.arrivalPlannedDate?.getTime() ?? Infinity;
+    if (b < a) byVariant.set(line.productVariant.id, line);
+  }
+  const rows = Array.from(byVariant.values());
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
       <header>
         <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Артикулы для фотосессии</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Что приедет в ближайшие 2 недели — планируем съёмку.
-          Всего: {incomingOrders.length}
+          Все цветомодели, запущенные в заказ. Всего: {rows.length}
         </p>
       </header>
 
-      {incomingOrders.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="rounded-2xl bg-white p-12 text-center text-sm text-slate-400">
-          В ближайшие 2 недели поставок нет
+          Пока нет ни одной цветомодели в заказе
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl bg-white">
           <ul className="divide-y divide-slate-100">
-            {incomingOrders.map((o) => {
-              const firstLine = o.lines[0];
-              const colorNames = o.lines.map((l) => l.productVariant.colorName);
+            {rows.map((line) => {
+              const v = line.productVariant;
+              const m = v.productModel;
               return (
-                <li key={o.id} className="flex items-center gap-3 px-4 py-3">
-                  <VariantVisual
-                    variantPhotoUrl={firstLine?.productVariant.photoUrls[0] ?? null}
-                    modelPhotoUrl={o.productModel.photoUrls[0] ?? null}
-                    colorName={firstLine?.productVariant.colorName ?? null}
-                    size={44}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-slate-900">{o.productModel.name}</div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
-                      {colorNames.length > 0
-                        ? colorNames.map((c, i) => <ColorChip key={i} name={c} size={10} />)
-                        : "—"}
+                <li key={line.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50">
+                  <Link href={`/variants/${v.id}`} className="contents">
+                    <VariantVisual
+                      variantPhotoUrl={v.photoUrls[0] ?? null}
+                      modelPhotoUrl={m.photoUrls[0] ?? null}
+                      colorName={v.colorName}
+                      size={44}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-slate-900">{m.name}</div>
+                      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
+                        <span className="font-mono">{v.sku}</span>
+                        <span>·</span>
+                        <ColorChip name={v.colorName} size={10} />
+                      </div>
                     </div>
-                  </div>
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${ORDER_STATUS_COLORS[o.status]}`}>
-                    {ORDER_STATUS_LABELS[o.status]}
+                  </Link>
+                  <Link
+                    href={`/orders/${line.order.id}`}
+                    className="shrink-0 text-xs text-slate-400 hover:text-slate-700 hover:underline"
+                  >
+                    #{line.order.orderNumber}
+                  </Link>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${ORDER_STATUS_COLORS[line.order.status]}`}>
+                    {ORDER_STATUS_LABELS[line.order.status]}
                   </span>
-                  <span className="shrink-0 text-xs text-slate-400 w-20 text-right">
-                    {formatDate(o.arrivalPlannedDate)}
-                  </span>
-                  <span className="shrink-0 text-xs">
-                    {o.wbCardReady ? (
-                      <span className="text-emerald-600">✓ карточка</span>
-                    ) : (
-                      <span className="text-amber-600">нет карточки</span>
-                    )}
+                  <span className="hidden shrink-0 text-xs text-slate-400 w-20 text-right sm:inline">
+                    {formatDate(line.order.arrivalActualDate ?? line.order.arrivalPlannedDate)}
                   </span>
                 </li>
               );
