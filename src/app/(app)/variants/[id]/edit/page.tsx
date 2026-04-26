@@ -6,7 +6,7 @@ export default async function EditVariantPage({ params }: { params: Promise<{ id
   const { id } = await params;
   const variant = await prisma.productVariant.findFirst({
     where: { id, deletedAt: null },
-    include: { productModel: { include: { sizeGrid: true } } },
+    include: { productModel: true },
   });
   if (!variant) return notFound();
 
@@ -19,21 +19,11 @@ export default async function EditVariantPage({ params }: { params: Promise<{ id
       <div className="rounded-2xl border border-slate-200 bg-white p-6">
         <VariantEditForm
           variantId={variant.id}
-          sizes={variant.productModel.sizeGrid?.sizes ?? []}
           initial={{
             sku: variant.sku,
             colorName: variant.colorName,
             fabricColorCode: variant.fabricColorCode ?? "",
             photoUrls: variant.photoUrls,
-            defaultSizeProportion: (variant.defaultSizeProportion as Record<string, number> | null) ?? {},
-            factRedemptionPct: variant.factRedemptionPct?.toString() ?? "",
-            lengthCm: variant.lengthCm?.toString() ?? "",
-            widthCm: variant.widthCm?.toString() ?? "",
-            heightCm: variant.heightCm?.toString() ?? "",
-            weightG: variant.weightG?.toString() ?? "",
-            liters: variant.liters?.toString() ?? "",
-            packagingType: variant.packagingType ?? "",
-            notes: variant.notes ?? "",
           }}
         />
       </div>

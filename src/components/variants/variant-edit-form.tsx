@@ -2,43 +2,27 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { PhotoUrlsInput } from "@/components/common/photo-urls-input";
+import { DropzonePhotos } from "@/components/common/dropzone-photos";
 
-// Экономика теперь на фасоне. В варианте остались идентификация, фото, пропорция размеров,
-// факт-выкуп (уникальный по цвету) и габариты упаковки.
+// Минимум: идентификация + фото. Остальные поля не редактируются здесь.
 type Initial = {
   sku: string;
   colorName: string;
   fabricColorCode: string;
   photoUrls: string[];
-  defaultSizeProportion: Record<string, number>;
-  factRedemptionPct: string;
-  lengthCm: string;
-  widthCm: string;
-  heightCm: string;
-  weightG: string;
-  liters: string;
-  packagingType: string;
-  notes: string;
 };
 
 export function VariantEditForm({
   variantId,
-  sizes,
   initial,
 }: {
   variantId: string;
-  sizes: string[];
   initial: Initial;
 }) {
   const router = useRouter();
   const [form, setForm] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  function updateProportion(size: string, pct: number) {
-    setForm((f) => ({ ...f, defaultSizeProportion: { ...f.defaultSizeProportion, [size]: pct } }));
-  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -57,15 +41,6 @@ export function VariantEditForm({
         colorName: form.colorName,
         fabricColorCode: form.fabricColorCode || null,
         photoUrls: form.photoUrls,
-        defaultSizeProportion: form.defaultSizeProportion,
-        factRedemptionPct: form.factRedemptionPct ? Number(form.factRedemptionPct) : null,
-        liters: form.liters ? Number(form.liters) : null,
-        lengthCm: form.lengthCm ? Number(form.lengthCm) : null,
-        widthCm: form.widthCm ? Number(form.widthCm) : null,
-        heightCm: form.heightCm ? Number(form.heightCm) : null,
-        weightG: form.weightG ? Number(form.weightG) : null,
-        packagingType: form.packagingType || null,
-        notes: form.notes || null,
       };
       const res = await fetch(`/api/variants/${variantId}`, {
         method: "PATCH",
@@ -84,8 +59,6 @@ export function VariantEditForm({
     }
   }
 
-  const propTotal = Object.values(form.defaultSizeProportion).reduce((a, b) => a + b, 0);
-
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       <Section title="Идентификация">
@@ -102,56 +75,7 @@ export function VariantEditForm({
 
       <Section title="Фотографии (минимум 1)">
         <div className="md:col-span-2">
-          <PhotoUrlsInput value={form.photoUrls} onChange={(urls) => setForm({ ...form, photoUrls: urls })} />
-        </div>
-      </Section>
-
-      {sizes.length > 0 && (
-        <Section title={`Размерная пропорция (сумма: ${propTotal}%)`}>
-          <div className="md:col-span-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
-            {sizes.map((s) => (
-              <label key={s} className="rounded-lg border border-slate-200 bg-slate-50 p-2">
-                <div className="text-center text-sm font-medium text-slate-900">{s}</div>
-                <input
-                  type="number"
-                  value={form.defaultSizeProportion[s] ?? 0}
-                  onChange={(e) => updateProportion(s, Number(e.target.value))}
-                  className="mt-1 w-full rounded border border-slate-300 bg-white px-1 py-1 text-center text-xs"
-                />
-              </label>
-            ))}
-          </div>
-        </Section>
-      )}
-
-      <Section title="Факт-выкуп (из WB)">
-        <Field label="% выкупа по цвету" full>
-          <input
-            type="text"
-            inputMode="decimal"
-            value={form.factRedemptionPct}
-            onChange={(e) => setForm({ ...form, factRedemptionPct: e.target.value.replace(",", ".").replace(/[^\d.]/g, "") })}
-            className={inputCls}
-            placeholder="Например, 38"
-          />
-          <span className="mt-1 block text-xs text-slate-500">
-            Плановый % и остальная экономика — на уровне фасона.
-          </span>
-        </Field>
-      </Section>
-
-      <Section title="Габариты упаковки">
-        <Field label="Длина, см"><input type="number" step="0.1" value={form.lengthCm} onChange={(e) => setForm({ ...form, lengthCm: e.target.value })} className={inputCls} /></Field>
-        <Field label="Ширина, см"><input type="number" step="0.1" value={form.widthCm} onChange={(e) => setForm({ ...form, widthCm: e.target.value })} className={inputCls} /></Field>
-        <Field label="Высота, см"><input type="number" step="0.1" value={form.heightCm} onChange={(e) => setForm({ ...form, heightCm: e.target.value })} className={inputCls} /></Field>
-        <Field label="Вес, г"><input type="number" value={form.weightG} onChange={(e) => setForm({ ...form, weightG: e.target.value })} className={inputCls} /></Field>
-        <Field label="Литраж"><input type="number" step="0.01" value={form.liters} onChange={(e) => setForm({ ...form, liters: e.target.value })} className={inputCls} /></Field>
-        <Field label="Тип упаковки"><input value={form.packagingType} onChange={(e) => setForm({ ...form, packagingType: e.target.value })} className={inputCls} /></Field>
-      </Section>
-
-      <Section title="Примечания">
-        <div className="md:col-span-2">
-          <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} className={inputCls} />
+          <DropzonePhotos value={form.photoUrls} onChange={(urls) => setForm({ ...form, photoUrls: urls })} />
         </div>
       </Section>
 
