@@ -47,36 +47,18 @@ type Option = { id: string; name: string };
 
 type LineInput = {
   variantId: string;
-  quantity: number;
   sizeDistribution: Record<string, number>;
 };
 
-// Раскладывает quantity по sizes по пропорции
-function distribute(qty: number, sizes: string[], proportion: Record<string, number> | null): Record<string, number> {
-  if (!sizes.length) return {};
+// Сумма штук по размерам = «количество» строки
+function sumSizes(dist: Record<string, number>): number {
+  return Object.values(dist).reduce((a, b) => a + (Number(b) || 0), 0);
+}
+
+// Пустое распределение — все размеры по нулю, чтобы Алёна заполняла вручную
+function emptyDistribution(sizes: string[]): Record<string, number> {
   const result: Record<string, number> = {};
-  if (proportion && Object.keys(proportion).length > 0) {
-    const entries = sizes.map((s) => [s, proportion[s] ?? 0] as const);
-    const sum = entries.reduce((a, [, v]) => a + v, 0);
-    if (sum === 0) {
-      sizes.forEach((s) => (result[s] = 0));
-      return result;
-    }
-    let distributed = 0;
-    entries.forEach(([s, pct], idx) => {
-      if (idx === entries.length - 1) {
-        result[s] = qty - distributed;
-      } else {
-        const share = Math.floor((qty * pct) / sum);
-        result[s] = share;
-        distributed += share;
-      }
-    });
-  } else {
-    const base = Math.floor(qty / sizes.length);
-    const rest = qty - base * sizes.length;
-    sizes.forEach((s, idx) => (result[s] = idx === 0 ? base + rest : base));
-  }
+  sizes.forEach((s) => (result[s] = 0));
   return result;
 }
 
@@ -106,12 +88,11 @@ export function OrderForm({
   const [lines, setLines] = useState<LineInput[]>(() => {
     const m = models.find((x) => x.id === (preselectedModelId ?? models[0]?.id));
     const sizes = m?.sizes ?? [];
-    const proportion = m?.defaultSizeProportion ?? null;
     if (preselectedVariantId && m?.variants.some((v) => v.id === preselectedVariantId)) {
-      return [{ variantId: preselectedVariantId, quantity: 500, sizeDistribution: distribute(500, sizes, proportion) }];
+      return [{ variantId: preselectedVariantId, sizeDistribution: emptyDistribution(sizes) }];
     }
     if (m?.variants[0]) {
-      return [{ variantId: m.variants[0].id, quantity: 500, sizeDistribution: distribute(500, sizes, proportion) }];
+      return [{ variantId: m.variants[0].id, sizeDistribution: emptyDistribution(sizes) }];
     }
     return [];
   });
@@ -170,8 +151,7 @@ export function OrderForm({
     if (m && m.variants.length > 0) {
       setLines([{
         variantId: m.variants[0].id,
-        quantity: 500,
-        sizeDistribution: distribute(500, m.sizes, m.defaultSizeProportion),
+        sizeDistribution: emptyDistribution(m.sizes),
       }]);
     } else {
       setLines([]);
@@ -185,8 +165,7 @@ export function OrderForm({
     if (!next) return;
     setLines([...lines, {
       variantId: next.id,
-      quantity: 500,
-      sizeDistribution: distribute(500, model.sizes, next.defaultSizeProportion ?? model.defaultSizeProportion),
+      sizeDistribution: emptyDistribution(model.sizes),
     }]);
   }
 
@@ -195,29 +174,14 @@ export function OrderForm({
   }
 
   function changeLineVariant(idx: number, variantId: string) {
-    const v = model?.variants.find((vv) => vv.id === variantId);
-    const proportion = v?.defaultSizeProportion ?? model?.defaultSizeProportion ?? null;
-    updateLine(idx, {
-      variantId,
-      sizeDistribution: distribute(lines[idx].quantity, model?.sizes ?? [], proportion),
-    });
-  }
-
-  function changeLineQuantity(idx: number, qty: number) {
-    const line = lines[idx];
-    const v = model?.variants.find((vv) => vv.id === line.variantId);
-    const proportion = v?.defaultSizeProportion ?? model?.defaultSizeProportion ?? null;
-    updateLine(idx, {
-      quantity: qty,
-      sizeDistribution: distribute(qty, model?.sizes ?? [], proportion),
-    });
+    updateLine(idx, { variantId });
   }
 
   function removeLine(idx: number) {
     setLines(lines.filter((_, i) => i !== idx));
   }
 
-  const totalQty = lines.reduce((a, l) => a + l.quantity, 0);
+  const totalQty = lines.reduce((a, l) => a + sumSizes(l.sizeDistribution), 0);
   const unitCostNum = Number(unitCost.replace(",", ".")) || 0;
   const totalBatchCost = unitCostNum * totalQty;
   const availableVariants = model?.variants.filter((v) => !lines.some((l) => l.variantId === v.id)) ?? [];
@@ -303,7 +267,7 @@ export function OrderForm({
         productModelId: modelId,
         lines: lines.map((l) => ({
           productVariantId: l.variantId,
-          quantity: l.quantity,
+          quantity: sumSizes(l.sizeDistribution),
           sizeDistribution: Object.keys(l.sizeDistribution).length > 0 ? l.sizeDistribution : null,
         })),
         orderType: common.orderType,
@@ -397,14 +361,10 @@ export function OrderForm({
                             };
                           })}
                         />
-                        <input
-                          type="number"
-                          min={1}
-                          value={line.quantity}
-                          onChange={(e) => changeLineQuantity(idx, Math.max(1, Number(e.target.value) || 1))}
-                          className="w-28 rounded border border-slate-300 bg-white px-2 py-1.5 text-right text-sm"
-                        />
-                        <span className="text-sm text-slate-500">шт</span>
+                        <div className="flex items-baseline gap-1 rounded border border-slate-200 bg-slate-50 px-3 py-1.5">
+                          <span className="text-base font-semibold text-slate-900">{sizeSum}</span>
+                          <span className="text-xs text-slate-500">шт</span>
+                        </div>
                         {lines.length > 1 && (
                           <button
                             type="button"
@@ -418,7 +378,7 @@ export function OrderForm({
                       {model.sizes.length > 0 && (
                         <div>
                           <div className="text-xs text-slate-500">
-                            Распределение по размерам (сумма {sizeSum}{sizeSum !== line.quantity ? ` / надо ${line.quantity}` : ""})
+                            Распределение по размерам
                           </div>
                           <div className="mt-1 grid grid-cols-4 gap-1 sm:grid-cols-6 md:grid-cols-8">
                             {model.sizes.map((s) => (
