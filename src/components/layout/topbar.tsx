@@ -3,6 +3,7 @@
 import { signOut } from "next-auth/react";
 import type { Role } from "@prisma/client";
 import { ROLE_LABELS } from "@/lib/constants";
+import { ThemeToggle } from "@/components/common/theme-toggle";
 
 export function Topbar({ user }: { user: { name?: string | null; email?: string | null; role: Role } }) {
   return (
@@ -16,6 +17,7 @@ export function Topbar({ user }: { user: { name?: string | null; email?: string 
           <div className="text-sm font-medium text-slate-900">{user.name}</div>
           <div className="text-xs text-slate-500">{ROLE_LABELS[user.role]}</div>
         </div>
+        <ThemeToggle />
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
           className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"

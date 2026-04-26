@@ -1,37 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
-import { orderUpdateSchema, orderQcUpdateSchema, orderSizeActualSchema } from "@/lib/validators/order";
+import { orderUpdateSchema } from "@/lib/validators/order";
 import { z } from "zod";
 
-// Универсальная схема для обновления заказа (поля + QC + флаги + даты)
+// Универсальная схема для обновления заказа (поля + флаги + даты)
 const fullOrderPatchSchema = orderUpdateSchema.extend({
-  // QC-поля
-  qcDate: z.union([z.string(), z.null()]).optional(),
-  qcQuantityOk: z.number().int().nonnegative().nullable().optional(),
-  qcQuantityDefects: z.number().int().nonnegative().nullable().optional(),
-  qcDefectsPhotoUrl: z.string().nullable().optional().transform((v) => (v === "" ? null : v)),
-  qcDefectCategory: z.enum(["SEWING", "FABRIC", "FITTINGS", "SIZE", "OTHER"]).nullable().optional(),
-  qcReplacedByFactory: z.boolean().optional(),
-  qcResolutionNote: z.string().nullable().optional(),
-
   // Флаги
   packagingOrdered: z.boolean().optional(),
-  specReady: z.boolean().optional(),
-  specUrl: z.string().nullable().optional().transform((v) => (v === "" ? null : v)),
-  declarationReady: z.boolean().optional(),
-  declarationUrl: z.string().nullable().optional().transform((v) => (v === "" ? null : v)),
   wbCardReady: z.boolean().optional(),
   hasIssue: z.boolean().optional(),
 
-  // Оплаты
+  // Оплаты (старые поля оставлены для обратной совместимости)
   prepaymentDate: z.string().nullable().optional(),
   prepaymentPaid: z.boolean().optional(),
   finalPaymentDate: z.string().nullable().optional(),
   finalPaymentPaid: z.boolean().optional(),
-
-  // Размерная матрица факт
-  sizeDistributionActual: z.record(z.string(), z.number()).nullable().optional(),
 
   // Даты этапов (могут проставляться вручную)
   decisionDate: z.string().nullable().optional(),
@@ -53,7 +37,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const order = await prisma.order.findFirst({
       where: { id, deletedAt: null },
       include: {
-        productVariant: { include: { productModel: { include: { sizeGrid: true } } } },
+        productModel: { include: { sizeGrid: true } },
+        lines: {
+          include: { productVariant: true },
+          orderBy: { createdAt: "asc" },
+        },
         factory: true,
         owner: { select: { id: true, name: true } },
       },
@@ -78,7 +66,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
     // Преобразуем строки дат в Date
     const dateFields = [
-      "qcDate", "prepaymentDate", "finalPaymentDate", "decisionDate",
+      "prepaymentDate", "finalPaymentDate", "decisionDate",
       "handedToFactoryDate", "sewingStartDate", "readyAtFactoryDate",
       "shipmentDate", "arrivalPlannedDate", "arrivalActualDate",
       "packingDoneDate", "wbShipmentDate", "saleStartDate",

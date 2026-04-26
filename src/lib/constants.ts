@@ -1,5 +1,6 @@
 import {
   Role,
+  Brand,
   DevelopmentType,
   ProductModelStatus,
   ProductVariantStatus,
@@ -7,12 +8,35 @@ import {
   OrderStatus,
   DeliveryMethod,
   NotificationType,
-  SampleStatus,
   IdeaStatus,
   IdeaPriority,
-  QcDefectCategory,
   Currency,
+  PackagingType,
 } from "@prisma/client";
+
+export const PACKAGING_TYPE_LABELS: Record<PackagingType, string> = {
+  LABEL: "Бирка навесная",
+  SIZE_LABEL: "Размерник",
+  POLYBAG: "Полибэг / пакет",
+  MESH: "Сетка",
+  COVER: "Чехол",
+  BAG: "Сумка",
+  BOX: "Коробка",
+  CARE_LABEL: "Ярлык (состав/уход)",
+  OTHER: "Другое",
+};
+
+export const PACKAGING_TYPE_ICONS: Record<PackagingType, string> = {
+  LABEL: "◇",
+  SIZE_LABEL: "#",
+  POLYBAG: "▯",
+  MESH: "▦",
+  COVER: "⬚",
+  BAG: "◧",
+  BOX: "▣",
+  CARE_LABEL: "⌇",
+  OTHER: "•",
+};
 
 // ======================================================
 // Лейблы для UI (русские подписи к enum-значениям)
@@ -33,6 +57,11 @@ export const ROLE_LABELS: Record<Role, string> = {
 export const DEV_TYPE_LABELS: Record<DevelopmentType, string> = {
   OWN: "Собственный дизайн",
   REPEAT: "Повтор",
+};
+
+export const BRAND_LABELS: Record<Brand, string> = {
+  WHITE_ONE: "White One",
+  SERDCEBIENIE: "Сердцебиение",
 };
 
 export const PRODUCT_MODEL_STATUS_LABELS: Record<ProductModelStatus, string> = {
@@ -116,33 +145,6 @@ export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
   ON_SALE: "bg-emerald-100 text-emerald-800",
 };
 
-export const SAMPLE_STATUS_LABELS: Record<SampleStatus, string> = {
-  REQUESTED: "Заказан на фабрике",
-  IN_SEWING: "В пошиве",
-  DELIVERED: "Доставлен в Москву",
-  APPROVED: "Утверждён",
-  READY_FOR_SHOOT: "Готов для съёмки",
-  RETURNED: "Возвращён / утилизирован",
-};
-
-export const SAMPLE_STATUS_ORDER: SampleStatus[] = [
-  "REQUESTED",
-  "IN_SEWING",
-  "DELIVERED",
-  "APPROVED",
-  "READY_FOR_SHOOT",
-  "RETURNED",
-];
-
-export const SAMPLE_STATUS_COLORS: Record<SampleStatus, string> = {
-  REQUESTED: "bg-slate-100 text-slate-700",
-  IN_SEWING: "bg-blue-100 text-blue-700",
-  DELIVERED: "bg-purple-100 text-purple-700",
-  APPROVED: "bg-emerald-100 text-emerald-700",
-  READY_FOR_SHOOT: "bg-pink-100 text-pink-700",
-  RETURNED: "bg-gray-100 text-gray-500",
-};
-
 export const IDEA_STATUS_LABELS: Record<IdeaStatus, string> = {
   NEW: "Новая",
   CONSIDERING: "Рассматривается",
@@ -169,19 +171,12 @@ export const IDEA_PRIORITY_COLORS: Record<IdeaPriority, string> = {
   LOW: "bg-slate-100 text-slate-500",
 };
 
-export const QC_DEFECT_LABELS: Record<QcDefectCategory, string> = {
-  SEWING: "Пошив",
-  FABRIC: "Ткань",
-  FITTINGS: "Фурнитура",
-  SIZE: "Размер",
-  OTHER: "Другое",
-};
-
 export const DELIVERY_METHOD_LABELS: Record<DeliveryMethod, string> = {
   CARGO: "Карго",
   AIR: "Авиа",
   RAIL: "ЖД",
   DOMESTIC: "Внутри РФ",
+  CHINA_INTERNAL: "Внутри Китая",
 };
 
 export const CURRENCY_LABELS: Record<Currency, string> = {
@@ -211,24 +206,10 @@ export const CATEGORIES = [
   "Блузы/рубашки",
   "Верхняя одежда",
   "Трикотаж",
+  "Юбки",
+  "Жакеты",
   "Лето",
   "Новые товары",
-  "Сердцебиение",
-] as const;
-
-// Популярные теги для автоподсказки (стартовый набор, потом подтягивается из БД)
-export const DEFAULT_TAGS = [
-  "Осень 2026",
-  "Весна 2026",
-  "Лето 2026",
-  "Зима 2026",
-  "Офис",
-  "Casual",
-  "Вечерний",
-  "Базовый",
-  "Повтор",
-  "Новинка",
-  "Сердцебиение",
 ] as const;
 
 // Дефолтный % выкупа по категории
@@ -239,7 +220,8 @@ export const DEFAULT_REDEMPTION_PCT: Record<string, number> = {
   "Блузы/рубашки": 30,
   "Верхняя одежда": 28,
   Трикотаж: 30,
+  Юбки: 28,
+  Жакеты: 28,
   Лето: 25,
   "Новые товары": 25,
-  Сердцебиение: 30,
 };

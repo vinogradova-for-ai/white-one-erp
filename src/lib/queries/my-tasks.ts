@@ -12,7 +12,7 @@ export type TaskUrgency = "overdue" | "urgent" | "normal" | "info";
 
 export type MyTask = {
   id: string;           // уникальный id задачи (включает тип объекта + действие)
-  entityType: "model" | "variant" | "sample" | "order";
+  entityType: "model" | "variant" | "order";
   entityId: string;
   action: string;        // глагол действия: «Утвердите образец»
   title: string;         // на чём действие: «Пальто Классика · шоколад»
@@ -22,7 +22,7 @@ export type MyTask = {
   urgency: TaskUrgency;
   url: string;           // куда идти, чтобы сделать
   photoUrl?: string | null;
-  category: "discovery" | "production" | "sample" | "receiving" | "packing" | "shipping" | "customs" | "content";
+  category: "discovery" | "production" | "receiving" | "packing" | "shipping" | "content";
 };
 
 export async function getMyTasks(userId: string, role: Role): Promise<MyTask[]> {
@@ -72,20 +72,6 @@ export async function getMyTasks(userId: string, role: Role): Promise<MyTask[]> 
         }
       }
 
-      if (m.status === "PATTERNS") {
-        tasks.push(mkTask({
-          id: `model-${m.id}-request-sample`,
-          entityType: "model", entityId: m.id,
-          action: "Закажите образец на фабрике",
-          title: m.name,
-          subtitle: m.category,
-          deadline: m.sampleDate,
-          url: `/models/${m.id}`,
-          photoUrl,
-          category: "sample",
-        }));
-      }
-
       if (m.status === "APPROVED") {
         tasks.push(mkTask({
           id: `model-${m.id}-start-production`,
@@ -116,8 +102,9 @@ export async function getMyTasks(userId: string, role: Role): Promise<MyTask[]> 
         }));
       }
 
-      // Варианты готовые, но в черновике
-      const draftsReady = m.variants.filter((v) => v.status === "DRAFT" && v.photoUrls.length > 0 && v.fullCost);
+      // Варианты готовые, но в черновике — экономика теперь на фасоне, проверяем её там.
+      const modelReady = m.fullCost != null;
+      const draftsReady = m.variants.filter((v) => v.status === "DRAFT" && v.photoUrls.length > 0 && modelReady);
       for (const v of draftsReady) {
         tasks.push(mkTask({
           id: `variant-${v.id}-mark-ready`,
@@ -134,119 +121,29 @@ export async function getMyTasks(userId: string, role: Role): Promise<MyTask[]> 
     }
   }
 
-  // ====== ОБРАЗЦЫ ======
-  const sampleWhere: Record<string, unknown> = {
-    status: { notIn: ["RETURNED"] },
-  };
-
-  if (!isPm && role === "CONTENT_MANAGER") {
-    sampleWhere.status = { in: ["READY_FOR_SHOOT", "APPROVED"] };
-  } else if (!isPm) {
-    sampleWhere.status = "READY_FOR_SHOOT"; // остальные видят только готовые к съёмке
-  } else if (!isAdmin) {
-    sampleWhere.productModel = { ownerId: userId };
-  }
-
-  const samples = await prisma.sample.findMany({
-    where: sampleWhere,
-    include: {
-      productModel: { select: { name: true, ownerId: true } },
-      productVariant: { select: { colorName: true, photoUrls: true } },
-    },
-  });
-
-  for (const s of samples) {
-    const title = `${s.productModel.name}${s.productVariant ? ` · ${s.productVariant.colorName}` : ""}`;
-    const photoUrl = s.productVariant?.photoUrls[0] ?? null;
-
-    if (s.status === "REQUESTED" && isPm && (isAdmin || s.productModel.ownerId === userId)) {
-      tasks.push(mkTask({
-        id: `sample-${s.id}-await-sewing`,
-        entityType: "sample", entityId: s.id,
-        action: "Дождитесь начала пошива на фабрике",
-        title, subtitle: "Образец заказан",
-        deadline: s.sewingStartDate,
-        url: `/samples/${s.id}`, photoUrl, category: "sample",
-      }));
-    }
-
-    if (s.status === "IN_SEWING" && isPm && (isAdmin || s.productModel.ownerId === userId)) {
-      tasks.push(mkTask({
-        id: `sample-${s.id}-await-delivery`,
-        entityType: "sample", entityId: s.id,
-        action: "Отслеживайте доставку образца",
-        title, subtitle: "Образец шьётся",
-        deadline: s.deliveredDate,
-        url: `/samples/${s.id}`, photoUrl, category: "sample",
-      }));
-    }
-
-    if (s.status === "DELIVERED" && isPm && (isAdmin || s.productModel.ownerId === userId)) {
-      tasks.push(mkTask({
-        id: `sample-${s.id}-review`,
-        entityType: "sample", entityId: s.id,
-        action: "Осмотрите образец и утвердите (или верните)",
-        title, subtitle: "Пришёл в Москву",
-        deadline: s.approvedDate,
-        url: `/samples/${s.id}`, photoUrl, category: "sample",
-      }));
-    }
-
-    if (s.status === "APPROVED") {
-      if (role === "CONTENT_MANAGER" || isAdmin) {
-        tasks.push(mkTask({
-          id: `sample-${s.id}-prep-shoot`,
-          entityType: "sample", entityId: s.id,
-          action: "Запланируйте фотосессию",
-          title, subtitle: "Образец утверждён",
-          deadline: s.readyForShootDate,
-          url: `/samples/${s.id}`, photoUrl, category: "content",
-        }));
-      }
-    }
-
-    if (s.status === "READY_FOR_SHOOT" && (role === "CONTENT_MANAGER" || isAdmin)) {
-      if (!s.plannedShootDate) {
-        tasks.push(mkTask({
-          id: `sample-${s.id}-schedule-shoot`,
-          entityType: "sample", entityId: s.id,
-          action: "Назначьте дату фотосессии",
-          title, subtitle: "Образец готов для съёмки",
-          deadline: null,
-          url: `/samples/${s.id}#shoot-date`, photoUrl, category: "content",
-        }));
-      } else if (!s.shootCompleted) {
-        const daysUntilShoot = daysBetween(new Date(), s.plannedShootDate);
-        tasks.push(mkTask({
-          id: `sample-${s.id}-do-shoot`,
-          entityType: "sample", entityId: s.id,
-          action: daysUntilShoot < 0 ? "Проведите съёмку (сроки сдвинулись)" : daysUntilShoot <= 2 ? "Проведите съёмку (скоро дата)" : "Готовьтесь к фотосессии",
-          title, subtitle: `Съёмка назначена на ${formatShort(s.plannedShootDate)}`,
-          deadline: s.plannedShootDate,
-          url: `/samples/${s.id}#shoot-date`, photoUrl, category: "content",
-        }));
-      }
-    }
-  }
-
   // ====== ЗАКАЗЫ ======
   const orders = await prisma.order.findMany({
     where: { deletedAt: null, status: { not: "ON_SALE" } },
     include: {
-      productVariant: {
-        select: {
-          sku: true, colorName: true, photoUrls: true,
-          productModel: { select: { name: true } },
+      productModel: { select: { name: true } },
+      lines: {
+        include: {
+          productVariant: {
+            select: { sku: true, colorName: true, photoUrls: true },
+          },
         },
+        orderBy: { createdAt: "asc" },
       },
       factory: { select: { name: true } },
     },
   });
 
   for (const o of orders) {
-    const title = `${o.productVariant.productModel.name} · ${o.productVariant.colorName}`;
-    const subtitle = `${o.orderNumber} · ${o.quantity} шт`;
-    const photoUrl = o.productVariant.photoUrls[0] ?? null;
+    const colors = o.lines.map((l) => l.productVariant.colorName).join(", ");
+    const totalQty = o.lines.reduce((a, l) => a + l.quantity, 0);
+    const title = colors ? `${o.productModel.name} · ${colors}` : o.productModel.name;
+    const subtitle = `${o.orderNumber} · ${totalQty} шт`;
+    const photoUrl = o.lines[0]?.productVariant.photoUrls[0] ?? null;
     const url = `/orders/${o.id}`;
 
     const isMyOrder = o.ownerId === userId;
@@ -284,49 +181,6 @@ export async function getMyTasks(userId: string, role: Role): Promise<MyTask[]> 
         }));
       }
 
-      if (o.status === "QC" && (o.qcQuantityOk === null || o.qcQuantityOk === undefined)) {
-        tasks.push(mkTask({
-          id: `order-${o.id}-fill-qc`,
-          entityType: "order", entityId: o.id,
-          action: "Проведите ОТК и заполните приёмку",
-          title, subtitle, deadline: o.readyAtFactoryDate,
-          url: `${url}#qc`, photoUrl, category: "receiving",
-        }));
-      }
-
-      if (o.status === "QC" && (o.qcQuantityDefects ?? 0) > 0 && !o.qcResolutionNote) {
-        tasks.push(mkTask({
-          id: `order-${o.id}-resolve-defects`,
-          entityType: "order", entityId: o.id,
-          action: `Решите по браку: ${o.qcQuantityDefects} шт`,
-          title, subtitle, deadline: null,
-          url: `${url}#qc`, photoUrl, category: "receiving",
-        }));
-      }
-    }
-
-    // === ВЭД (Элина) ===
-    if (role === "CUSTOMS" || isAdmin) {
-      if (["READY_SHIP", "SEWING", "QC"].includes(o.status)) {
-        if (!o.specReady) {
-          tasks.push(mkTask({
-            id: `order-${o.id}-prepare-spec`,
-            entityType: "order", entityId: o.id,
-            action: "Подготовьте спецификацию",
-            title, subtitle, deadline: o.shipmentDate,
-            url: `${url}#customs`, photoUrl, category: "customs",
-          }));
-        }
-        if (!o.declarationReady) {
-          tasks.push(mkTask({
-            id: `order-${o.id}-prepare-declaration`,
-            entityType: "order", entityId: o.id,
-            action: "Подготовьте декларацию",
-            title, subtitle, deadline: o.shipmentDate,
-            url: `${url}#customs`, photoUrl, category: "customs",
-          }));
-        }
-      }
     }
 
     // === Логистика (Таня) ===
@@ -364,15 +218,6 @@ export async function getMyTasks(userId: string, role: Role): Promise<MyTask[]> 
 
     // === Склад / Настя ===
     if (role === "ASSISTANT" || isAdmin) {
-      if (o.status === "WAREHOUSE_MSK" && !o.qcDate) {
-        tasks.push(mkTask({
-          id: `order-${o.id}-receive`,
-          entityType: "order", entityId: o.id,
-          action: "Примите товар и проведите ОТК",
-          title, subtitle, deadline: null,
-          url: `${url}#receiving`, photoUrl, category: "receiving",
-        }));
-      }
       if (o.status === "PACKING" && !o.packagingOrdered) {
         tasks.push(mkTask({
           id: `order-${o.id}-order-packaging`,
@@ -417,6 +262,70 @@ export async function getMyTasks(userId: string, role: Role): Promise<MyTask[]> 
           action: "Доделайте карточку WB — товар отгружен",
           title, subtitle, deadline: o.saleStartDate,
           url: `${url}#wb`, photoUrl, category: "content",
+        }));
+      }
+    }
+  }
+
+  // ====== УПАКОВКА — дефицит по активным заказам ======
+  // Настя/Таня (ASSISTANT/LOGISTICS) и админы: видят задачу «запустить производство упаковки»
+  // OWNER/DIRECTOR видят то же + агрегированные риски по заказам.
+  if (role === "ASSISTANT" || role === "LOGISTICS" || isAdmin) {
+    const packagingItems = await prisma.packagingItem.findMany({
+      where: { isActive: true },
+      include: {
+        orderUsages: {
+          where: {
+            order: {
+              deletedAt: null,
+              status: { notIn: ["ON_SALE", "SHIPPED_WB"] },
+            },
+          },
+          select: {
+            quantityPerUnit: true,
+            order: {
+              select: {
+                id: true,
+                orderNumber: true,
+                lines: { select: { quantity: true } },
+              },
+            },
+          },
+        },
+        packagingOrderLines: {
+          where: { packagingOrder: { status: { notIn: ["ARRIVED", "CANCELLED"] } } },
+          select: { quantity: true },
+        },
+      },
+    });
+
+    for (const p of packagingItems) {
+      const required = Math.ceil(
+        p.orderUsages.reduce((s, u) => {
+          const orderQty = u.order.lines.reduce((a, l) => a + l.quantity, 0);
+          return s + orderQty * Number(u.quantityPerUnit);
+        }, 0),
+      );
+      const inProduction = p.packagingOrderLines.reduce((a, l) => a + l.quantity, 0);
+      const have = p.stock + inProduction;
+      const shortage = required - have;
+      if (shortage > 0) {
+        const orderNumbers = p.orderUsages
+          .map((u) => u.order.orderNumber)
+          .slice(0, 3)
+          .join(", ");
+        const more = p.orderUsages.length > 3 ? ` и ещё ${p.orderUsages.length - 3}` : "";
+        tasks.push(mkTask({
+          id: `packaging-${p.id}-produce`,
+          entityType: "order",
+          entityId: p.id,
+          action: `Запустите производство упаковки — не хватает ${shortage.toLocaleString("ru-RU")} шт`,
+          title: p.name,
+          subtitle: `Склад: ${p.stock} · В производстве: ${inProduction} · Для заказов: ${orderNumbers}${more}`,
+          deadline: null,
+          url: `/packaging/${p.id}`,
+          photoUrl: p.photoUrl,
+          category: "packing",
         }));
       }
     }
@@ -467,10 +376,8 @@ function formatShort(d: Date | null | undefined): string {
 export const CATEGORY_LABELS: Record<MyTask["category"], string> = {
   discovery: "Разработка",
   production: "Производство",
-  sample: "Образец",
-  receiving: "Приёмка и ОТК",
+  receiving: "Приёмка",
   packing: "Упаковка",
   shipping: "Логистика",
-  customs: "Документы",
   content: "Контент",
 };

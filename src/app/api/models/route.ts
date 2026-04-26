@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { modelCreateSchema } from "@/lib/validators/model";
+import { calculateModelEconomics } from "@/lib/calculations/product-cost";
 import { Prisma } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
@@ -12,7 +13,6 @@ export async function GET(req: NextRequest) {
     const where: Prisma.ProductModelWhereInput = { deletedAt: null };
     if (sp.get("status")) where.status = sp.get("status")! as Prisma.ProductModelWhereInput["status"];
     if (sp.get("category")) where.category = sp.get("category")!;
-    if (sp.get("tag")) where.tags = { has: sp.get("tag")! };
     if (sp.get("ownerId")) where.ownerId = sp.get("ownerId")!;
     if (sp.get("q")) where.name = { contains: sp.get("q")!, mode: "insensitive" };
 
@@ -42,14 +42,18 @@ export async function POST(req: NextRequest) {
     assertCan(session.user.role, "product.create");
     const body = await req.json();
     const data = modelCreateSchema.parse(body);
+    const eco = calculateModelEconomics(data);
 
     const model = await prisma.productModel.create({
       data: {
         ...data,
         patternsUrl: data.patternsUrl || null,
-        techPackUrl: data.techPackUrl || null,
-        sampleApprovalUrl: data.sampleApprovalUrl || null,
-      },
+        fullCost: eco.fullCost ?? null,
+        marginBeforeDrr: eco.marginBeforeDrr ?? null,
+        marginAfterDrrPct: eco.marginAfterDrrPct ?? null,
+        roi: eco.roi ?? null,
+        markupPct: eco.markupPct ?? null,
+      } as Prisma.ProductModelUncheckedCreateInput,
     });
     await prisma.productModelStatusLog.create({
       data: {

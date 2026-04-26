@@ -7,6 +7,15 @@ export const metadata: Metadata = {
   description: "Система управления продуктовым циклом",
 };
 
+// Скрипт применяется ДО первого рендера — предотвращает мигание белым фоном
+// при загрузке ночной темы.
+const themeInitScript = `
+  try {
+    var t = localStorage.getItem('theme');
+    if (t === 'dark') document.documentElement.classList.add('dark');
+  } catch(_) {}
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -14,6 +23,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ru" className="h-full antialiased">
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className="min-h-full bg-slate-50 text-slate-900">
         <Providers>{children}</Providers>
       </body>

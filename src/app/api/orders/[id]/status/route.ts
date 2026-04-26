@@ -34,7 +34,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const session = await requireAuth();
     const { id } = await ctx.params;
 
-    const order = await prisma.order.findFirst({ where: { id, deletedAt: null } });
+    const order = await prisma.order.findFirst({
+      where: { id, deletedAt: null },
+      include: { lines: { select: { quantity: true } } },
+    });
     if (!order) return NextResponse.json({ error: { code: "not_found" } }, { status: 404 });
 
     const { toStatus, comment } = orderStatusChangeSchema.parse(await req.json());
@@ -47,6 +50,58 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         { error: { code: "invalid_transition", message: "Нельзя перепрыгнуть статус" } },
         { status: 400 },
       );
+    }
+
+    // Переход в «Упаковка» — проверяем, что по всем привязанным упаковкам хватает материала
+    if (toStatus === "PACKING") {
+      const usages = await prisma.orderPackaging.findMany({
+        where: { orderId: id },
+        include: {
+          packagingItem: {
+            select: {
+              name: true,
+              stock: true,
+              packagingOrderLines: {
+                where: { packagingOrder: { status: { notIn: ["ARRIVED", "CANCELLED"] } } },
+                select: { quantity: true },
+              },
+            },
+          },
+        },
+      });
+      if (usages.length === 0) {
+        return NextResponse.json(
+          {
+            error: {
+              code: "no_packaging",
+              message:
+                "К заказу не привязана упаковка. Добавьте позиции в блоке «Упаковка — потребность» на карточке заказа.",
+            },
+          },
+          { status: 400 },
+        );
+      }
+      const totalQuantity = order.lines.reduce((a, l) => a + l.quantity, 0);
+      const shortages = usages
+        .map((u) => {
+          const total = Math.ceil(totalQuantity * Number(u.quantityPerUnit));
+          const inProd = u.packagingItem.packagingOrderLines.reduce((a, l) => a + l.quantity, 0);
+          const have = u.packagingItem.stock + inProd;
+          return { name: u.packagingItem.name, shortage: total - have };
+        })
+        .filter((s) => s.shortage > 0);
+      if (shortages.length > 0) {
+        const msg = shortages.map((s) => `${s.name}: не хватает ${s.shortage} шт`).join("; ");
+        return NextResponse.json(
+          {
+            error: {
+              code: "packaging_shortage",
+              message: `Нельзя начать упаковку — дефицит: ${msg}. Увеличьте остатки или запустите производство.`,
+            },
+          },
+          { status: 400 },
+        );
+      }
     }
 
     const dateField = DATE_FIELDS[toStatus];

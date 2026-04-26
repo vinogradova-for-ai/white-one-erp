@@ -1,27 +1,36 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatNumber } from "@/lib/format";
-import { PRODUCT_MODEL_STATUS_LABELS, PRODUCT_MODEL_STATUS_COLORS, CATEGORIES } from "@/lib/constants";
+import { CATEGORIES, BRAND_LABELS } from "@/lib/constants";
 import { PhotoThumb } from "@/components/common/photo-thumb";
-import { ProductModelStatus } from "@prisma/client";
+import { Brand } from "@prisma/client";
 
 export default async function ModelsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; category?: string; tag?: string; q?: string }>;
+  searchParams: Promise<{ brand?: string; category?: string; q?: string; show?: string }>;
 }) {
   const sp = await searchParams;
+  // По умолчанию показываем только активированные фасоны.
+  // Черновики (созданные через образец, ещё не запущенные) — отдельным фильтром show=drafts.
+  const showDrafts = sp.show === "drafts";
+  const showAll = sp.show === "all";
   const where: {
     deletedAt: null;
-    status?: ProductModelStatus;
+    brand?: Brand;
     category?: string;
-    tags?: { has: string };
+    activated?: boolean;
     OR?: Array<{ name?: { contains: string; mode: "insensitive" } }>;
   } = { deletedAt: null };
-  if (sp.status && sp.status in PRODUCT_MODEL_STATUS_LABELS) where.status = sp.status as ProductModelStatus;
+  if (showDrafts) where.activated = false;
+  else if (!showAll) where.activated = true;
+  if (sp.brand && sp.brand in BRAND_LABELS) where.brand = sp.brand as Brand;
   if (sp.category) where.category = sp.category;
-  if (sp.tag) where.tags = { has: sp.tag };
   if (sp.q) where.OR = [{ name: { contains: sp.q, mode: "insensitive" } }];
+
+  const draftCount = await prisma.productModel.count({
+    where: { deletedAt: null, activated: false },
+  });
 
   const models = await prisma.productModel.findMany({
     where,
@@ -31,12 +40,9 @@ export default async function ModelsPage({
       owner: { select: { name: true } },
       preferredFactory: { select: { name: true } },
       sizeGrid: { select: { name: true } },
-      _count: { select: { variants: true, samples: true } },
+      _count: { select: { variants: true } },
     },
   });
-
-  // Собираем все использованные теги для автоподсказок в фильтре
-  const allTags = Array.from(new Set(models.flatMap((m) => m.tags))).sort();
 
   return (
     <div className="space-y-4">
@@ -53,6 +59,42 @@ export default async function ModelsPage({
         </Link>
       </div>
 
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-xs uppercase tracking-wide text-slate-400 mr-1">Показ:</span>
+        <Link
+          href="/models"
+          className={`rounded-full border px-3 py-1 text-xs font-medium ${
+            !showDrafts && !showAll
+              ? "border-slate-900 bg-slate-900 text-white"
+              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+          }`}
+        >
+          Активные
+        </Link>
+        {draftCount > 0 && (
+          <Link
+            href="/models?show=drafts"
+            className={`rounded-full border px-3 py-1 text-xs font-medium ${
+              showDrafts
+                ? "border-amber-500 bg-amber-500 text-white"
+                : "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+            }`}
+          >
+            Черновики из образцов ({draftCount})
+          </Link>
+        )}
+        <Link
+          href="/models?show=all"
+          className={`rounded-full border px-3 py-1 text-xs font-medium ${
+            showAll
+              ? "border-slate-900 bg-slate-900 text-white"
+              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+          }`}
+        >
+          Все
+        </Link>
+      </div>
+
       <form method="get" className="flex flex-wrap gap-2">
         <input
           name="q"
@@ -60,9 +102,9 @@ export default async function ModelsPage({
           placeholder="Поиск по названию…"
           className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
         />
-        <select name="status" defaultValue={sp.status ?? ""} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
-          <option value="">Все статусы</option>
-          {Object.entries(PRODUCT_MODEL_STATUS_LABELS).map(([k, v]) => (
+        <select name="brand" defaultValue={sp.brand ?? ""} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+          <option value="">Все бренды</option>
+          {Object.entries(BRAND_LABELS).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
@@ -70,12 +112,6 @@ export default async function ModelsPage({
           <option value="">Все категории</option>
           {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
-        {allTags.length > 0 && (
-          <select name="tag" defaultValue={sp.tag ?? ""} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
-            <option value="">Все теги</option>
-            {allTags.map((t) => <option key={t} value={t}>{t}</option>)}
-          </select>
-        )}
         <button type="submit" className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
           Применить
         </button>
@@ -95,14 +131,13 @@ export default async function ModelsPage({
                   {m.name}
                 </div>
                 <div className="mt-1 text-xs text-slate-500">
-                  {m.category}{m.subcategory ? ` · ${m.subcategory}` : ""}
+                  {BRAND_LABELS[m.brand]} · {m.category}{m.subcategory && m.subcategory !== m.category ? ` · ${m.subcategory}` : ""}
                 </div>
-                <div className="mt-2 flex flex-wrap items-center gap-1">
-                  <span className={`inline-block rounded px-2 py-0.5 text-xs ${PRODUCT_MODEL_STATUS_COLORS[m.status]}`}>
-                    {PRODUCT_MODEL_STATUS_LABELS[m.status]}
-                  </span>
-                  {m.isRepeat && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">повтор</span>}
-                </div>
+                {m.isRepeat && (
+                  <div className="mt-2">
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">повтор</span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
@@ -110,15 +145,6 @@ export default async function ModelsPage({
               <span>{m.preferredFactory?.name ?? m.countryOfOrigin}</span>
               <span>{m.owner.name}</span>
             </div>
-            {m.tags.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1">
-                {m.tags.slice(0, 3).map((t) => (
-                  <span key={t} className="rounded bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-500">
-                    #{t}
-                  </span>
-                ))}
-              </div>
-            )}
           </Link>
         ))}
       </div>

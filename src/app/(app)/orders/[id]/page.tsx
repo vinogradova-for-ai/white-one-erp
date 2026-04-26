@@ -4,236 +4,280 @@ import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate, formatDateTime, formatNumber, yearMonthToLabel } from "@/lib/format";
 import {
   ORDER_STATUS_LABELS, ORDER_STATUS_COLORS,
-  ORDER_TYPE_LABELS, DELIVERY_METHOD_LABELS, QC_DEFECT_LABELS,
+  ORDER_TYPE_LABELS, DELIVERY_METHOD_LABELS,
 } from "@/lib/constants";
 import { PhotoThumb } from "@/components/common/photo-thumb";
 import { OrderStatusChanger } from "@/components/orders/order-status-changer";
-import { OrderReceivingForm } from "@/components/orders/order-receiving-form";
-import { OrderQcForm } from "@/components/orders/order-qc-form";
 import { InlineCheckbox } from "@/components/common/inline-checkbox";
-import { InlineUrlField } from "@/components/common/inline-url-field";
+import { OrderPackagingSection } from "@/components/orders/order-packaging-section";
+import { OrderLinesSection } from "@/components/orders/order-lines-section";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const order = await prisma.order.findFirst({
     where: { id, deletedAt: null },
     include: {
-      productVariant: {
-        include: { productModel: { include: { sizeGrid: true } } },
+      productModel: { include: { sizeGrid: true } },
+      lines: {
+        include: { productVariant: true },
+        orderBy: { createdAt: "asc" },
       },
       factory: true,
       owner: { select: { name: true } },
       statusLogs: {
         orderBy: { changedAt: "desc" },
-        take: 20,
+        take: 10,
         include: { changedBy: { select: { name: true } } },
+      },
+      packagingItems: {
+        include: {
+          packagingItem: {
+            include: {
+              packagingOrderLines: {
+                where: { packagingOrder: { status: { notIn: ["ARRIVED", "CANCELLED"] } } },
+                select: { quantity: true },
+              },
+            },
+          },
+        },
+        orderBy: { createdAt: "asc" },
       },
     },
   });
 
   if (!order) return notFound();
 
-  const sizeDist = order.sizeDistribution as Record<string, number> | null;
-  const actualDist = order.sizeDistributionActual as Record<string, number> | null;
-  const sizes = order.productVariant.productModel.sizeGrid?.sizes ?? [];
+  const [availablePackagingRaw, modelVariants] = await Promise.all([
+    prisma.packagingItem.findMany({
+      where: { isActive: true },
+      select: {
+        id: true, name: true, type: true, stock: true,
+        packagingOrderLines: {
+          where: { packagingOrder: { status: { notIn: ["ARRIVED", "CANCELLED"] } } },
+          select: { quantity: true },
+        },
+      },
+      orderBy: { name: "asc" },
+    }),
+    prisma.productVariant.findMany({
+      where: { productModelId: order.productModelId, deletedAt: null },
+      orderBy: { colorName: "asc" },
+      select: { id: true, sku: true, colorName: true, photoUrls: true },
+    }),
+  ]);
+
+  const sizes = order.productModel.sizeGrid?.sizes ?? [];
+  const totalQty = order.lines.reduce((a, l) => a + l.quantity, 0);
+  const totalBatchCost = order.lines.reduce((a, l) => a + Number(l.batchCost ?? 0), 0);
+  const unitCost = totalQty > 0 ? totalBatchCost / totalQty : 0;
+  const modelPhoto = order.productModel.photoUrls[0] ?? null;
   const endpoint = `/api/orders/${order.id}`;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
-          <PhotoThumb url={order.productVariant.photoUrls[0]} size={64} />
+    <div className="mx-auto max-w-5xl space-y-6">
+      {/* Шапка */}
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex min-w-0 flex-1 items-center gap-4">
+          <PhotoThumb url={modelPhoto} size={56} />
           <div className="min-w-0">
-            <div className="font-mono text-xs text-slate-500">{order.orderNumber}</div>
-            <h1 className="text-2xl font-semibold text-slate-900">
-              <Link href={`/variants/${order.productVariant.id}`} className="hover:underline">
-                {order.productVariant.productModel.name}
+            <div className="font-mono text-[11px] uppercase tracking-wider text-slate-400">{order.orderNumber}</div>
+            <h1 className="mt-1 truncate text-2xl font-semibold tracking-tight text-slate-900">
+              <Link href={`/models/${order.productModel.id}`} className="hover:underline">
+                {order.productModel.name}
               </Link>
-              {" · "}
-              <span className="text-slate-700">{order.productVariant.colorName}</span>
             </h1>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className={`rounded px-2 py-0.5 text-xs ${ORDER_STATUS_COLORS[order.status]}`}>
-                {ORDER_STATUS_LABELS[order.status]}
-              </span>
-              <span className="text-xs text-slate-500">
-                {ORDER_TYPE_LABELS[order.orderType]} · {yearMonthToLabel(order.launchMonth)} · {formatNumber(order.quantity)} шт
-              </span>
-              {order.isDelayed && <span className="text-xs text-red-600">⚠ Задержка</span>}
-              {order.hasIssue && <span className="text-xs text-red-600">🔴 Проблема</span>}
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span>{ORDER_TYPE_LABELS[order.orderType]}</span>
+              <span>·</span>
+              <span>{yearMonthToLabel(order.launchMonth)}</span>
+              <span>·</span>
+              <span>{order.lines.length} {order.lines.length === 1 ? "цвет" : "цвета"}</span>
+              <span>·</span>
+              <span>{formatNumber(totalQty)} шт</span>
+              {order.isDelayed && <span className="text-red-600">· задержка</span>}
+              {order.hasIssue && <span className="text-red-600">· проблема</span>}
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${ORDER_STATUS_COLORS[order.status]}`}>
+            {ORDER_STATUS_LABELS[order.status]}
+          </span>
+          <OrderStatusChanger orderId={order.id} currentStatus={order.status} />
           <Link
             href={`/orders/${order.id}/edit`}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
           >
             Редактировать
           </Link>
-          <OrderStatusChanger orderId={order.id} currentStatus={order.status} />
         </div>
+      </header>
+
+      {/* Экономика — три KPI */}
+      <div className="grid grid-cols-3 gap-3">
+        <Kpi label="Себестоимость шт" value={unitCost > 0 ? formatCurrency(unitCost) : "—"} />
+        <Kpi label="Кол-во штук" value={formatNumber(totalQty)} />
+        <Kpi label="Себестоимость партии" value={totalBatchCost > 0 ? formatCurrency(totalBatchCost) : "—"} accent />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card title="Параметры">
-          <Row label="Фабрика" value={order.factory?.name ?? "—"} />
-          <Row label="Ответственный" value={order.owner.name} />
-          <Row label="Способ доставки" value={order.deliveryMethod ? DELIVERY_METHOD_LABELS[order.deliveryMethod] : "—"} />
-          <Row label="Упаковка" value={order.packagingType ?? "—"} />
-        </Card>
-
-        <Card title="Экономика">
-          <Row label="Себестоимость партии" value={formatCurrency(order.batchCost?.toString())} />
-          <Row label="Плановая выручка" value={formatCurrency(order.plannedRevenue?.toString())} />
-          <Row label="Плановая маржа" value={formatCurrency(order.plannedMargin?.toString())} />
-        </Card>
-
-        <Card title="Оплаты">
-          <Row label="Условия" value={order.paymentTerms ?? "—"} />
-          <Row label="Предоплата" value={
-            order.prepaymentAmount ? formatCurrency(order.prepaymentAmount.toString()) : "—"
-          } />
-          <div className="pt-1">
-            <InlineCheckbox label="Предоплата оплачена" checked={order.prepaymentPaid} endpoint={endpoint} field="prepaymentPaid" />
-          </div>
-          <Row label="Остаток" value={
-            order.finalPaymentAmount ? formatCurrency(order.finalPaymentAmount.toString()) : "—"
-          } />
-          <div className="pt-1">
-            <InlineCheckbox label="Остаток оплачен" checked={order.finalPaymentPaid} endpoint={endpoint} field="finalPaymentPaid" />
-          </div>
-        </Card>
-
-        <Card title="Производство">
-          <Row label="Решение" value={formatDate(order.decisionDate)} />
-          <Row label="Передача на фабрику" value={formatDate(order.handedToFactoryDate)} />
-          <Row label="Начало пошива" value={formatDate(order.sewingStartDate)} />
-          <Row label="Готово на фабрике" value={formatDate(order.readyAtFactoryDate)} />
-        </Card>
-
-        <Card title="Логистика">
-          <Row label="Отгрузка" value={formatDate(order.shipmentDate)} />
-          <Row label="Прибытие план" value={formatDate(order.arrivalPlannedDate)} />
-          <Row label="Прибытие факт" value={formatDate(order.arrivalActualDate)} />
-          <Row label="Упаковка" value={formatDate(order.packingDoneDate)} />
-        </Card>
-
-        <Card title="WB">
-          <Row label="Отгрузка на WB" value={formatDate(order.wbShipmentDate)} />
-          <Row label="Старт продаж" value={formatDate(order.saleStartDate)} />
-          <div className="pt-1">
-            <InlineCheckbox label="Карточка WB готова" checked={order.wbCardReady} endpoint={endpoint} field="wbCardReady" />
-          </div>
-        </Card>
+      {/* Параметры — однорядный набор фактов */}
+      <div className="rounded-2xl bg-white p-5">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm md:grid-cols-4">
+          <Fact label="Фабрика" value={order.factory?.name ?? "—"} />
+          <Fact label="Ответственный" value={order.owner.name} />
+          <Fact label="Доставка" value={order.deliveryMethod ? DELIVERY_METHOD_LABELS[order.deliveryMethod] : "—"} />
+          <Fact label="Условия оплаты" value={order.paymentTerms ?? "—"} />
+        </dl>
       </div>
 
-      {/* === Секция упаковки (якорь #packing) === */}
-      <section id="packing">
-        <Card title="Упаковка">
-          <div className="space-y-2">
-            <InlineCheckbox label="Упаковка заказана" checked={order.packagingOrdered} endpoint={endpoint} field="packagingOrdered" />
-            {order.packagingType && <p className="text-xs text-slate-500">Тип: {order.packagingType}</p>}
-          </div>
-        </Card>
+      {/* Позиции */}
+      <section>
+        <h2 className="mb-3 text-base font-semibold text-slate-900">Позиции</h2>
+        <OrderLinesSection
+          orderId={order.id}
+          sizes={sizes}
+          modelVariants={modelVariants}
+          modelPhotoUrl={modelPhoto}
+          initialLines={order.lines.map((l) => ({
+            id: l.id,
+            productVariantId: l.productVariantId,
+            sku: l.productVariant.sku,
+            colorName: l.productVariant.colorName,
+            photoUrl: l.productVariant.photoUrls[0] ?? null,
+            quantity: l.quantity,
+            sizeDistribution: (l.sizeDistribution as Record<string, number> | null) ?? null,
+            sizeDistributionActual: (l.sizeDistributionActual as Record<string, number> | null) ?? null,
+            batchCost: Number(l.batchCost ?? 0),
+          }))}
+        />
       </section>
 
-      {/* === Секция ВЭД (якорь #customs) === */}
-      <section id="customs">
-        <Card title="ВЭД — документы">
-          <div className="space-y-3">
-            <InlineCheckbox label="Спецификация готова" checked={order.specReady} endpoint={endpoint} field="specReady" />
-            <InlineUrlField label="Ссылка на спецификацию" value={order.specUrl} endpoint={endpoint} field="specUrl" />
-            <div className="border-t border-slate-100 pt-3">
-              <InlineCheckbox label="Декларация готова" checked={order.declarationReady} endpoint={endpoint} field="declarationReady" />
-              <div className="mt-2">
-                <InlineUrlField label="Ссылка на декларацию" value={order.declarationUrl} endpoint={endpoint} field="declarationUrl" />
+      {/* Упаковка */}
+      <section>
+        <h2 className="mb-3 text-base font-semibold text-slate-900">Упаковка</h2>
+        <div className="rounded-2xl bg-white p-5">
+          <OrderPackagingSection
+            orderId={order.id}
+            orderQuantity={totalQty}
+            initialItems={order.packagingItems.map((p) => ({
+              id: p.id,
+              packagingItemId: p.packagingItemId,
+              quantityPerUnit: Number(p.quantityPerUnit),
+              notes: p.notes,
+              packagingItem: {
+                id: p.packagingItem.id,
+                name: p.packagingItem.name,
+                type: p.packagingItem.type,
+                stock: p.packagingItem.stock,
+                inProductionQty: p.packagingItem.packagingOrderLines.reduce((a, l) => a + l.quantity, 0),
+              },
+            }))}
+            availablePackaging={availablePackagingRaw.map((a) => ({
+              id: a.id,
+              name: a.name,
+              type: a.type,
+              stock: a.stock,
+              inProductionQty: a.packagingOrderLines.reduce((sum, l) => sum + l.quantity, 0),
+            }))}
+          />
+        </div>
+      </section>
+
+      {/* Сворачиваемые «Подробности»: даты, оплаты, ВЭД, история */}
+      <details className="rounded-2xl bg-white">
+        <summary className="cursor-pointer select-none px-5 py-4 text-sm font-medium text-slate-700 hover:text-slate-900">
+          Подробности и документы
+        </summary>
+        <div className="space-y-5 border-t border-slate-100 px-5 py-5">
+          {/* Даты этапов */}
+          <div>
+            <div className="mb-2 text-[11px] uppercase tracking-wider text-slate-400">Даты этапов</div>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm md:grid-cols-3">
+              <Fact label="Передача на фабрику" value={formatDate(order.handedToFactoryDate)} />
+              <Fact label="Готово на фабрике" value={formatDate(order.readyAtFactoryDate)} />
+              <Fact label="Отгрузка" value={formatDate(order.shipmentDate)} />
+              <Fact label="Прибытие план" value={formatDate(order.arrivalPlannedDate)} />
+              <Fact label="Прибытие факт" value={formatDate(order.arrivalActualDate)} />
+              <Fact label="Старт продаж" value={formatDate(order.saleStartDate)} />
+            </dl>
+          </div>
+
+          {/* Оплаты */}
+          <div>
+            <div className="mb-2 text-[11px] uppercase tracking-wider text-slate-400">Оплаты</div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl bg-slate-50 px-4 py-3">
+                <div className="text-xs text-slate-500">Предоплата</div>
+                <div className="mt-0.5 text-sm font-semibold text-slate-900">
+                  {order.prepaymentAmount ? formatCurrency(order.prepaymentAmount.toString()) : "—"}
+                </div>
+                <div className="mt-2">
+                  <InlineCheckbox label="Оплачено" checked={order.prepaymentPaid} endpoint={endpoint} field="prepaymentPaid" />
+                </div>
+              </div>
+              <div className="rounded-xl bg-slate-50 px-4 py-3">
+                <div className="text-xs text-slate-500">Остаток</div>
+                <div className="mt-0.5 text-sm font-semibold text-slate-900">
+                  {order.finalPaymentAmount ? formatCurrency(order.finalPaymentAmount.toString()) : "—"}
+                </div>
+                <div className="mt-2">
+                  <InlineCheckbox label="Оплачено" checked={order.finalPaymentPaid} endpoint={endpoint} field="finalPaymentPaid" />
+                </div>
               </div>
             </div>
           </div>
-        </Card>
-      </section>
 
-      {/* === Размерная матрица (план vs факт) === */}
-      {sizes.length > 0 && (
-        <section id="receiving">
-          <Card title="Приёмка — распределение по размерам">
-            <OrderReceivingForm
-              orderId={order.id}
-              sizes={sizes}
-              plannedDist={sizeDist}
-              actualDist={actualDist}
-              quantity={order.quantity}
-            />
-          </Card>
-        </section>
-      )}
+          {/* WB */}
+          <div>
+            <div className="mb-2 text-[11px] uppercase tracking-wider text-slate-400">Wildberries</div>
+            <InlineCheckbox label="Карточка WB готова" checked={order.wbCardReady} endpoint={endpoint} field="wbCardReady" />
+          </div>
 
-      {/* === ОТК === */}
-      <section id="qc">
-        <Card title="ОТК (контроль качества)">
-          <OrderQcForm
-            orderId={order.id}
-            initial={{
-              qcDate: order.qcDate,
-              qcQuantityOk: order.qcQuantityOk,
-              qcQuantityDefects: order.qcQuantityDefects,
-              qcDefectsPhotoUrl: order.qcDefectsPhotoUrl,
-              qcDefectCategory: order.qcDefectCategory,
-              qcReplacedByFactory: order.qcReplacedByFactory,
-              qcResolutionNote: order.qcResolutionNote,
-            }}
-          />
-          {order.qcDefectCategory && (
-            <p className="mt-3 text-xs text-slate-500">
-              Текущая категория брака: {QC_DEFECT_LABELS[order.qcDefectCategory]}
-            </p>
+          {/* История статусов */}
+          {order.statusLogs.length > 0 && (
+            <div>
+              <div className="mb-2 text-[11px] uppercase tracking-wider text-slate-400">История</div>
+              <ul className="space-y-1.5 text-xs">
+                {order.statusLogs.map((log) => (
+                  <li key={log.id} className="flex items-center gap-2">
+                    <span className="text-slate-400">{log.fromStatus ? ORDER_STATUS_LABELS[log.fromStatus] : "—"}</span>
+                    <span className="text-slate-300">→</span>
+                    <span className="font-medium text-slate-700">{ORDER_STATUS_LABELS[log.toStatus]}</span>
+                    <span className="ml-auto text-slate-400">
+                      {formatDateTime(log.changedAt)} · {log.changedBy.name}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
-        </Card>
-      </section>
 
-      {order.notes && (
-        <Card title="Примечания">
-          <p className="whitespace-pre-line text-sm text-slate-700">{order.notes}</p>
-        </Card>
-      )}
-
-      <Card title="История статусов">
-        <ul className="space-y-2 text-sm">
-          {order.statusLogs.map((log) => (
-            <li key={log.id} className="flex justify-between gap-4 border-b border-slate-100 pb-2 last:border-0">
-              <div>
-                <span className="text-slate-500">{log.fromStatus ? ORDER_STATUS_LABELS[log.fromStatus] : "—"}</span>
-                <span className="mx-2 text-slate-400">→</span>
-                <span className="font-medium text-slate-900">{ORDER_STATUS_LABELS[log.toStatus]}</span>
-                {log.comment && <div className="text-xs text-slate-500">{log.comment}</div>}
-              </div>
-              <div className="text-right text-xs text-slate-500">
-                {formatDateTime(log.changedAt)}
-                <div>{log.changedBy.name}</div>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </Card>
+          {order.notes && (
+            <div>
+              <div className="mb-2 text-[11px] uppercase tracking-wider text-slate-400">Примечания</div>
+              <p className="whitespace-pre-line text-sm text-slate-700">{order.notes}</p>
+            </div>
+          )}
+        </div>
+      </details>
     </div>
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Kpi({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
-      <div className="space-y-1.5">{children}</div>
+    <div className={`rounded-2xl px-5 py-4 ${accent ? "bg-slate-900 text-white" : "bg-white"}`}>
+      <div className={`text-[11px] uppercase tracking-wider ${accent ? "text-slate-400" : "text-slate-400"}`}>{label}</div>
+      <div className={`mt-0.5 truncate text-xl font-semibold ${accent ? "text-white" : "text-slate-900"}`}>{value}</div>
     </div>
   );
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
+function Fact({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex justify-between gap-3 text-sm">
-      <span className="text-slate-600">{label}</span>
-      <span className="text-right text-slate-900">{value}</span>
+    <div className="flex items-baseline justify-between gap-3 sm:flex-col sm:items-start sm:gap-0">
+      <dt className="text-xs text-slate-500">{label}</dt>
+      <dd className="text-right text-sm text-slate-900 sm:text-left">{value}</dd>
     </div>
   );
 }

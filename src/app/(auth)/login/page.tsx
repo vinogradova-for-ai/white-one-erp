@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { LoginForm } from "./login-form";
 
 export default function LoginPage() {
@@ -8,7 +9,9 @@ export default function LoginPage() {
           <h1 className="text-2xl font-semibold text-slate-900">White One ERP</h1>
           <p className="mt-1 text-sm text-slate-500">Вход в систему</p>
         </div>
-        <LoginForm />
+        <Suspense fallback={<div className="py-8 text-center text-sm text-slate-400">Загрузка…</div>}>
+          <LoginForm />
+        </Suspense>
         <p className="mt-6 text-center text-xs text-slate-400">
           Тестовые логины: alena@whiteone.ru, dasha@whiteone.ru, vera@whiteone.ru
           <br />Пароль: whiteone2026

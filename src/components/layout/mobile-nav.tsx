@@ -1,10 +1,12 @@
 import Link from "next/link";
 
+// Минималистичный нижний таб-бар: 5 ключевых направлений.
+// Все «Ещё» — сводка/админ/настройки — за вкладкой «Ещё» (на /dashboard).
 const TABS = [
   { href: "/my-tasks", label: "Задачи", icon: "✦" },
-  { href: "/products", label: "Каталог", icon: "⬢" },
+  { href: "/models", label: "Каталог", icon: "⬢" },
   { href: "/orders", label: "Заказы", icon: "⬡" },
-  { href: "/deliveries", label: "Поставки", icon: "▣" },
+  { href: "/packaging", label: "Упаковка", icon: "▯" },
   { href: "/dashboard", label: "Ещё", icon: "◉" },
 ];
 

@@ -28,6 +28,12 @@ export type Action =
   | "plan.manage"
   | "factory.read"
   | "factory.manage"
+  // Payments
+  | "payment.read"
+  | "payment.create"
+  | "payment.update"
+  | "payment.markPaid"
+  | "payment.delete"
   // Admin
   | "user.read"
   | "user.manage"
@@ -68,7 +74,17 @@ export function can(
     case "plan.read":
     case "factory.read":
     case "user.read":
+    case "payment.read":
       return ALL_AUTHENTICATED.includes(role);
+
+    // Платежи: создание/правка — PM + админы (админы выше). Настя — тоже (для упаковки, проверку типа делает роут).
+    case "payment.create":
+    case "payment.update":
+      return PM.includes(role) || role === "ASSISTANT";
+    // Отметка «оплачено» и удаление — только админы (выше уже true)
+    case "payment.markPaid":
+    case "payment.delete":
+      return false;
 
     // Создание продуктов и заказов — PM и все выше
     case "product.create":

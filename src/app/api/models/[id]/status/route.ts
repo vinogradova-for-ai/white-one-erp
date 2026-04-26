@@ -27,12 +27,50 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       );
     }
 
-    // Для перехода в SAMPLE проверим, что есть фото модели
+    // Для перехода в SAMPLE — нужно фото
     if (toStatus === "SAMPLE" && (model.photoUrls?.length ?? 0) === 0) {
       return NextResponse.json(
         { error: { code: "no_photo", message: "Добавьте хотя бы одно фото перед переходом в «Образец»" } },
         { status: 400 },
       );
+    }
+
+    // Для перехода в APPROVED — нужна заполненная экономика и размерная сетка
+    if (toStatus === "APPROVED") {
+      const missing: string[] = [];
+      if (model.fullCost == null) missing.push("экономика (закупка и цены)");
+      if (!model.sizeGridId) missing.push("размерная сетка");
+      if ((model.photoUrls?.length ?? 0) === 0) missing.push("фото");
+      if (missing.length > 0) {
+        return NextResponse.json(
+          {
+            error: {
+              code: "incomplete",
+              message: `Перед переводом в «Утверждён» заполните: ${missing.join(", ")}`,
+            },
+          },
+          { status: 400 },
+        );
+      }
+    }
+
+    // Для перехода в IN_PRODUCTION — нужен хотя бы один вариант в «Готов к заказу»
+    if (toStatus === "IN_PRODUCTION") {
+      const readyVariantCount = await prisma.productVariant.count({
+        where: { productModelId: id, deletedAt: null, status: "READY_TO_ORDER" },
+      });
+      if (readyVariantCount === 0) {
+        return NextResponse.json(
+          {
+            error: {
+              code: "no_ready_variants",
+              message:
+                "Нет ни одного варианта в статусе «Готов к заказу». Добавьте цвета к фасону и отметьте их готовыми.",
+            },
+          },
+          { status: 400 },
+        );
+      }
     }
 
     const dateField = MODEL_STATUS_DATE_FIELDS[toStatus];

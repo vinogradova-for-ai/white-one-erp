@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { formatCurrency, formatPercent } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
 import { PRODUCT_VARIANT_STATUS_LABELS, PRODUCT_VARIANT_STATUS_COLORS } from "@/lib/constants";
-import { PhotoThumb } from "@/components/common/photo-thumb";
+import { VariantVisual } from "@/components/common/variant-visual";
+import { ColorChip } from "@/components/common/color-chip";
+import { NewVariantButton } from "@/components/variants/new-variant-button";
 import { ProductVariantStatus } from "@prisma/client";
 
 export default async function VariantsPage({
@@ -24,21 +26,41 @@ export default async function VariantsPage({
     ];
   }
 
-  const variants = await prisma.productVariant.findMany({
-    where,
-    orderBy: { updatedAt: "desc" },
-    take: 200,
-    include: {
-      productModel: { select: { id: true, name: true, category: true } },
-      _count: { select: { orders: true } },
-    },
-  });
+  const [variants, models] = await Promise.all([
+    prisma.productVariant.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      take: 200,
+      include: {
+        productModel: {
+          select: {
+            id: true,
+            name: true,
+            category: true,
+            fullCost: true,
+            wbPrice: true,
+            roi: true,
+            photoUrls: true,
+          },
+        },
+        _count: { select: { orderLines: true } },
+      },
+    }),
+    prisma.productModel.findMany({
+      where: { deletedAt: null },
+      select: { id: true, name: true },
+      orderBy: { updatedAt: "desc" },
+    }),
+  ]);
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Цветовые варианты</h1>
-        <p className="text-sm text-slate-500">Всего: {variants.length}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Цветомодели</h1>
+          <p className="text-sm text-slate-500">Всего: {variants.length}</p>
+        </div>
+        <NewVariantButton models={models} />
       </div>
 
       <form method="get" className="flex flex-wrap gap-2">
@@ -69,15 +91,19 @@ export default async function VariantsPage({
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Цвет</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Статус</th>
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Себест.</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Цена WB</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">ROI</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Заказов</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {variants.map((v) => (
               <tr key={v.id} className="hover:bg-slate-50">
-                <td className="px-3 py-2"><PhotoThumb url={v.photoUrls[0]} size={48} /></td>
+                <td className="px-3 py-2">
+                  <VariantVisual
+                    variantPhotoUrl={v.photoUrls[0] ?? null}
+                    modelPhotoUrl={v.productModel.photoUrls[0] ?? null}
+                    colorName={v.colorName}
+                    size={48}
+                  />
+                </td>
                 <td className="px-3 py-2">
                   <Link href={`/variants/${v.id}`} className="font-mono text-xs text-slate-700 hover:underline">
                     {v.sku}
@@ -89,16 +115,13 @@ export default async function VariantsPage({
                   </Link>
                   <div className="text-xs text-slate-500">{v.productModel.category}</div>
                 </td>
-                <td className="px-3 py-2 text-slate-700">{v.colorName}</td>
+                <td className="px-3 py-2 text-slate-700"><ColorChip name={v.colorName} /></td>
                 <td className="px-3 py-2">
                   <span className={`inline-block rounded px-2 py-0.5 text-xs ${PRODUCT_VARIANT_STATUS_COLORS[v.status]}`}>
                     {PRODUCT_VARIANT_STATUS_LABELS[v.status]}
                   </span>
                 </td>
-                <td className="px-3 py-2 text-right text-xs">{formatCurrency(v.fullCost?.toString())}</td>
-                <td className="px-3 py-2 text-right text-xs">{formatCurrency(v.wbPrice?.toString())}</td>
-                <td className="px-3 py-2 text-right text-xs">{formatPercent(v.roi?.toString())}</td>
-                <td className="px-3 py-2 text-right text-xs">{v._count.orders}</td>
+                <td className="px-3 py-2 text-right text-xs">{formatCurrency(v.productModel.fullCost?.toString())}</td>
               </tr>
             ))}
           </tbody>

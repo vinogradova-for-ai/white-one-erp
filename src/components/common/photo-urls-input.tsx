@@ -13,20 +13,32 @@ export function PhotoUrlsInput({
   const [url, setUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  function normalize(raw: string): string | null {
+    const trimmed = raw.trim();
+    if (!trimmed) return null;
+    // Если не начинается с http:// или https:// — добавим https://
+    const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    try {
+      const u = new URL(withProtocol);
+      if (!u.hostname || !u.hostname.includes(".")) return null;
+      return withProtocol;
+    } catch {
+      return null;
+    }
+  }
+
   function addUrl() {
     setError(null);
-    if (!url.trim()) return;
-    try {
-      new URL(url);
-    } catch {
-      setError("Введите корректный URL (начинается с https://)");
+    const normalized = normalize(url);
+    if (!normalized) {
+      setError("Укажите ссылку. Пример: https://drive.google.com/... или drive.google.com/...");
       return;
     }
-    if (value.includes(url)) {
+    if (value.includes(normalized)) {
       setError("Такая ссылка уже есть");
       return;
     }
-    onChange([...value, url]);
+    onChange([...value, normalized]);
     setUrl("");
   }
 
@@ -36,9 +48,9 @@ export function PhotoUrlsInput({
 
   return (
     <div className="space-y-3">
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
         <input
-          type="url"
+          type="text"
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://... или ссылка из Google Drive"
@@ -46,13 +58,18 @@ export function PhotoUrlsInput({
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
+              e.stopPropagation();
               addUrl();
             }
           }}
         />
         <button
           type="button"
-          onClick={addUrl}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            addUrl();
+          }}
           className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
         >
           + Добавить
@@ -67,7 +84,11 @@ export function PhotoUrlsInput({
               <PhotoThumb url={u} size={80} />
               <button
                 type="button"
-                onClick={() => removeUrl(u)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  removeUrl(u);
+                }}
                 className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white hover:bg-red-600"
                 title="Удалить"
               >
@@ -77,7 +98,7 @@ export function PhotoUrlsInput({
           ))}
         </div>
       ) : (
-        <p className="text-xs text-slate-500">Пока фотографий нет. Добавьте минимум одну для создания варианта.</p>
+        <p className="text-xs text-slate-500">Пока фотографий нет.</p>
       )}
     </div>
   );

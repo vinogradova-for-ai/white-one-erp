@@ -4,45 +4,34 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { PhotoUrlsInput } from "@/components/common/photo-urls-input";
 
+// Экономика теперь на фасоне. В варианте остались идентификация, фото, пропорция размеров,
+// факт-выкуп (уникальный по цвету) и габариты упаковки.
 type Initial = {
   sku: string;
   colorName: string;
-  pantoneCode: string;
+  fabricColorCode: string;
   photoUrls: string[];
   defaultSizeProportion: Record<string, number>;
-  purchasePriceCny: string;
-  purchasePriceRub: string;
-  cnyRubRate: string;
-  packagingCost: string;
-  wbLogisticsCost: string;
-  wbPrice: string;
-  customerPrice: string;
-  wbCommissionPct: string;
-  drrPct: string;
-  plannedRedemptionPct: string;
+  factRedemptionPct: string;
   lengthCm: string;
   widthCm: string;
   heightCm: string;
   weightG: string;
   liters: string;
-  hsCode: string;
   packagingType: string;
   notes: string;
 };
 
 export function VariantEditForm({
   variantId,
-  countryOfOrigin,
   sizes,
   initial,
 }: {
   variantId: string;
-  countryOfOrigin: string;
   sizes: string[];
   initial: Initial;
 }) {
   const router = useRouter();
-  const isChina = countryOfOrigin === "Китай";
   const [form, setForm] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,25 +55,15 @@ export function VariantEditForm({
       const payload = {
         sku: form.sku,
         colorName: form.colorName,
-        pantoneCode: form.pantoneCode || null,
+        fabricColorCode: form.fabricColorCode || null,
         photoUrls: form.photoUrls,
         defaultSizeProportion: form.defaultSizeProportion,
-        purchasePriceCny: form.purchasePriceCny ? Number(form.purchasePriceCny) : null,
-        purchasePriceRub: form.purchasePriceRub ? Number(form.purchasePriceRub) : null,
-        cnyRubRate: form.cnyRubRate ? Number(form.cnyRubRate) : null,
-        packagingCost: Number(form.packagingCost),
-        wbLogisticsCost: Number(form.wbLogisticsCost),
-        wbPrice: form.wbPrice ? Number(form.wbPrice) : null,
-        customerPrice: form.customerPrice ? Number(form.customerPrice) : null,
-        wbCommissionPct: Number(form.wbCommissionPct),
-        drrPct: Number(form.drrPct),
-        plannedRedemptionPct: Number(form.plannedRedemptionPct),
+        factRedemptionPct: form.factRedemptionPct ? Number(form.factRedemptionPct) : null,
         liters: form.liters ? Number(form.liters) : null,
         lengthCm: form.lengthCm ? Number(form.lengthCm) : null,
         widthCm: form.widthCm ? Number(form.widthCm) : null,
         heightCm: form.heightCm ? Number(form.heightCm) : null,
         weightG: form.weightG ? Number(form.weightG) : null,
-        hsCode: form.hsCode || null,
         packagingType: form.packagingType || null,
         notes: form.notes || null,
       };
@@ -116,11 +95,8 @@ export function VariantEditForm({
         <Field label="Цвет">
           <input required value={form.colorName} onChange={(e) => setForm({ ...form, colorName: e.target.value })} className={inputCls} />
         </Field>
-        <Field label="Pantone">
-          <input value={form.pantoneCode} onChange={(e) => setForm({ ...form, pantoneCode: e.target.value })} className={inputCls} />
-        </Field>
-        <Field label="ТНВЭД">
-          <input value={form.hsCode} onChange={(e) => setForm({ ...form, hsCode: e.target.value })} className={inputCls} />
+        <Field label="Артикул цвета у поставщика ткани" full>
+          <input value={form.fabricColorCode} onChange={(e) => setForm({ ...form, fabricColorCode: e.target.value })} className={inputCls} placeholder="Код, чтобы повторно заказать ткань" />
         </Field>
       </Section>
 
@@ -148,35 +124,29 @@ export function VariantEditForm({
         </Section>
       )}
 
-      <Section title={`Закупка (${isChina ? "Китай" : "Россия"})`}>
-        {isChina ? (
-          <>
-            <Field label="¥"><input type="number" step="0.01" value={form.purchasePriceCny} onChange={(e) => setForm({ ...form, purchasePriceCny: e.target.value })} className={inputCls} /></Field>
-            <Field label="Курс"><input type="number" step="0.0001" value={form.cnyRubRate} onChange={(e) => setForm({ ...form, cnyRubRate: e.target.value })} className={inputCls} /></Field>
-          </>
-        ) : (
-          <Field label="₽" full>
-            <input type="number" step="0.01" value={form.purchasePriceRub} onChange={(e) => setForm({ ...form, purchasePriceRub: e.target.value })} className={inputCls} />
-          </Field>
-        )}
-        <Field label="Упаковка, ₽"><input type="number" step="0.01" value={form.packagingCost} onChange={(e) => setForm({ ...form, packagingCost: e.target.value })} className={inputCls} /></Field>
-        <Field label="Логистика WB, ₽"><input type="number" step="0.01" value={form.wbLogisticsCost} onChange={(e) => setForm({ ...form, wbLogisticsCost: e.target.value })} className={inputCls} /></Field>
+      <Section title="Факт-выкуп (из WB)">
+        <Field label="% выкупа по цвету" full>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={form.factRedemptionPct}
+            onChange={(e) => setForm({ ...form, factRedemptionPct: e.target.value.replace(",", ".").replace(/[^\d.]/g, "") })}
+            className={inputCls}
+            placeholder="Например, 38"
+          />
+          <span className="mt-1 block text-xs text-slate-500">
+            Плановый % и остальная экономика — на уровне фасона.
+          </span>
+        </Field>
       </Section>
 
-      <Section title="Цены">
-        <Field label="Цена WB (до СПП)"><input type="number" step="0.01" value={form.wbPrice} onChange={(e) => setForm({ ...form, wbPrice: e.target.value })} className={inputCls} /></Field>
-        <Field label="Цена клиенту"><input type="number" step="0.01" value={form.customerPrice} onChange={(e) => setForm({ ...form, customerPrice: e.target.value })} className={inputCls} /></Field>
-        <Field label="Комиссия WB, %"><input type="number" step="0.01" value={form.wbCommissionPct} onChange={(e) => setForm({ ...form, wbCommissionPct: e.target.value })} className={inputCls} /></Field>
-        <Field label="ДРР, %"><input type="number" step="0.01" value={form.drrPct} onChange={(e) => setForm({ ...form, drrPct: e.target.value })} className={inputCls} /></Field>
-        <Field label="% выкупа (план)"><input type="number" step="0.01" value={form.plannedRedemptionPct} onChange={(e) => setForm({ ...form, plannedRedemptionPct: e.target.value })} className={inputCls} /></Field>
-      </Section>
-
-      <Section title="Габариты">
+      <Section title="Габариты упаковки">
         <Field label="Длина, см"><input type="number" step="0.1" value={form.lengthCm} onChange={(e) => setForm({ ...form, lengthCm: e.target.value })} className={inputCls} /></Field>
         <Field label="Ширина, см"><input type="number" step="0.1" value={form.widthCm} onChange={(e) => setForm({ ...form, widthCm: e.target.value })} className={inputCls} /></Field>
         <Field label="Высота, см"><input type="number" step="0.1" value={form.heightCm} onChange={(e) => setForm({ ...form, heightCm: e.target.value })} className={inputCls} /></Field>
         <Field label="Вес, г"><input type="number" value={form.weightG} onChange={(e) => setForm({ ...form, weightG: e.target.value })} className={inputCls} /></Field>
         <Field label="Литраж"><input type="number" step="0.01" value={form.liters} onChange={(e) => setForm({ ...form, liters: e.target.value })} className={inputCls} /></Field>
+        <Field label="Тип упаковки"><input value={form.packagingType} onChange={(e) => setForm({ ...form, packagingType: e.target.value })} className={inputCls} /></Field>
       </Section>
 
       <Section title="Примечания">

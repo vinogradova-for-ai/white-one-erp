@@ -1,25 +1,55 @@
 import { z } from "zod";
 
-const decimal = z.union([z.number(), z.string()]).optional().nullable();
+export const orderLineInputSchema = z.object({
+  productVariantId: z.string().min(1, "Вариант обязателен"),
+  quantity: z.number().int().positive("Количество > 0"),
+  sizeDistribution: z.record(z.string(), z.number()).optional().nullable(),
+});
+
+export const orderPaymentInputSchema = z.object({
+  plannedDate: z.string().min(1, "Дата обязательна"),
+  amount: z.union([z.number(), z.string()]).transform((v) => Number(v)).pipe(z.number().nonnegative()),
+  label: z.string().min(1, "Название платежа").max(200),
+});
 
 export const orderCreateSchema = z.object({
-  productVariantId: z.string().min(1, "Вариант обязателен"),
+  productModelId: z.string().min(1, "Фасон обязателен"),
+  lines: z.array(orderLineInputSchema).min(1, "Нужна хотя бы одна позиция"),
   orderType: z.enum(["SEASONAL", "RESTOCK", "TEST"]),
   season: z.string().optional().nullable(),
   launchMonth: z.number().int().min(202501).max(203012),
-  quantity: z.number().int().positive("Количество > 0"),
-  sizeDistribution: z.record(z.string(), z.number()).optional().nullable(),
   factoryId: z.string().optional().nullable(),
   ownerId: z.string().min(1),
   deliveryMethod: z.enum(["CARGO", "AIR", "RAIL", "DOMESTIC"]).optional().nullable(),
   paymentTerms: z.string().optional().nullable(),
-  prepaymentAmount: decimal,
-  finalPaymentAmount: decimal,
   packagingType: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  // Стоимость одной единицы в рублях — переопределяет fullCost с фасона для этого заказа.
+  unitCost: z.union([z.number(), z.string()]).transform((v) => Number(v)).pipe(z.number().positive()).optional(),
+  // Если передан — используем как график платежей вместо авто-парсинга paymentTerms.
+  payments: z.array(orderPaymentInputSchema).optional(),
+
+  // Таймлайн — примерные даты этапов
+  handedToFactoryDate: z.string().optional().nullable(),
+  sewingStartDate: z.string().optional().nullable(),
+  readyAtFactoryDate: z.string().optional().nullable(),
+  shipmentDate: z.string().optional().nullable(),
+  arrivalPlannedDate: z.string().optional().nullable(),
+  packingDoneDate: z.string().optional().nullable(),
+  wbShipmentDate: z.string().optional().nullable(),
+  saleStartDate: z.string().optional().nullable(),
 });
 
-export const orderUpdateSchema = orderCreateSchema.partial();
+// PATCH для шапки заказа. Без lines — ими управляют отдельными ручками.
+export const orderUpdateSchema = orderCreateSchema.partial().omit({ lines: true, productModelId: true });
+
+// Отдельные схемы для работы с позициями
+export const orderLineAddSchema = orderLineInputSchema;
+export const orderLineUpdateSchema = z.object({
+  quantity: z.number().int().positive().optional(),
+  sizeDistribution: z.record(z.string(), z.number()).optional().nullable(),
+  sizeDistributionActual: z.record(z.string(), z.number()).optional().nullable(),
+});
 
 export const orderStatusChangeSchema = z.object({
   toStatus: z.enum([
@@ -29,16 +59,3 @@ export const orderStatusChangeSchema = z.object({
   comment: z.string().optional(),
 });
 
-export const orderQcUpdateSchema = z.object({
-  qcDate: z.string().optional().nullable(),
-  qcQuantityOk: z.number().int().nonnegative().optional().nullable(),
-  qcQuantityDefects: z.number().int().nonnegative().optional().nullable(),
-  qcDefectsPhotoUrl: z.string().url().optional().nullable().or(z.literal("")),
-  qcDefectCategory: z.enum(["SEWING", "FABRIC", "FITTINGS", "SIZE", "OTHER"]).optional().nullable(),
-  qcReplacedByFactory: z.boolean().optional(),
-  qcResolutionNote: z.string().optional().nullable(),
-});
-
-export const orderSizeActualSchema = z.object({
-  sizeDistributionActual: z.record(z.string(), z.number()),
-});

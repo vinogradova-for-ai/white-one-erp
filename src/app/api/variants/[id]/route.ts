@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { variantUpdateSchema } from "@/lib/validators/variant";
-import { calculateVariantEconomics } from "@/lib/calculations/product-cost";
+import { Prisma } from "@prisma/client";
+import { canMoveVariantStatus } from "@/lib/status-machine/product-statuses";
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -27,26 +28,31 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
     const existing = await prisma.productVariant.findFirst({
       where: { id, deletedAt: null },
-      include: { productModel: { select: { ownerId: true } } },
+      select: {
+        id: true,
+        status: true,
+        productModel: { select: { ownerId: true } },
+      },
     });
     if (!existing) return NextResponse.json({ error: { code: "not_found" } }, { status: 404 });
 
     assertCan(session.user.role, "product.update", existing.productModel.ownerId, session.user.id);
 
     const data = variantUpdateSchema.parse(await req.json());
-    const merged = { ...existing, ...data };
-    const eco = calculateVariantEconomics(merged);
+
+    if (data.status && data.status !== existing.status) {
+      const check = canMoveVariantStatus(existing.status, data.status);
+      if (!check.ok) {
+        return NextResponse.json(
+          { error: { code: "invalid_transition", message: check.reason ?? "Недопустимый переход" } },
+          { status: 400 },
+        );
+      }
+    }
 
     const updated = await prisma.productVariant.update({
       where: { id },
-      data: {
-        ...data,
-        fullCost: eco.fullCost ?? null,
-        marginBeforeDrr: eco.marginBeforeDrr ?? null,
-        marginAfterDrrPct: eco.marginAfterDrrPct ?? null,
-        roi: eco.roi ?? null,
-        markupPct: eco.markupPct ?? null,
-      },
+      data: data as Prisma.ProductVariantUncheckedUpdateInput,
     });
     return NextResponse.json(updated);
   } catch (e) {
@@ -59,7 +65,15 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     const session = await requireAuth();
     assertCan(session.user.role, "product.delete");
     const { id } = await ctx.params;
-    await prisma.productVariant.update({ where: { id }, data: { deletedAt: new Date() } });
+    const existing = await prisma.productVariant.findUnique({ where: { id }, select: { sku: true } });
+    if (!existing) return NextResponse.json({ error: { code: "not_found" } }, { status: 404 });
+    // Префиксируем SKU, чтобы освободить его для повторного использования
+    // (иначе unique-constraint не даст завести новый цвет с тем же артикулом)
+    const archivedSku = `${existing.sku}__deleted_${Date.now()}`;
+    await prisma.productVariant.update({
+      where: { id },
+      data: { deletedAt: new Date(), sku: archivedSku },
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return apiError(e);

@@ -6,12 +6,14 @@ import { redirect } from "next/navigation";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  if (!session?.user) {
+  // Если токен битый (БД пересоздавалась и id в cookie уже не валиден) —
+  // session.user без id/role. В этом случае отправляем на логин вместо «Доступ запрещён».
+  if (!session?.user || !(session.user as { id?: string }).id || !(session.user as { role?: string }).role) {
     redirect("/login");
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-slate-50">
       <Sidebar user={session.user} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar user={session.user} />

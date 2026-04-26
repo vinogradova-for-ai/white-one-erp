@@ -16,13 +16,10 @@ export function OrderEditForm({
     orderType: string;
     season: string;
     launchMonth: number;
-    quantity: number;
     factoryId: string;
     ownerId: string;
     deliveryMethod: string;
     paymentTerms: string;
-    prepaymentAmount: string;
-    finalPaymentAmount: string;
     packagingType: string;
     notes: string;
   };
@@ -43,13 +40,10 @@ export function OrderEditForm({
         orderType: form.orderType,
         season: form.season || null,
         launchMonth: Number(form.launchMonth),
-        quantity: Number(form.quantity),
         factoryId: form.factoryId || null,
         ownerId: form.ownerId,
         deliveryMethod: form.deliveryMethod || null,
         paymentTerms: form.paymentTerms || null,
-        prepaymentAmount: form.prepaymentAmount ? Number(form.prepaymentAmount) : null,
-        finalPaymentAmount: form.finalPaymentAmount ? Number(form.finalPaymentAmount) : null,
         packagingType: form.packagingType || null,
         notes: form.notes || null,
       };
@@ -84,10 +78,10 @@ export function OrderEditForm({
         <Field label="Месяц продаж (YYYYMM)">
           <input type="number" value={form.launchMonth} onChange={(e) => setForm({ ...form, launchMonth: Number(e.target.value) })} className={inputCls} />
         </Field>
-        <Field label="Количество, шт">
-          <input type="number" min={1} value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })} className={inputCls} />
-        </Field>
       </Section>
+      <p className="text-xs text-slate-500">
+        Количество по позициям и размерные матрицы правятся на странице заказа в блоке «Позиции».
+      </p>
 
       <Section title="Производство">
         <Field label="Фабрика">
@@ -115,12 +109,6 @@ export function OrderEditForm({
       <Section title="Оплаты">
         <Field label="Условия">
           <input value={form.paymentTerms} onChange={(e) => setForm({ ...form, paymentTerms: e.target.value })} className={inputCls} />
-        </Field>
-        <Field label="Сумма предоплаты, ₽">
-          <input type="number" step="0.01" value={form.prepaymentAmount} onChange={(e) => setForm({ ...form, prepaymentAmount: e.target.value })} className={inputCls} />
-        </Field>
-        <Field label="Сумма остатка, ₽">
-          <input type="number" step="0.01" value={form.finalPaymentAmount} onChange={(e) => setForm({ ...form, finalPaymentAmount: e.target.value })} className={inputCls} />
         </Field>
       </Section>
 

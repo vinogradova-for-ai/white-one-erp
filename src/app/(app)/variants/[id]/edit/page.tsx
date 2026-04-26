@@ -19,30 +19,19 @@ export default async function EditVariantPage({ params }: { params: Promise<{ id
       <div className="rounded-2xl border border-slate-200 bg-white p-6">
         <VariantEditForm
           variantId={variant.id}
-          countryOfOrigin={variant.productModel.countryOfOrigin}
           sizes={variant.productModel.sizeGrid?.sizes ?? []}
           initial={{
             sku: variant.sku,
             colorName: variant.colorName,
-            pantoneCode: variant.pantoneCode ?? "",
+            fabricColorCode: variant.fabricColorCode ?? "",
             photoUrls: variant.photoUrls,
             defaultSizeProportion: (variant.defaultSizeProportion as Record<string, number> | null) ?? {},
-            purchasePriceCny: variant.purchasePriceCny?.toString() ?? "",
-            purchasePriceRub: variant.purchasePriceRub?.toString() ?? "",
-            cnyRubRate: variant.cnyRubRate?.toString() ?? "13.5",
-            packagingCost: variant.packagingCost.toString(),
-            wbLogisticsCost: variant.wbLogisticsCost.toString(),
-            wbPrice: variant.wbPrice?.toString() ?? "",
-            customerPrice: variant.customerPrice?.toString() ?? "",
-            wbCommissionPct: variant.wbCommissionPct.toString(),
-            drrPct: variant.drrPct.toString(),
-            plannedRedemptionPct: variant.plannedRedemptionPct?.toString() ?? "",
+            factRedemptionPct: variant.factRedemptionPct?.toString() ?? "",
             lengthCm: variant.lengthCm?.toString() ?? "",
             widthCm: variant.widthCm?.toString() ?? "",
             heightCm: variant.heightCm?.toString() ?? "",
             weightG: variant.weightG?.toString() ?? "",
             liters: variant.liters?.toString() ?? "",
-            hsCode: variant.hsCode ?? "",
             packagingType: variant.packagingType ?? "",
             notes: variant.notes ?? "",
           }}

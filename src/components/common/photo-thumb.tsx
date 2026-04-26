@@ -48,8 +48,13 @@ export function PhotoGallery({
 }) {
   if (urls.length === 0) {
     return (
-      <div className={`flex aspect-square w-full items-center justify-center rounded-2xl bg-slate-100 text-slate-300 ${className}`}>
-        <ImageIcon size={64} />
+      <div
+        className={`flex h-32 w-full items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-xs text-slate-400 ${className}`}
+      >
+        <div className="flex flex-col items-center gap-1">
+          <ImageIcon size={28} />
+          <span>Фото ещё нет</span>
+        </div>
       </div>
     );
   }

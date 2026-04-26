@@ -1,8 +1,16 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
+}
+
+html.dark {
+  /* iOS dark mode palette */
+  --background: #000000;         /* system background */
+  --foreground: #f2f2f7;         /* primary label */
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -16,6 +24,128 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
+
+/* ===== Ночной режим: палитра iOS Dark Mode ===== */
+/* Используем !important т.к. Tailwind v4 генерирует утилиты с той же
+   специфичностью. Палитра — из Apple Human Interface Guidelines. */
+
+/* ---- Фоны (градация глубины как в iOS) ---- */
+html.dark .bg-white { background-color: #1c1c1e !important; }       /* secondary system bg */
+html.dark .bg-slate-50 { background-color: #000000 !important; }     /* system bg */
+html.dark .bg-slate-100 { background-color: #2c2c2e !important; }    /* tertiary system bg */
+html.dark .bg-slate-200 { background-color: #3a3a3c !important; }    /* quaternary */
+
+/* Полупрозрачный белый (bg-white/70, /50 и т.п.) — заменяем на полупрозр. светлый поверх тёмного */
+html.dark .bg-white\/70,
+html.dark .bg-white\/80,
+html.dark .bg-white\/60,
+html.dark .bg-white\/50,
+html.dark .bg-white\/40 { background-color: rgba(255, 255, 255, 0.08) !important; }
+
+html.dark .hover\:bg-white:hover,
+html.dark .hover\:bg-white\/80:hover,
+html.dark .hover\:bg-white\/70:hover { background-color: rgba(255, 255, 255, 0.14) !important; }
+
+/* ---- Тексты ---- */
+html.dark .text-slate-900 { color: #f2f2f7 !important; }   /* primary label */
+html.dark .text-slate-800 { color: #e5e5ea !important; }
+html.dark .text-slate-700 { color: #c7c7cc !important; }   /* secondary label */
+html.dark .text-slate-600 { color: #aeaeb2 !important; }
+html.dark .text-slate-500 { color: #8e8e93 !important; }   /* tertiary label */
+html.dark .text-slate-400 { color: #636366 !important; }   /* quaternary */
+html.dark .text-slate-300 { color: #48484a !important; }
+
+/* ---- Границы ---- */
+html.dark .border-slate-100 { border-color: #2c2c2e !important; }
+html.dark .border-slate-200 { border-color: #38383a !important; }   /* separator */
+html.dark .border-slate-300 { border-color: #48484a !important; }
+
+/* ---- Инпуты и формы ---- */
+html.dark input,
+html.dark textarea,
+html.dark select {
+  background-color: #1c1c1e !important;
+  color: #f2f2f7 !important;
+  border-color: #48484a !important;
+}
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #636366 !important;
+}
+
+html.dark .hover\:bg-slate-50:hover { background-color: #2c2c2e !important; }
+html.dark .hover\:bg-slate-100:hover { background-color: #3a3a3c !important; }
+
+/* Primary-кнопка (bg-slate-900 + text-white): светлый тёмно-серый, как iOS filled button */
+html.dark button.bg-slate-900,
+html.dark a.bg-slate-900 {
+  background-color: #5a5a5e !important;
+  color: #ffffff !important;
+}
+html.dark button.bg-slate-900:hover,
+html.dark a.bg-slate-900:hover,
+html.dark button.hover\:bg-slate-800:hover,
+html.dark a.hover\:bg-slate-800:hover {
+  background-color: #6e6e72 !important;
+}
+
+/* ---- Акценты: iOS systemColors (dark appearance), мягкие подсветки ---- */
+/* Принцип: фоны максимально деликатные (≤7% tint), чтобы не превращаться
+   в «коричневые/красные пятна». Акцент — через текст и бордюр. */
+
+/* Красный — systemRed dark */
+html.dark .bg-red-50,
+html.dark .bg-red-100 { background-color: rgba(255, 69, 58, 0.07) !important; }
+html.dark .bg-red-50\/40,
+html.dark .bg-red-50\/50 { background-color: rgba(255, 69, 58, 0.04) !important; }
+html.dark .bg-red-200 { background-color: rgba(255, 69, 58, 0.12) !important; }
+html.dark .border-red-200 { border-color: rgba(255, 69, 58, 0.22) !important; }
+html.dark .border-red-100 { border-color: rgba(255, 69, 58, 0.15) !important; }
+html.dark .text-red-600,
+html.dark .text-red-700,
+html.dark .text-red-800 { color: #ff6961 !important; }
+
+/* Оранжевый / amber */
+html.dark .bg-amber-50,
+html.dark .bg-amber-100 { background-color: rgba(255, 159, 10, 0.06) !important; }
+html.dark .bg-amber-200 { background-color: rgba(255, 159, 10, 0.12) !important; }
+html.dark .border-amber-200 { border-color: rgba(255, 159, 10, 0.22) !important; }
+html.dark .border-amber-100 { border-color: rgba(255, 159, 10, 0.15) !important; }
+html.dark .text-amber-600,
+html.dark .text-amber-700,
+html.dark .text-amber-800,
+html.dark .text-amber-900 { color: #ffb340 !important; }
+
+/* Жёлтый */
+html.dark .bg-yellow-50,
+html.dark .bg-yellow-100 { background-color: rgba(255, 214, 10, 0.06) !important; }
+html.dark .text-yellow-700,
+html.dark .text-yellow-800 { color: #ffd60a !important; }
+
+/* Зелёный */
+html.dark .bg-emerald-50,
+html.dark .bg-emerald-100,
+html.dark .bg-green-50,
+html.dark .bg-green-100 { background-color: rgba(48, 209, 88, 0.07) !important; }
+html.dark .border-emerald-200,
+html.dark .border-green-200 { border-color: rgba(48, 209, 88, 0.22) !important; }
+html.dark .text-emerald-600,
+html.dark .text-emerald-700,
+html.dark .text-green-600,
+html.dark .text-green-700 { color: #30d158 !important; }
+
+/* Синий */
+html.dark .bg-blue-50,
+html.dark .bg-blue-100 { background-color: rgba(10, 132, 255, 0.07) !important; }
+html.dark .text-blue-600,
+html.dark .text-blue-700 { color: #64d2ff !important; }
+
+/* Розовый */
+html.dark .bg-pink-50,
+html.dark .bg-pink-100 { background-color: rgba(255, 55, 95, 0.07) !important; }
+html.dark .bg-pink-50\/40 { background-color: rgba(255, 55, 95, 0.04) !important; }
+html.dark .border-pink-200 { border-color: rgba(255, 55, 95, 0.22) !important; }
+html.dark .text-pink-700 { color: #ff6482 !important; }
 
 /* iOS: не зумить input'ы */
 input, textarea, select {

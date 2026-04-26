@@ -15,16 +15,17 @@ export default async function PlanVsFactPage() {
       },
       select: {
         launchMonth: true,
-        plannedRevenue: true,
-        productVariant: { select: { productModel: { select: { category: true } } } },
+        productModel: { select: { category: true } },
+        lines: { select: { plannedRevenue: true } },
       },
     }),
   ]);
 
   const actualMap = new Map<string, number>();
   for (const o of orders) {
-    const key = `${o.launchMonth}|${o.productVariant.productModel.category}`;
-    actualMap.set(key, (actualMap.get(key) ?? 0) + Number(o.plannedRevenue ?? 0));
+    const key = `${o.launchMonth}|${o.productModel.category}`;
+    const orderRevenue = o.lines.reduce((a, l) => a + Number(l.plannedRevenue ?? 0), 0);
+    actualMap.set(key, (actualMap.get(key) ?? 0) + orderRevenue);
   }
 
   const months = Array.from(new Set(plans.map((p) => p.yearMonth))).sort();

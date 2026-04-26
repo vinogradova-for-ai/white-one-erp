@@ -47,10 +47,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.userId = (user as { id: string }).id;
         token.role = (user as { role: Role }).role;
       }
+      // Проверяем, что юзер из токена существует в БД.
+      // Если БД пересоздавалась (миграции) — ID в токене может быть устаревшим.
+      if (token.userId) {
+        const exists = await prisma.user.findUnique({
+          where: { id: token.userId as string },
+          select: { id: true, isActive: true, role: true },
+        });
+        if (!exists || !exists.isActive) {
+          // Возвращаем пустой токен — пользователя отправит на логин
+          return {};
+        }
+        // Если роль в БД изменилась — обновим в токене
+        token.role = exists.role;
+      }
       return token;
     },
     async session({ session, token }) {
-      if (session.user) {
+      if (session.user && token.userId) {
         (session.user as { id?: string }).id = token.userId as string;
         (session.user as { role?: Role }).role = token.role as Role;
       }

@@ -8,7 +8,13 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
   const [order, factories, users] = await Promise.all([
     prisma.order.findFirst({
       where: { id, deletedAt: null },
-      include: { productVariant: { include: { productModel: true } } },
+      include: {
+        productModel: { select: { name: true } },
+        lines: {
+          select: { quantity: true, productVariant: { select: { colorName: true } } },
+          orderBy: { createdAt: "asc" },
+        },
+      },
     }),
     prisma.factory.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.user.findMany({
@@ -20,6 +26,9 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
 
   if (!order) return notFound();
 
+  const totalQty = order.lines.reduce((a, l) => a + l.quantity, 0);
+  const colorList = order.lines.map((l) => l.productVariant.colorName).join(", ");
+
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
@@ -28,7 +37,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
           Редактирование заказа
         </h1>
         <p className="text-sm text-slate-500">
-          {order.productVariant.productModel.name} · {order.productVariant.colorName}
+          {order.productModel.name} · {colorList} · {totalQty} шт
         </p>
       </div>
       <div className="rounded-2xl border border-slate-200 bg-white p-6">
@@ -38,13 +47,10 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
             orderType: order.orderType,
             season: order.season ?? "",
             launchMonth: order.launchMonth,
-            quantity: order.quantity,
             factoryId: order.factoryId ?? "",
             ownerId: order.ownerId,
             deliveryMethod: order.deliveryMethod ?? "",
             paymentTerms: order.paymentTerms ?? "",
-            prepaymentAmount: order.prepaymentAmount?.toString() ?? "",
-            finalPaymentAmount: order.finalPaymentAmount?.toString() ?? "",
             packagingType: order.packagingType ?? "",
             notes: order.notes ?? "",
           }}

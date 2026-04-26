@@ -1,157 +1,201 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { formatCurrency, formatDate, formatPercent } from "@/lib/format";
-import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, PRODUCT_VARIANT_STATUS_LABELS, PRODUCT_VARIANT_STATUS_COLORS } from "@/lib/constants";
-import { PhotoGallery } from "@/components/common/photo-thumb";
+import { formatCurrency, formatDate } from "@/lib/format";
+import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, PACKAGING_TYPE_ICONS, PACKAGING_TYPE_LABELS } from "@/lib/constants";
+import { PhotoGallery, PhotoThumb } from "@/components/common/photo-thumb";
+import { ColorChip } from "@/components/common/color-chip";
+import { VariantStatusChanger } from "@/components/variants/variant-status-changer";
 
 export default async function VariantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const variant = await prisma.productVariant.findFirst({
     where: { id, deletedAt: null },
     include: {
-      productModel: { include: { sizeGrid: true, preferredFactory: true } },
-      orders: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 20 },
+      productModel: {
+        include: {
+          sizeGrid: true,
+          preferredFactory: true,
+          packagingItems: {
+            include: {
+              packagingItem: {
+                select: {
+                  id: true, name: true, type: true, photoUrl: true,
+                  unitPriceRub: true, unitPriceCny: true, priceCurrency: true, cnyRubRate: true,
+                },
+              },
+            },
+            orderBy: { createdAt: "asc" },
+          },
+        },
+      },
+      orderLines: {
+        where: { order: { deletedAt: null } },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        include: {
+          order: {
+            select: { id: true, orderNumber: true, status: true, arrivalPlannedDate: true },
+          },
+        },
+      },
     },
   });
 
   if (!variant) return notFound();
 
-  const proportion = variant.defaultSizeProportion as Record<string, number> | null;
+  const variantOrders = variant.orderLines.map((l) => ({
+    id: l.order.id,
+    orderNumber: l.order.orderNumber,
+    status: l.order.status,
+    arrivalPlannedDate: l.order.arrivalPlannedDate,
+    quantity: l.quantity,
+  }));
+
+  // Себестоимость закупа в одной строке
+  const purchaseLine = variant.productModel.purchasePriceCny
+    ? `${variant.productModel.purchasePriceCny.toString()} ¥ · курс ${variant.productModel.cnyRubRate?.toString() ?? "—"}`
+    : variant.productModel.purchasePriceRub
+      ? formatCurrency(variant.productModel.purchasePriceRub.toString())
+      : null;
+
+  // Стоимость комплекта упаковки на единицу — одной цифрой
+  let packagingPerUnit: number | null = null;
+  for (const mp of variant.productModel.packagingItems) {
+    const pi = mp.packagingItem;
+    const unitRub = pi.priceCurrency === "CNY" && pi.unitPriceCny && pi.cnyRubRate
+      ? Number(pi.unitPriceCny) * Number(pi.cnyRubRate)
+      : pi.unitPriceRub
+        ? Number(pi.unitPriceRub)
+        : null;
+    if (unitRub != null) {
+      packagingPerUnit = (packagingPerUnit ?? 0) + unitRub * Number(mp.quantityPerUnit);
+    }
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
+    <div className="mx-auto max-w-5xl space-y-6">
+      {/* Шапка */}
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0 flex-1">
-          <div className="font-mono text-xs text-slate-500">{variant.sku}</div>
-          <h1 className="text-2xl font-semibold text-slate-900">
-            <Link href={`/models/${variant.productModel.id}`} className="hover:underline">
-              {variant.productModel.name}
-            </Link>
-            {" · "}
-            <span className="text-slate-700">{variant.colorName}</span>
+          <Link
+            href={`/models/${variant.productModel.id}`}
+            className="text-xs uppercase tracking-wider text-slate-400 hover:text-slate-600"
+          >
+            {variant.productModel.name}
+          </Link>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">
+            <ColorChip name={variant.colorName} />
           </h1>
-          <div className="mt-1">
-            <span className={`inline-block rounded px-2 py-0.5 text-xs ${PRODUCT_VARIANT_STATUS_COLORS[variant.status]}`}>
-              {PRODUCT_VARIANT_STATUS_LABELS[variant.status]}
-            </span>
-            {variant.pantoneCode && (
-              <span className="ml-2 text-xs text-slate-500">Pantone: {variant.pantoneCode}</span>
+          <div className="mt-1 flex items-center gap-2 font-mono text-xs text-slate-400">
+            {variant.sku}
+            {variant.fabricColorCode && (
+              <>
+                <span className="text-slate-300">·</span>
+                <span>цв.ткани {variant.fabricColorCode}</span>
+              </>
             )}
           </div>
+          {variant.status === "DRAFT" && (
+            <p className="mt-2 max-w-md text-xs text-amber-700">
+              Черновик. Чтобы добавить в заказ — переведите в «Готов к заказу».
+            </p>
+          )}
         </div>
-        <Link
-          href={`/variants/${variant.id}/edit`}
-          className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-        >
-          Редактировать
-        </Link>
-      </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <VariantStatusChanger variantId={variant.id} currentStatus={variant.status} />
+          <Link
+            href={`/variants/${variant.id}/edit`}
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Редактировать
+          </Link>
+        </div>
+      </header>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-1">
+      <div className="grid gap-5 lg:grid-cols-[1fr_1.4fr]">
+        <div className="rounded-2xl bg-white p-3">
           <PhotoGallery urls={variant.photoUrls} alt={variant.colorName} />
         </div>
 
-        <div className="space-y-6 lg:col-span-2">
-          <Card title="Экономика">
-            <Row label="Закупка" value={
-              variant.purchasePriceCny
-                ? `${variant.purchasePriceCny.toString()} ¥ (курс ${variant.cnyRubRate?.toString() ?? "?"})`
-                : variant.purchasePriceRub
-                  ? formatCurrency(variant.purchasePriceRub.toString())
-                  : "—"
-            } />
-            <Row label="Упаковка" value={formatCurrency(variant.packagingCost.toString())} />
-            <Row label="Логистика WB" value={formatCurrency(variant.wbLogisticsCost.toString())} />
-            <Row label="Себестоимость полная" value={<strong>{formatCurrency(variant.fullCost?.toString())}</strong>} />
-            <Row label="Цена WB (до СПП)" value={formatCurrency(variant.wbPrice?.toString())} />
-            <Row label="Цена клиенту" value={formatCurrency(variant.customerPrice?.toString())} />
-            <Row label="Комиссия WB" value={formatPercent(variant.wbCommissionPct.toString())} />
-            <Row label="% выкупа (план)" value={formatPercent(variant.plannedRedemptionPct?.toString())} />
-            <Row label="Маржа до ДРР" value={formatCurrency(variant.marginBeforeDrr?.toString())} />
-            <Row label="Маржа после ДРР" value={formatPercent(variant.marginAfterDrrPct?.toString())} />
-            <Row label="ROI" value={formatPercent(variant.roi?.toString())} />
-            <Row label="Наценка" value={formatPercent(variant.markupPct?.toString())} />
-          </Card>
+        <div className="space-y-3">
+          {/* Закуп + упаковка одной плиткой */}
+          <div className="grid grid-cols-2 gap-3">
+            <KpiCard label="Закуп с фабрики" value={purchaseLine ?? "—"} />
+            <KpiCard label="Упаковка на штуку" value={packagingPerUnit != null ? formatCurrency(packagingPerUnit) : "—"} />
+          </div>
 
-          {proportion && (
-            <Card title={`Размерная пропорция (${variant.productModel.sizeGrid?.name ?? "—"})`}>
-              <div className="grid grid-cols-6 gap-2">
-                {Object.entries(proportion).map(([size, pct]) => (
-                  <div key={size} className="rounded-lg bg-slate-50 p-2 text-center">
-                    <div className="text-sm font-medium text-slate-900">{size}</div>
-                    <div className="text-xs text-slate-500">{pct}%</div>
-                  </div>
-                ))}
+          {/* Комплект упаковки — компактный список без отдельной карточки */}
+          {variant.productModel.packagingItems.length > 0 && (
+            <div className="rounded-2xl bg-white p-4">
+              <div className="mb-3 text-[11px] uppercase tracking-wider text-slate-400">
+                Комплект упаковки
               </div>
-            </Card>
+              <ul className="space-y-2">
+                {variant.productModel.packagingItems.map((mp) => (
+                  <li key={mp.id} className="flex items-center gap-3">
+                    {mp.packagingItem.photoUrl ? (
+                      <PhotoThumb url={mp.packagingItem.photoUrl} size={32} />
+                    ) : (
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-slate-100 text-xs">
+                        {PACKAGING_TYPE_ICONS[mp.packagingItem.type]}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1 text-sm">
+                      <div className="truncate text-slate-900">{mp.packagingItem.name}</div>
+                      <div className="text-[11px] text-slate-400">
+                        {PACKAGING_TYPE_LABELS[mp.packagingItem.type]} · {Number(mp.quantityPerUnit)} на единицу
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
-
-          <Card title="Габариты и литраж">
-            <Row label="Размеры" value={[variant.lengthCm, variant.widthCm, variant.heightCm].map((x) => x?.toString() ?? "—").join(" × ") + " см"} />
-            <Row label="Вес" value={variant.weightG ? `${variant.weightG} г` : "—"} />
-            <Row label="Литраж" value={variant.liters?.toString() ?? "—"} />
-          </Card>
         </div>
       </div>
 
+      {/* Заказы — компактный список */}
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">Заказы ({variant.orders.length})</h2>
+          <h2 className="text-base font-semibold text-slate-900">Заказы</h2>
           <Link
             href={`/orders/new?variantId=${variant.id}`}
-            className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+            className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
           >
-            + Создать заказ
+            + Заказ
           </Link>
         </div>
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">№</th>
-                <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Кол-во</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Статус</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Прибытие</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {variant.orders.map((o) => (
-                <tr key={o.id}>
-                  <td className="px-3 py-2"><Link href={`/orders/${o.id}`} className="font-mono text-xs hover:underline">{o.orderNumber}</Link></td>
-                  <td className="px-3 py-2 text-right">{o.quantity}</td>
-                  <td className="px-3 py-2">
-                    <span className={`inline-block rounded px-2 py-0.5 text-xs ${ORDER_STATUS_COLORS[o.status]}`}>
+        {variantOrders.length === 0 ? (
+          <div className="rounded-2xl bg-white p-8 text-center text-sm text-slate-400">Заказов нет</div>
+        ) : (
+          <div className="overflow-hidden rounded-2xl bg-white">
+            <ul className="divide-y divide-slate-100">
+              {variantOrders.map((o) => (
+                <li key={`${o.id}-${o.orderNumber}`}>
+                  <Link href={`/orders/${o.id}`} className="flex items-center gap-3 px-4 py-3 transition hover:bg-slate-50">
+                    <span className="font-mono text-xs text-slate-500">{o.orderNumber}</span>
+                    <span className="flex-1 text-sm text-slate-700">{o.quantity} шт</span>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${ORDER_STATUS_COLORS[o.status]}`}>
                       {ORDER_STATUS_LABELS[o.status]}
                     </span>
-                  </td>
-                  <td className="px-3 py-2 text-xs">{formatDate(o.arrivalPlannedDate)}</td>
-                </tr>
+                    <span className="shrink-0 text-xs text-slate-400">{formatDate(o.arrivalPlannedDate)}</span>
+                  </Link>
+                </li>
               ))}
-            </tbody>
-          </table>
-          {variant.orders.length === 0 && <div className="p-6 text-center text-sm text-slate-500">Заказов нет</div>}
-        </div>
+            </ul>
+          </div>
+        )}
       </section>
     </div>
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function KpiCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{title}</h2>
-      <div className="space-y-1.5">{children}</div>
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="flex justify-between gap-3 text-sm">
-      <span className="text-slate-600">{label}</span>
-      <span className="text-right text-slate-900">{value}</span>
+    <div className="rounded-2xl bg-white px-4 py-3">
+      <div className="text-[11px] uppercase tracking-wider text-slate-400">{label}</div>
+      <div className="mt-0.5 truncate text-sm font-semibold text-slate-900">{value}</div>
     </div>
   );
 }

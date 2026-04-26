@@ -1,0 +1,179 @@
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { PACKAGING_TYPE_LABELS, PACKAGING_TYPE_ICONS } from "@/lib/constants";
+import { PACKAGING_STATUS_LABELS, PACKAGING_STATUS_COLORS } from "@/lib/status-machine/packaging-statuses";
+import { PhotoThumb } from "@/components/common/photo-thumb";
+
+export default async function PackagingListPage() {
+  const items = await prisma.packagingItem.findMany({
+    orderBy: [{ isActive: "desc" }, { name: "asc" }],
+    include: {
+      orderUsages: {
+        where: {
+          order: {
+            deletedAt: null,
+            status: { notIn: ["ON_SALE", "SHIPPED_WB"] },
+          },
+        },
+        select: {
+          quantityPerUnit: true,
+          order: { select: { lines: { select: { quantity: true } } } },
+        },
+      },
+      packagingOrderLines: {
+        where: { packagingOrder: { status: { notIn: ["ARRIVED", "CANCELLED"] } } },
+        select: { quantity: true },
+      },
+    },
+  });
+
+  const rows = items.map((i) => {
+    const required = i.orderUsages.reduce((sum, u) => {
+      const orderQty = u.order.lines.reduce((a, l) => a + l.quantity, 0);
+      return sum + orderQty * Number(u.quantityPerUnit);
+    }, 0);
+    const inProduction = i.packagingOrderLines.reduce((a, l) => a + l.quantity, 0);
+    const available = i.stock + inProduction;
+    const shortage = Math.max(0, Math.ceil(required) - available);
+    return {
+      ...i,
+      inProduction,
+      required: Math.ceil(required),
+      shortage,
+      lowStock: i.minStock != null && i.stock < i.minStock,
+    };
+  });
+
+  const activeCount = rows.filter((r) => r.isActive).length;
+  const shortageRows = rows.filter((r) => r.shortage > 0).sort((a, b) => b.shortage - a.shortage);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Упаковка</h1>
+          <p className="text-sm text-slate-500">Активных: {activeCount} из {rows.length}</p>
+        </div>
+        <Link
+          href="/packaging/new"
+          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+        >
+          + Добавить карточку
+        </Link>
+      </div>
+
+      {shortageRows.length > 0 && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
+          <div className="mb-2 flex items-baseline justify-between gap-2">
+            <div className="font-medium text-amber-900">
+              Нужно запустить в производство: {shortageRows.length}
+            </div>
+            <Link
+              href="/packaging-orders/new"
+              className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
+            >
+              + Заказ упаковки
+            </Link>
+          </div>
+          <ul className="space-y-1 text-sm text-amber-900">
+            {shortageRows.map((r) => (
+              <li key={r.id} className="flex items-baseline justify-between gap-2">
+                <Link href={`/packaging/${r.id}`} className="hover:underline">
+                  {r.name}
+                </Link>
+                <span className="text-xs">
+                  нужно {r.required.toLocaleString("ru-RU")} шт · есть {(r.stock + r.inProduction).toLocaleString("ru-RU")} ·
+                  <span className="ml-1 font-semibold text-red-700">
+                    дефицит {r.shortage.toLocaleString("ru-RU")}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+        <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Фото</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Название</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Тип</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">На складе</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">В производстве</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Потребность</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Дефицит</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Статус</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((r) => (
+              <tr key={r.id} className={`hover:bg-slate-50 ${r.isActive ? "" : "text-slate-400"}`}>
+                <td className="px-3 py-2">
+                  {r.photoUrl ? (
+                    <PhotoThumb url={r.photoUrl} size={40} />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded bg-slate-100 text-[10px] text-slate-400">
+                      нет фото
+                    </div>
+                  )}
+                </td>
+                <td className="px-3 py-2">
+                  <Link href={`/packaging/${r.id}`} className="font-medium text-slate-900 hover:underline">
+                    {r.name}
+                  </Link>
+                  {r.sku && <div className="font-mono text-xs text-slate-400">{r.sku}</div>}
+                </td>
+                <td className="px-3 py-2 text-xs text-slate-700">
+                  <span className="mr-1">{PACKAGING_TYPE_ICONS[r.type]}</span>
+                  {PACKAGING_TYPE_LABELS[r.type]}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <span className={r.lowStock ? "font-semibold text-amber-700" : ""}>
+                    {r.stock.toLocaleString("ru-RU")}
+                  </span>
+                  {r.minStock != null && (
+                    <div className="text-[10px] text-slate-400">мин: {r.minStock}</div>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  {r.inProduction > 0 ? r.inProduction.toLocaleString("ru-RU") : "—"}
+                </td>
+                <td className="px-3 py-2 text-right text-slate-700">
+                  {r.required > 0 ? r.required.toLocaleString("ru-RU") : "—"}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  {r.shortage > 0 ? (
+                    <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                      -{r.shortage.toLocaleString("ru-RU")}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-emerald-600">Хватает</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-xs">
+                  <span className={`rounded px-2 py-0.5 ${PACKAGING_STATUS_COLORS[r.status]}`}>
+                    {PACKAGING_STATUS_LABELS[r.status]}
+                  </span>
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={8} className="p-12 text-center text-sm text-slate-500">
+                  Карточек упаковки пока нет. Нажмите «+ Добавить карточку», чтобы создать первую.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="text-xs text-slate-400">
+        Потребность считается по заказам, которые ещё не отгружены на WB. Дефицит = потребность − (склад + то,
+        что уже в производстве у поставщика). Если есть дефицит — запускайте производство упаковки.
+      </p>
+    </div>
+  );
+}

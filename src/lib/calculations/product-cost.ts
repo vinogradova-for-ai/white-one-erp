@@ -1,6 +1,11 @@
 import { Prisma } from "@prisma/client";
 
-export type VariantEconomicsInput = {
+/**
+ * Экономика живёт на уровне ФАСОНА (ProductModel), а не варианта:
+ * закупочная цена, WB-цена, комиссия, ДРР, планируемый выкуп — одинаковы для всех цветов.
+ * На варианте остаётся только factRedemptionPct (меняется по цветам).
+ */
+export type ModelEconomicsInput = {
   purchasePriceCny?: Prisma.Decimal | number | string | null;
   purchasePriceRub?: Prisma.Decimal | number | string | null;
   cnyRubRate?: Prisma.Decimal | number | string | null;
@@ -13,7 +18,7 @@ export type VariantEconomicsInput = {
   plannedRedemptionPct?: Prisma.Decimal | number | string | null;
 };
 
-export type VariantEconomicsOutput = {
+export type ModelEconomicsOutput = {
   fullCost: number | null;
   marginBeforeDrr: number | null;
   marginAfterDrrPct: number | null;
@@ -31,7 +36,7 @@ function toNum(v: Prisma.Decimal | number | string | null | undefined): number |
 }
 
 /**
- * Экономика цветового варианта.
+ * Экономика фасона.
  *
  * Формула полной себестоимости:
  *   Если CNY задано: fullCost = CNY × rate × (1 + buffer) + packaging + wbLogistics
@@ -42,7 +47,7 @@ function toNum(v: Prisma.Decimal | number | string | null | undefined): number |
  * ROI:                       маржа после ДРР / fullCost × 100
  * Наценка %:                 (wbPrice − fullCost) / fullCost × 100
  */
-export function calculateVariantEconomics(input: VariantEconomicsInput): VariantEconomicsOutput {
+export function calculateModelEconomics(input: ModelEconomicsInput): ModelEconomicsOutput {
   const cny = toNum(input.purchasePriceCny);
   const rub = toNum(input.purchasePriceRub);
   const rate = toNum(input.cnyRubRate) ?? Number(process.env.CNY_RUB_RATE_DEFAULT ?? "13.5");
@@ -84,17 +89,20 @@ export function calculateVariantEconomics(input: VariantEconomicsInput): Variant
   return { fullCost, marginBeforeDrr, marginAfterDrrPct, roi, markupPct };
 }
 
+/**
+ * Экономика заказа — рассчитываем на основе фасона (экономики модели) и количества.
+ */
 export function calculateOrderEconomics(
-  variant: VariantEconomicsInput & { fullCost?: Prisma.Decimal | number | string | null },
+  model: ModelEconomicsInput & { fullCost?: Prisma.Decimal | number | string | null },
   quantity: number,
 ): {
   batchCost: number | null;
   plannedRevenue: number | null;
   plannedMargin: number | null;
 } {
-  const fullCost = toNum(variant.fullCost) ?? calculateVariantEconomics(variant).fullCost;
-  const customerPrice = toNum(variant.customerPrice);
-  const redemption = (toNum(variant.plannedRedemptionPct) ?? 0) / 100;
+  const fullCost = toNum(model.fullCost) ?? calculateModelEconomics(model).fullCost;
+  const customerPrice = toNum(model.customerPrice);
+  const redemption = (toNum(model.plannedRedemptionPct) ?? 0) / 100;
 
   const batchCost = fullCost !== null ? round(fullCost * quantity, 2) : null;
   const plannedRevenue = customerPrice !== null ? round(customerPrice * redemption * quantity, 2) : null;
@@ -107,6 +115,9 @@ export function calculateOrderEconomics(
 
   return { batchCost, plannedRevenue, plannedMargin };
 }
+
+// Алиас для обратной совместимости (пока модули не переехали)
+export const calculateVariantEconomics = calculateModelEconomics;
 
 function round(n: number, digits = 2): number {
   const f = Math.pow(10, digits);

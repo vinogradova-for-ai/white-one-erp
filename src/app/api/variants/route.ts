@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { variantCreateSchema } from "@/lib/validators/variant";
-import { calculateVariantEconomics } from "@/lib/calculations/product-cost";
+import { Prisma } from "@prisma/client";
 
 export async function GET() {
   try {
@@ -25,17 +25,9 @@ export async function POST(req: NextRequest) {
     const session = await requireAuth();
     assertCan(session.user.role, "product.create");
     const data = variantCreateSchema.parse(await req.json());
-    const eco = calculateVariantEconomics(data);
 
     const variant = await prisma.productVariant.create({
-      data: {
-        ...data,
-        fullCost: eco.fullCost ?? null,
-        marginBeforeDrr: eco.marginBeforeDrr ?? null,
-        marginAfterDrrPct: eco.marginAfterDrrPct ?? null,
-        roi: eco.roi ?? null,
-        markupPct: eco.markupPct ?? null,
-      },
+      data: data as Prisma.ProductVariantUncheckedCreateInput,
     });
     await prisma.productVariantStatusLog.create({
       data: {
