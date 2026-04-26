@@ -1,24 +1,20 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency } from "@/lib/format";
-import { PRODUCT_VARIANT_STATUS_LABELS, PRODUCT_VARIANT_STATUS_COLORS } from "@/lib/constants";
 import { VariantVisual } from "@/components/common/variant-visual";
 import { ColorChip } from "@/components/common/color-chip";
 import { NewVariantButton } from "@/components/variants/new-variant-button";
-import { ProductVariantStatus } from "@prisma/client";
 
 export default async function VariantsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string }>;
+  searchParams: Promise<{ q?: string }>;
 }) {
   const sp = await searchParams;
   const where: {
     deletedAt: null;
-    status?: ProductVariantStatus;
     OR?: Array<{ sku?: { contains: string; mode: "insensitive" }; colorName?: { contains: string; mode: "insensitive" } }>;
   } = { deletedAt: null };
-  if (sp.status && sp.status in PRODUCT_VARIANT_STATUS_LABELS) where.status = sp.status as ProductVariantStatus;
   if (sp.q) {
     where.OR = [
       { sku: { contains: sp.q, mode: "insensitive" } },
@@ -70,12 +66,6 @@ export default async function VariantsPage({
           placeholder="Поиск по артикулу или цвету…"
           className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
         />
-        <select name="status" defaultValue={sp.status ?? ""} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
-          <option value="">Все статусы</option>
-          {Object.entries(PRODUCT_VARIANT_STATUS_LABELS).map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
-          ))}
-        </select>
         <button type="submit" className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
           Применить
         </button>
@@ -89,7 +79,6 @@ export default async function VariantsPage({
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Артикул</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Фасон</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Цвет</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Статус</th>
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Себест.</th>
             </tr>
           </thead>
@@ -116,11 +105,6 @@ export default async function VariantsPage({
                   <div className="text-xs text-slate-500">{v.productModel.category}</div>
                 </td>
                 <td className="px-3 py-2 text-slate-700"><ColorChip name={v.colorName} /></td>
-                <td className="px-3 py-2">
-                  <span className={`inline-block rounded px-2 py-0.5 text-xs ${PRODUCT_VARIANT_STATUS_COLORS[v.status]}`}>
-                    {PRODUCT_VARIANT_STATUS_LABELS[v.status]}
-                  </span>
-                </td>
                 <td className="px-3 py-2 text-right text-xs">{formatCurrency(v.productModel.fullCost?.toString())}</td>
               </tr>
             ))}

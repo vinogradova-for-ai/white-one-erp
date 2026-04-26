@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { PhotoUrlsInput } from "@/components/common/photo-urls-input";
+import { DropzonePhotos } from "@/components/common/dropzone-photos";
 import { parseApiError, type ApiErrorResult } from "@/lib/api-error";
 import { FormErrorBanner, FieldError } from "@/components/common/form-errors";
 
@@ -110,7 +110,7 @@ export function VariantForm({ modelId, modelName }: { modelId: string; modelName
       <Section title="Фотографии">
         <div className="md:col-span-2 space-y-2">
           <p className="text-xs text-slate-500">Необязательно — можно добавить позже.</p>
-          <PhotoUrlsInput
+          <DropzonePhotos
             value={form.photoUrls}
             onChange={(urls) => setForm({ ...form, photoUrls: urls })}
           />

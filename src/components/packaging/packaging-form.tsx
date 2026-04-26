@@ -204,7 +204,6 @@ export function PackagingForm({
       <div>
         <div className="mb-1 text-sm text-slate-700">Фото</div>
         <DropzonePhotos
-          hideLink
           value={form.photoUrl ? [form.photoUrl] : []}
           onChange={(urls) => setForm({ ...form, photoUrl: urls[urls.length - 1] ?? "" })}
         />

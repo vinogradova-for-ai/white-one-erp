@@ -4,25 +4,22 @@ import { useRef, useState } from "react";
 import { PhotoThumb } from "@/components/common/photo-thumb";
 
 /**
- * Универсальная зона для фото: drag-n-drop, клик для выбора с компьютера, плюс поле для ссылки.
- * Значения хранятся в виде массива URL — локальные ("/uploads/...") и внешние работают одинаково.
+ * Универсальная зона для фото: drag-n-drop + клик для выбора с компьютера.
+ * Внешние ссылки не поддерживаем — только реальная загрузка файлов.
  */
 export function DropzonePhotos({
   value,
   onChange,
   hint,
-  hideLink = false,
 }: {
   value: string[];
   onChange: (urls: string[]) => void;
   hint?: string;
-  hideLink?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [linkInput, setLinkInput] = useState("");
 
   async function uploadFiles(files: FileList | File[]) {
     const list = Array.from(files).filter((f) => f && f.size > 0);
@@ -45,35 +42,6 @@ export function DropzonePhotos({
     } finally {
       setUploading(false);
     }
-  }
-
-  function normalizeLink(raw: string): string | null {
-    const trimmed = raw.trim();
-    if (!trimmed) return null;
-    if (trimmed.startsWith("/")) return trimmed; // локальный путь — разрешаем
-    const withProto = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-    try {
-      const u = new URL(withProto);
-      if (!u.hostname.includes(".")) return null;
-      return withProto;
-    } catch {
-      return null;
-    }
-  }
-
-  function addLink() {
-    setError(null);
-    const url = normalizeLink(linkInput);
-    if (!url) {
-      setError("Укажите корректную ссылку или перетащите файл");
-      return;
-    }
-    if (value.includes(url)) {
-      setError("Такая ссылка уже есть");
-      return;
-    }
-    onChange([...value, url]);
-    setLinkInput("");
   }
 
   function remove(url: string) {
@@ -120,31 +88,6 @@ export function DropzonePhotos({
           }}
         />
       </div>
-
-      {!hideLink && (
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <input
-            type="text"
-            value={linkInput}
-            onChange={(e) => setLinkInput(e.target.value)}
-            placeholder="…или вставьте ссылку (Pinterest, Google Drive, Яндекс.Диск)"
-            className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addLink();
-              }
-            }}
-          />
-          <button
-            type="button"
-            onClick={addLink}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            + По ссылке
-          </button>
-        </div>
-      )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       {hint && !error && <p className="text-xs text-slate-500">{hint}</p>}

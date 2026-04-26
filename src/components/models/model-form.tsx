@@ -260,7 +260,7 @@ export function ModelForm({
 
       <Section title="Фото фасона">
         <div className="md:col-span-2">
-          <DropzonePhotos hideLink value={form.photoUrls} onChange={(urls) => setForm((f) => ({ ...f, photoUrls: urls }))} />
+          <DropzonePhotos value={form.photoUrls} onChange={(urls) => setForm((f) => ({ ...f, photoUrls: urls }))} />
           <p className="mt-1 text-xs text-slate-500">
             Фото можно добавить позже. Но для перехода фасона в статус «Образец» минимум одно фото обязательно.
           </p>

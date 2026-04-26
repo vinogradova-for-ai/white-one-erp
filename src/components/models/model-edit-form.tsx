@@ -216,7 +216,7 @@ export function ModelEditForm({
 
       <Section title="Фото фасона">
         <div className="md:col-span-2">
-          <DropzonePhotos hideLink value={form.photoUrls} onChange={(urls) => setForm({ ...form, photoUrls: urls })} />
+          <DropzonePhotos value={form.photoUrls} onChange={(urls) => setForm({ ...form, photoUrls: urls })} />
         </div>
       </Section>
 

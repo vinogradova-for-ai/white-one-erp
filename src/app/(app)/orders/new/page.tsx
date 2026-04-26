@@ -15,7 +15,7 @@ export default async function NewOrderPage({
     prisma.productModel.findMany({
       where: {
         deletedAt: null,
-        variants: { some: { deletedAt: null, status: "READY_TO_ORDER" } },
+        variants: { some: { deletedAt: null } },
       },
       orderBy: { name: "asc" },
       take: 500,
@@ -30,7 +30,7 @@ export default async function NewOrderPage({
         defaultSizeProportion: true,
         sizeGrid: { select: { sizes: true } },
         variants: {
-          where: { deletedAt: null, status: "READY_TO_ORDER" },
+          where: { deletedAt: null },
           orderBy: { colorName: "asc" },
           select: {
             id: true,

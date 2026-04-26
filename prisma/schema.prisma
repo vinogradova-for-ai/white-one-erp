@@ -397,7 +397,7 @@ model ProductVariant {
 
   packagingType String?
 
-  status ProductVariantStatus @default(DRAFT)
+  status ProductVariantStatus @default(READY_TO_ORDER)
 
   notes    String?
   createdAt DateTime  @default(now())

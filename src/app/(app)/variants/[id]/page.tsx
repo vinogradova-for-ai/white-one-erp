@@ -5,7 +5,6 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, PACKAGING_TYPE_ICONS, PACKAGING_TYPE_LABELS } from "@/lib/constants";
 import { PhotoGallery, PhotoThumb } from "@/components/common/photo-thumb";
 import { ColorChip } from "@/components/common/color-chip";
-import { VariantStatusChanger } from "@/components/variants/variant-status-changer";
 
 export default async function VariantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -96,14 +95,8 @@ export default async function VariantDetailPage({ params }: { params: Promise<{ 
               </>
             )}
           </div>
-          {variant.status === "DRAFT" && (
-            <p className="mt-2 max-w-md text-xs text-amber-700">
-              Черновик. Чтобы добавить в заказ — переведите в «Готов к заказу».
-            </p>
-          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <VariantStatusChanger variantId={variant.id} currentStatus={variant.status} />
           <Link
             href={`/variants/${variant.id}/edit`}
             className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
