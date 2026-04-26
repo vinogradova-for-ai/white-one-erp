@@ -10,6 +10,7 @@ import {
 import { PhotoGallery } from "@/components/common/photo-thumb";
 import { VariantVisual } from "@/components/common/variant-visual";
 import { ColorChip } from "@/components/common/color-chip";
+import { DeleteButton } from "@/components/common/delete-button";
 
 export default async function ModelDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -72,6 +73,11 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
           >
             Редактировать
           </Link>
+          <DeleteButton
+            apiPath={`/api/models/${model.id}`}
+            redirectTo="/models"
+            confirmText={`Удалить фасон «${model.name}»? Все его цвета и связи тоже скроются. Восстановить будет нельзя.`}
+          />
         </div>
       </header>
 

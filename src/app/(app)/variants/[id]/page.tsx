@@ -5,6 +5,7 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, PACKAGING_TYPE_ICONS, PACKAGING_TYPE_LABELS } from "@/lib/constants";
 import { PhotoGallery, PhotoThumb } from "@/components/common/photo-thumb";
 import { ColorChip } from "@/components/common/color-chip";
+import { DeleteButton } from "@/components/common/delete-button";
 
 export default async function VariantDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -103,6 +104,11 @@ export default async function VariantDetailPage({ params }: { params: Promise<{ 
           >
             Редактировать
           </Link>
+          <DeleteButton
+            apiPath={`/api/variants/${variant.id}`}
+            redirectTo={`/models/${variant.productModel.id}`}
+            confirmText={`Удалить цвет «${variant.colorName}» (${variant.sku})? Восстановить будет нельзя.`}
+          />
         </div>
       </header>
 

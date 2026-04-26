@@ -8,6 +8,7 @@ import {
 } from "@/lib/constants";
 import { PhotoThumb } from "@/components/common/photo-thumb";
 import { OrderStatusChanger } from "@/components/orders/order-status-changer";
+import { DeleteButton } from "@/components/common/delete-button";
 import { InlineCheckbox } from "@/components/common/inline-checkbox";
 import { OrderPackagingSection } from "@/components/orders/order-packaging-section";
 import { OrderLinesSection } from "@/components/orders/order-lines-section";
@@ -110,6 +111,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           >
             Редактировать
           </Link>
+          <DeleteButton
+            apiPath={`/api/orders/${order.id}`}
+            redirectTo="/orders"
+            confirmText={`Удалить заказ #${order.orderNumber}? Восстановить будет нельзя.`}
+          />
         </div>
       </header>
 
