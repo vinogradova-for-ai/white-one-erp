@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { authConfig } from "@/lib/auth.config";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -11,9 +12,7 @@ const loginSchema = z.object({
 });
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  session: { strategy: "jwt" },
-  pages: { signIn: "/login" },
-  trustHost: true,
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -47,18 +46,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.userId = (user as { id: string }).id;
         token.role = (user as { role: Role }).role;
       }
-      // Проверяем, что юзер из токена существует в БД.
-      // Если БД пересоздавалась (миграции) — ID в токене может быть устаревшим.
       if (token.userId) {
         const exists = await prisma.user.findUnique({
           where: { id: token.userId as string },
           select: { id: true, isActive: true, role: true },
         });
         if (!exists || !exists.isActive) {
-          // Возвращаем пустой токен — пользователя отправит на логин
           return {};
         }
-        // Если роль в БД изменилась — обновим в токене
         token.role = exists.role;
       }
       return token;
