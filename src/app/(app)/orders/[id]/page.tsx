@@ -195,10 +195,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <dl className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm md:grid-cols-3">
               <Fact label="Передача на фабрику" value={formatDate(order.handedToFactoryDate)} />
               <Fact label="Готово на фабрике" value={formatDate(order.readyAtFactoryDate)} />
+              <Fact label="ОТК" value={formatDate(order.qcDate)} />
               <Fact label="Отгрузка" value={formatDate(order.shipmentDate)} />
               <Fact label="Прибытие план" value={formatDate(order.arrivalPlannedDate)} />
               <Fact label="Прибытие факт" value={formatDate(order.arrivalActualDate)} />
-              <Fact label="Старт продаж" value={formatDate(order.saleStartDate)} />
             </dl>
           </div>
 

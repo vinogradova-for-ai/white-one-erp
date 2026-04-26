@@ -6,42 +6,29 @@ type Timeline = {
   readyAtFactoryDate: string;
   qcDate: string;
   arrivalPlannedDate: string;
-  plannedShootDate: string;
-  packingDoneDate: string;
-  wbShipmentDate: string;
-  saleStartDate: string;
 };
 
-type PhaseKey = "production" | "qc" | "shipping" | "packing" | "wb" | "sales";
+type PhaseKey = "production" | "qc" | "shipping";
 
 type Phase = {
   key: PhaseKey;
   title: string;
   icon: string;
   color: string;
-  // Концы фазы: берём дату из Timeline по этому ключу
   endField: keyof Timeline;
-  // Старт фазы: либо production-start (сегодня), либо ключ предыдущей фазы
   startField: "production-start" | keyof Timeline;
 };
 
 const PHASES: Phase[] = [
-  { key: "production", title: "Производство",   icon: "🪡", color: "#3b82f6", startField: "production-start",   endField: "readyAtFactoryDate" },
-  { key: "qc",         title: "ОТК",            icon: "✓",  color: "#f59e0b", startField: "readyAtFactoryDate", endField: "qcDate" },
-  { key: "shipping",   title: "Доставка",       icon: "✈",  color: "#6366f1", startField: "qcDate",             endField: "arrivalPlannedDate" },
-  { key: "packing",    title: "Упаковка",       icon: "📦", color: "#8b5cf6", startField: "arrivalPlannedDate", endField: "packingDoneDate" },
-  { key: "wb",         title: "Поставка на ВБ", icon: "⬆",  color: "#0ea5e9", startField: "packingDoneDate",    endField: "wbShipmentDate" },
-  { key: "sales",      title: "Старт продаж",   icon: "🚀", color: "#10b981", startField: "wbShipmentDate",     endField: "saleStartDate" },
+  { key: "production", title: "Производство", icon: "🪡", color: "#3b82f6", startField: "production-start",   endField: "readyAtFactoryDate" },
+  { key: "qc",         title: "ОТК",          icon: "✓",  color: "#f59e0b", startField: "readyAtFactoryDate", endField: "qcDate" },
+  { key: "shipping",   title: "Доставка",     icon: "✈",  color: "#6366f1", startField: "qcDate",             endField: "arrivalPlannedDate" },
 ];
 
 const AUTO_SHARES: Record<keyof Timeline, number> = {
   readyAtFactoryDate: 0.55,
-  qcDate: 0.66,
-  arrivalPlannedDate: 0.80,
-  plannedShootDate: 0.86,
-  packingDoneDate: 0.91,
-  wbShipmentDate: 0.96,
-  saleStartDate: 1.00,
+  qcDate: 0.75,
+  arrivalPlannedDate: 1.00,
 };
 
 function parseISO(iso: string): Date | null {
@@ -79,7 +66,6 @@ function calcTimeline(launchMonth: string): Timeline {
   const [y, m] = launchMonth.split("-").map(Number);
   const empty: Timeline = {
     readyAtFactoryDate: "", qcDate: "", arrivalPlannedDate: "",
-    plannedShootDate: "", packingDoneDate: "", wbShipmentDate: "", saleStartDate: "",
   };
   if (!y || !m) return empty;
   const t0 = new Date();
@@ -123,10 +109,10 @@ export function OrderTimeline({
     onChange(calcTimeline(launchMonth));
   }
 
-  // Диапазон шкалы: от сегодня (или старта производства, если он раньше) до старта продаж
+  // Шкала: от старта производства (или сегодня, если он позже) до даты прибытия
   const todayIsoForChart = toISO(new Date());
   const chartStart = daysBetween(productionStart, todayIsoForChart) > 0 ? productionStart : todayIsoForChart;
-  const chartEnd = initial.saleStartDate || addDays(chartStart, 30);
+  const chartEnd = initial.arrivalPlannedDate || addDays(chartStart, 30);
   const totalDays = Math.max(1, daysBetween(chartStart, chartEnd));
 
   const getStartIso = useCallback((ph: Phase): string => {
@@ -143,7 +129,6 @@ export function OrderTimeline({
     return Math.max(0, Math.min(100, (d / totalDays) * 100));
   }
 
-  // ───────── Перетаскивание ─────────
   type DragState = {
     phase: Phase;
     mode: "move" | "resize-left" | "resize-right";
@@ -191,16 +176,13 @@ export function OrderTimeline({
 
     if (s.mode === "resize-right") {
       if (deltaDays === 0) return;
-      // Сдвигаем только конец текущей фазы (и стартует следующую)
       const newEnd = addDays(s.origEnd, deltaDays);
-      // не даём залезать раньше старта
       if (daysBetween(s.origStart, newEnd) < 1) return;
       next[s.phase.endField] = newEnd;
       setDragInfo({ left: posPct(newEnd), label: formatDM(newEnd) });
     } else if (s.mode === "resize-left") {
       if (deltaDays === 0) return;
       if (idx === 0) {
-        // Первая фаза — двигаем productionStart, продолжительность фазы сохраняем
         const newStart = addDays(s.origProductionStart, deltaDays);
         if (daysBetween(newStart, s.origEnd) < 1) return;
         setProductionStart(newStart);
@@ -208,7 +190,6 @@ export function OrderTimeline({
         setDragInfo({ left: posPct(newStart), label: formatDM(newStart) });
         return;
       }
-      // Сдвигаем конец предыдущей фазы (= старт текущей)
       if (!s.origPrevEnd) return;
       const newPrevEnd = addDays(s.origPrevEnd, deltaDays);
       if (daysBetween(newPrevEnd, s.origEnd) < 1) return;
@@ -217,14 +198,12 @@ export function OrderTimeline({
       setDragInfo({ left: posPct(newPrevEnd), label: formatDM(newPrevEnd) });
     } else {
       if (deltaDays === 0) return;
-      // Сдвигаем всю фазу целиком — двигаем её конец И конец предыдущей (=старт)
       const newEnd = addDays(s.origEnd, deltaDays);
       next[s.phase.endField] = newEnd;
       if (s.origPrevEnd) {
         const prev = PHASES[idx - 1];
         next[prev.endField] = addDays(s.origPrevEnd, deltaDays);
       } else {
-        // Первая фаза — сдвигаем и productionStart тоже
         const newStart = addDays(s.origProductionStart, deltaDays);
         setProductionStart(newStart);
       }
@@ -240,7 +219,6 @@ export function OrderTimeline({
     setDragInfo(null);
   };
 
-  // ───────── Шкала дат: метки по неделям и по месяцам ─────────
   const ticks = useMemo(() => {
     const weekly: Array<{ iso: string; pct: number; label: string }> = [];
     const monthly: Array<{ iso: string; pct: number; label: string }> = [];
@@ -250,17 +228,14 @@ export function OrderTimeline({
     while (cur <= (parseISO(chartEnd) ?? cur)) {
       const iso = toISO(cur);
       const pct = posPct(iso);
-      // Недельная метка — каждый понедельник
       if (cur.getUTCDay() === 1) {
         weekly.push({ iso, pct, label: String(cur.getUTCDate()) });
       }
-      // Первое число месяца
       if (cur.getUTCDate() === 1) {
         monthly.push({ iso, pct, label: `${MONTH_SHORT[cur.getUTCMonth()]} ${String(cur.getUTCFullYear()).slice(2)}` });
       }
       cur.setUTCDate(cur.getUTCDate() + 1);
     }
-    // Всегда добавим старт и конец
     if (weekly.length === 0 || weekly[0].iso !== chartStart) {
       weekly.unshift({ iso: chartStart, pct: 0, label: String(parseISO(chartStart)!.getUTCDate()) });
     }
@@ -270,16 +245,6 @@ export function OrderTimeline({
 
   const todayIso = toISO(new Date());
   const todayPct = posPct(todayIso);
-
-  const shootWindow = useMemo(() => {
-    const from = initial.arrivalPlannedDate;
-    const to = initial.packingDoneDate;
-    if (!from || !to) return null;
-    const left = posPct(from);
-    const right = posPct(to);
-    return { from, to, left, width: Math.max(0, right - left) };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initial.arrivalPlannedDate, initial.packingDoneDate, chartStart, totalDays]);
 
   return (
     <fieldset className="space-y-3">
@@ -295,9 +260,7 @@ export function OrderTimeline({
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 select-none">
-        {/* Ось сверху: месяцы и числа */}
         <div className="relative mb-2 h-10" ref={railRef}>
-          {/* месяца */}
           <div className="absolute inset-x-0 top-0 h-4">
             {ticks.monthly.map((m) => (
               <div
@@ -309,7 +272,6 @@ export function OrderTimeline({
               </div>
             ))}
           </div>
-          {/* числа (недели) */}
           <div className="absolute inset-x-0 top-4 h-4">
             {ticks.weekly.map((w) => (
               <div
@@ -321,18 +283,15 @@ export function OrderTimeline({
               </div>
             ))}
           </div>
-          {/* нижняя линия оси */}
           <div className="absolute inset-x-0 bottom-0 h-px bg-slate-300" />
         </div>
 
-        {/* Полотно с сеткой и линией «сегодня» */}
         <div
           className="relative"
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
         >
-          {/* Плавающий ярлык с текущей датой при перетаскивании */}
           {dragInfo && (
             <div
               className="pointer-events-none absolute -top-7 z-30 -translate-x-1/2 whitespace-nowrap rounded-md bg-emerald-600 px-2 py-1 text-xs font-bold text-white shadow-lg"
@@ -341,7 +300,6 @@ export function OrderTimeline({
               {dragInfo.label}
             </div>
           )}
-          {/* Вертикальные линии по неделям (фон) */}
           <div className="pointer-events-none absolute inset-0">
             {ticks.weekly.map((w) => (
               <div key={"g" + w.iso} className="absolute top-0 bottom-0 border-l border-slate-200/70" style={{ left: `${w.pct}%` }} />
@@ -351,7 +309,6 @@ export function OrderTimeline({
             ))}
           </div>
 
-          {/* «Сегодня» */}
           {todayPct > 0 && todayPct < 100 && (
             <div
               className="pointer-events-none absolute top-0 bottom-0 z-10 border-l-2 border-red-400"
@@ -363,7 +320,6 @@ export function OrderTimeline({
             </div>
           )}
 
-          {/* Строки фаз */}
           <div className="space-y-1">
             {PHASES.map((ph) => {
               const startIso = getStartIso(ph);
@@ -373,31 +329,24 @@ export function OrderTimeline({
               const days = daysBetween(startIso, endIso);
               return (
                 <div key={ph.key} className="relative h-9">
-                  {/* левая подпись-фаза */}
-                  <div className="absolute -left-[0px] top-1/2 hidden -translate-y-1/2 pr-2 text-[11px] text-slate-400" />
-
-                  {/* полоса */}
                   <div
                     onPointerDown={(e) => onPointerDown(e, ph, "move")}
                     className="absolute top-1 flex h-7 cursor-grab items-center rounded-md text-white shadow-sm active:cursor-grabbing"
                     style={{ left: `${left}%`, width: `${width}%`, backgroundColor: ph.color }}
                     title={`${ph.title}: ${formatDM(startIso)} → ${formatDM(endIso)} (${days} дн). Тащите, чтобы сдвинуть.`}
                   >
-                    {/* ручка слева — теперь и у первой фазы (двигает старт производства) */}
                     <div
                       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-left"); }}
                       className="absolute -left-0.5 top-0 bottom-0 w-2 cursor-ew-resize rounded-l-md hover:bg-white/30"
                       title={PHASES.indexOf(ph) === 0 ? "Сдвиньте, чтобы изменить старт производства" : "Сдвиньте, чтобы изменить старт фазы"}
                     />
 
-                    {/* текст */}
                     <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-2 text-[11px] font-medium whitespace-nowrap">
                       <span>{ph.icon}</span>
                       <span>{ph.title}</span>
                       <span className="opacity-80">· {days} дн</span>
                     </div>
 
-                    {/* даты по краям — всегда видны, жирнее */}
                     <div className="pointer-events-none absolute -top-5 left-0 rounded bg-slate-900/90 px-1 py-0.5 text-[10px] font-semibold text-white shadow-sm">
                       {formatDM(startIso)}
                     </div>
@@ -405,7 +354,6 @@ export function OrderTimeline({
                       {formatDM(endIso)}
                     </div>
 
-                    {/* ручка справа */}
                     <div
                       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-right"); }}
                       className="absolute -right-0.5 top-0 bottom-0 w-2 cursor-ew-resize rounded-r-md hover:bg-white/30"
@@ -415,26 +363,12 @@ export function OrderTimeline({
                 </div>
               );
             })}
-
-            {/* Окно съёмки */}
-            {shootWindow && shootWindow.width > 0 && (
-              <div className="relative h-8 pt-1">
-                <div
-                  className="absolute top-1 flex h-7 items-center rounded-md border-2 border-dashed border-pink-500 bg-pink-500/10 px-2 text-[11px] font-medium text-pink-700 whitespace-nowrap overflow-hidden"
-                  style={{ left: `${shootWindow.left}%`, width: `${shootWindow.width}%` }}
-                  title={`Съёмку можно провести: ${formatDM(shootWindow.from)} → ${formatDM(shootWindow.to)}`}
-                >
-                  📷 Съёмка: {formatDM(shootWindow.from)} — {formatDM(shootWindow.to)}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
 
       <p className="text-xs text-slate-500">
-        Тащите полосу целиком, чтобы сдвинуть фазу, или за края — чтобы поменять старт/дедлайн.
-        Розовое окно — когда можно впихнуть съёмку (товар уже приехал, но ещё не упакован).
+        Тащите полосу, чтобы сдвинуть фазу, или за края — чтобы поменять старт/дедлайн.
       </p>
     </fieldset>
   );

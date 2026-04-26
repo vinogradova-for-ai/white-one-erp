@@ -124,24 +124,16 @@ export function OrderForm({
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [paymentsTouched, setPaymentsTouched] = useState(false);
 
-  // Таймлайн — 7 ориентировочных дат этапов
+  // Таймлайн — 3 этапа: производство, ОТК, доставка
   type Timeline = {
     readyAtFactoryDate: string;
     qcDate: string;
     arrivalPlannedDate: string;
-    plannedShootDate: string;   // не сохраняется — ориентир
-    packingDoneDate: string;
-    wbShipmentDate: string;
-    saleStartDate: string;
   };
   const [timeline, setTimeline] = useState<Timeline>({
     readyAtFactoryDate: "",
     qcDate: "",
     arrivalPlannedDate: "",
-    plannedShootDate: "",
-    packingDoneDate: "",
-    wbShipmentDate: "",
-    saleStartDate: "",
   });
 
   // Когда меняется модель — сбрасываем строки
@@ -217,17 +209,16 @@ export function OrderForm({
     setUnitCost(model?.fullCost != null ? Number(model.fullCost).toString() : "");
   }, [model?.id, model?.fullCost]);
 
-  // Синхронизируем launchMonth с датой старта продаж из таймлайна Ганта.
-  // Пользователь таскает ползунок — платежи автопересчитываются.
+  // Синхронизируем launchMonth с датой прибытия партии (= месяц старта продаж).
   useEffect(() => {
-    if (!timeline.saleStartDate) return;
-    const [y, m] = timeline.saleStartDate.split("-");
+    if (!timeline.arrivalPlannedDate) return;
+    const [y, m] = timeline.arrivalPlannedDate.split("-");
     if (!y || !m) return;
     const next = `${y}-${m}`;
     if (next !== common.launchMonth) {
       setCommon((c) => ({ ...c, launchMonth: next }));
     }
-  }, [timeline.saleStartDate, common.launchMonth]);
+  }, [timeline.arrivalPlannedDate, common.launchMonth]);
 
   function updatePayment(idx: number, patch: Partial<PaymentRow>) {
     setPaymentsTouched(true);
@@ -290,9 +281,6 @@ export function OrderForm({
       if (timeline.readyAtFactoryDate) payload.readyAtFactoryDate = timeline.readyAtFactoryDate;
       if (timeline.qcDate) payload.qcDate = timeline.qcDate;
       if (timeline.arrivalPlannedDate) payload.arrivalPlannedDate = timeline.arrivalPlannedDate;
-      if (timeline.packingDoneDate) payload.packingDoneDate = timeline.packingDoneDate;
-      if (timeline.wbShipmentDate) payload.wbShipmentDate = timeline.wbShipmentDate;
-      if (timeline.saleStartDate) payload.saleStartDate = timeline.saleStartDate;
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -6,9 +6,8 @@ import { ORDER_STATUS_LABELS } from "@/lib/constants";
 
 const PHASES = [
   { key: "production", title: "Производство", color: "bg-blue-500",   startKey: "handedToFactoryDate", endKey: "readyAtFactoryDate", doneAt: ["QC", "READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
-  { key: "shipping",   title: "Логистика",    color: "bg-indigo-500", startKey: "shipmentDate",        endKey: "arrivalPlannedDate", doneAt: ["WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
-  { key: "packing",    title: "Упаковка",     color: "bg-violet-500", startKey: "arrivalActualDate",   endKey: "packingDoneDate",    doneAt: ["SHIPPED_WB", "ON_SALE"] },
-  { key: "wb",         title: "Поставка ВБ",  color: "bg-sky-500",    startKey: "packingDoneDate",     endKey: "wbShipmentDate",     doneAt: ["ON_SALE"] },
+  { key: "qc",         title: "ОТК",          color: "bg-amber-500",  startKey: "readyAtFactoryDate",  endKey: "qcDate",             doneAt: ["READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
+  { key: "shipping",   title: "Доставка",     color: "bg-indigo-500", startKey: "qcDate",              endKey: "arrivalPlannedDate", doneAt: ["WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
 ] as const;
 
 function iso(d: Date | null | undefined): string | null {
@@ -180,9 +179,8 @@ function FilterLink({ href, active, label, color }: { href: string; active: bool
 function getPhaseOwner(phaseKey: string, pmName: string | null | undefined, factoryName: string | null | undefined): string | undefined {
   switch (phaseKey) {
     case "production": return factoryName ? `Фабрика: ${factoryName}` : pmName ?? undefined;
+    case "qc":         return factoryName ? `Фабрика: ${factoryName}` : pmName ?? undefined;
     case "shipping":   return "Таня (логистика)";
-    case "packing":    return "Настя (упаковка)";
-    case "wb":         return "WB-менеджеры";
     default: return pmName ?? undefined;
   }
 }

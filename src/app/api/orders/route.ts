@@ -97,6 +97,7 @@ export async function POST(req: NextRequest) {
         handedToFactoryDate: toDate(data.handedToFactoryDate),
         sewingStartDate: toDate(data.sewingStartDate),
         readyAtFactoryDate: toDate(data.readyAtFactoryDate),
+        qcDate: toDate(data.qcDate),
         shipmentDate: toDate(data.shipmentDate),
         arrivalPlannedDate: toDate(data.arrivalPlannedDate),
         packingDoneDate: toDate(data.packingDoneDate),

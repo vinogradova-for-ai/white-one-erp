@@ -222,11 +222,9 @@ export function GanttChart({
 
       {/* Легенда */}
       <div className="flex flex-wrap gap-3 text-xs text-slate-500">
-        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-blue-500 align-middle" />Производство / пошив</span>
-        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-amber-500 align-middle" />Дизайн / лекала</span>
+        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-blue-500 align-middle" />Производство</span>
+        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-amber-500 align-middle" />ОТК</span>
         <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-indigo-500 align-middle" />Доставка</span>
-        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-violet-500 align-middle" />Упаковка</span>
-        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-sky-500 align-middle" />Поставка ВБ</span>
         <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-emerald-500 align-middle" />Готово / утверждено</span>
         <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-red-500 align-middle" />Просрочено</span>
       </div>

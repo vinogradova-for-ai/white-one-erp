@@ -33,6 +33,7 @@ export const orderCreateSchema = z.object({
   handedToFactoryDate: z.string().optional().nullable(),
   sewingStartDate: z.string().optional().nullable(),
   readyAtFactoryDate: z.string().optional().nullable(),
+  qcDate: z.string().optional().nullable(),
   shipmentDate: z.string().optional().nullable(),
   arrivalPlannedDate: z.string().optional().nullable(),
   packingDoneDate: z.string().optional().nullable(),

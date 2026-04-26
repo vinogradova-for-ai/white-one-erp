@@ -22,6 +22,7 @@ const fullOrderPatchSchema = orderUpdateSchema.extend({
   handedToFactoryDate: z.string().nullable().optional(),
   sewingStartDate: z.string().nullable().optional(),
   readyAtFactoryDate: z.string().nullable().optional(),
+  qcDate: z.string().nullable().optional(),
   shipmentDate: z.string().nullable().optional(),
   arrivalPlannedDate: z.string().nullable().optional(),
   arrivalActualDate: z.string().nullable().optional(),
@@ -67,7 +68,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     // Преобразуем строки дат в Date
     const dateFields = [
       "prepaymentDate", "finalPaymentDate", "decisionDate",
-      "handedToFactoryDate", "sewingStartDate", "readyAtFactoryDate",
+      "handedToFactoryDate", "sewingStartDate", "readyAtFactoryDate", "qcDate",
       "shipmentDate", "arrivalPlannedDate", "arrivalActualDate",
       "packingDoneDate", "wbShipmentDate", "saleStartDate",
     ] as const;
