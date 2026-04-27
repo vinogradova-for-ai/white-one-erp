@@ -109,18 +109,13 @@ function LineCard({
   canDelete: boolean;
   onChanged: () => void;
 }) {
-  const [qty, setQty] = useState(line.quantity);
   const [plan, setPlan] = useState<Record<string, number>>(line.sizeDistribution ?? {});
-  const [actual, setActual] = useState<Record<string, number>>(line.sizeDistributionActual ?? {});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const planSum = Object.values(plan).reduce((a, b) => a + (Number(b) || 0), 0);
-  const actualSum = Object.values(actual).reduce((a, b) => a + (Number(b) || 0), 0);
+  const qty = Object.values(plan).reduce((a, b) => a + (Number(b) || 0), 0);
 
-  const dirty = qty !== line.quantity
-    || JSON.stringify(plan) !== JSON.stringify(line.sizeDistribution ?? {})
-    || JSON.stringify(actual) !== JSON.stringify(line.sizeDistributionActual ?? {});
+  const dirty = JSON.stringify(plan) !== JSON.stringify(line.sizeDistribution ?? {});
 
   async function save() {
     setSaving(true);
@@ -132,7 +127,6 @@ function LineCard({
         body: JSON.stringify({
           quantity: qty,
           sizeDistribution: Object.keys(plan).length > 0 ? plan : null,
-          sizeDistributionActual: Object.keys(actual).length > 0 ? actual : null,
         }),
       });
       if (!res.ok) {
@@ -178,16 +172,10 @@ function LineCard({
               <div className="text-xs text-slate-500">{line.sku}</div>
             </div>
             <div className="text-right text-sm">
-              <div>
-                <label className="text-xs text-slate-500">Количество:</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={qty}
-                  onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
-                  className="ml-2 w-24 rounded border border-slate-300 bg-white px-2 py-1 text-right text-sm"
-                />
-                <span className="ml-1 text-slate-500">шт</span>
+              <div className="flex items-baseline justify-end gap-1">
+                <span className="text-xs text-slate-500">Количество:</span>
+                <span className="text-base font-semibold text-slate-900">{qty}</span>
+                <span className="text-xs text-slate-500">шт</span>
               </div>
               <div className="mt-0.5 text-xs text-slate-500">
                 {formatCurrency(line.batchCost)}
@@ -198,16 +186,10 @@ function LineCard({
           {sizes.length > 0 && (
             <div className="mt-3 space-y-2">
               <SizeRow
-                label={`План (сумма ${planSum}${qty !== planSum ? ` / заказ ${qty}` : ""})`}
+                label="Размеры"
                 sizes={sizes}
                 dist={plan}
                 onChange={setPlan}
-              />
-              <SizeRow
-                label={`Факт (сумма ${actualSum})`}
-                sizes={sizes}
-                dist={actual}
-                onChange={setActual}
               />
             </div>
           )}
