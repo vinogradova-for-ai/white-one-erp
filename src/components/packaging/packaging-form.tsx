@@ -91,7 +91,10 @@ export function PackagingForm({
     setSaving(true);
     setApiErr(null);
 
-    const isCny = form.priceCurrency === "CNY";
+    // Если введены и юани и рубли — приоритет ¥. Курс хранится только если указаны юани.
+    const hasCny = !!form.unitPriceCny;
+    const hasRub = !!form.unitPriceRub;
+    const currency = hasCny ? "CNY" : hasRub ? "RUB" : null;
     const payload = {
       name: form.name.trim(),
       type: form.type,
@@ -102,10 +105,10 @@ export function PackagingForm({
       minStock: form.minStock != null && form.minStock !== ("" as unknown) ? Number(form.minStock) : null,
       notes: form.notes.trim() || null,
       isActive: form.isActive,
-      priceCurrency: (form.unitPriceRub || form.unitPriceCny) ? form.priceCurrency : null,
-      unitPriceRub: !isCny && form.unitPriceRub ? Number(form.unitPriceRub) : null,
-      unitPriceCny: isCny && form.unitPriceCny ? Number(form.unitPriceCny) : null,
-      cnyRubRate: isCny && form.cnyRubRate ? Number(form.cnyRubRate) : null,
+      priceCurrency: currency,
+      unitPriceRub: hasRub ? Number(form.unitPriceRub) : null,
+      unitPriceCny: hasCny ? Number(form.unitPriceCny) : null,
+      cnyRubRate: hasCny && form.cnyRubRate ? Number(form.cnyRubRate) : null,
       ownerId: form.ownerId || null,
     };
 
@@ -237,54 +240,48 @@ export function PackagingForm({
       </div>
 
       <fieldset className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <legend className="px-1 text-sm font-semibold uppercase tracking-wide text-slate-500">Стоимость</legend>
+        <legend className="px-1 text-sm font-semibold uppercase tracking-wide text-slate-500">Стоимость за штуку</legend>
         <div className="grid gap-3 md:grid-cols-3">
           <label className="block">
-            <span className="mb-1 block text-sm text-slate-700">Валюта</span>
-            <select
-              value={form.priceCurrency}
-              onChange={(e) => setForm({ ...form, priceCurrency: e.target.value as "RUB" | "CNY" })}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-            >
-              <option value="RUB">₽ рубли</option>
-              <option value="CNY">¥ юани</option>
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-sm text-slate-700">
-              Цена за штуку ({form.priceCurrency === "CNY" ? "¥" : "₽"})
-            </span>
+            <span className="mb-1 block text-sm text-slate-700">Цена в ₽</span>
             <input
               type="text"
               inputMode="decimal"
-              value={form.priceCurrency === "CNY" ? form.unitPriceCny : form.unitPriceRub}
-              onChange={(e) => {
-                const v = e.target.value.replace(",", ".");
-                setForm(form.priceCurrency === "CNY" ? { ...form, unitPriceCny: v } : { ...form, unitPriceRub: v });
-              }}
-              placeholder={form.priceCurrency === "CNY" ? "0.5" : "5"}
+              value={form.unitPriceRub}
+              onChange={(e) => setForm({ ...form, unitPriceRub: e.target.value.replace(",", ".") })}
+              placeholder="5"
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
             />
           </label>
-          {form.priceCurrency === "CNY" && (
-            <label className="block">
-              <span className="mb-1 block text-sm text-slate-700">Курс ¥ → ₽</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={form.cnyRubRate}
-                onChange={(e) => setForm({ ...form, cnyRubRate: e.target.value.replace(",", ".") })}
-                placeholder="12.5"
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-              />
-            </label>
-          )}
+          <label className="block">
+            <span className="mb-1 block text-sm text-slate-700">Цена в ¥</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={form.unitPriceCny}
+              onChange={(e) => setForm({ ...form, unitPriceCny: e.target.value.replace(",", ".") })}
+              placeholder="0.5"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm text-slate-700">Курс ¥ → ₽</span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={form.cnyRubRate}
+              onChange={(e) => setForm({ ...form, cnyRubRate: e.target.value.replace(",", ".") })}
+              placeholder="12.5"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+            />
+          </label>
         </div>
-        {form.priceCurrency === "CNY" && form.unitPriceCny && form.cnyRubRate && (
-          <p className="text-xs text-slate-500">
-            ≈ {(Number(form.unitPriceCny) * Number(form.cnyRubRate)).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽ за штуку
-          </p>
-        )}
+        <p className="text-xs text-slate-500">
+          Можно ввести в любой валюте. Если есть оба — для итогов используется ¥.
+          {form.unitPriceCny && form.cnyRubRate && (
+            <> ≈ {(Number(form.unitPriceCny) * Number(form.cnyRubRate)).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽</>
+          )}
+        </p>
       </fieldset>
 
       {users.length > 0 && (

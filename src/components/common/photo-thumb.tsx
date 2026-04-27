@@ -15,10 +15,13 @@ export function PhotoThumb({
   size?: number;
   className?: string;
 }) {
+  // Вертикальный формат 4:5 — стандарт фото товара на WB
+  const width = size;
+  const height = Math.round(size * 1.25);
   if (!url) {
     return (
       <div
-        style={{ width: size, height: size }}
+        style={{ width, height }}
         className={`flex flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-300 ${className}`}
       >
         <ImageIcon size={size * 0.5} />
@@ -30,7 +33,7 @@ export function PhotoThumb({
     <img
       src={url}
       alt={alt ?? ""}
-      style={{ width: size, height: size }}
+      style={{ width, height }}
       className={`flex-shrink-0 rounded-lg object-cover ${className}`}
       loading="lazy"
     />
@@ -64,7 +67,7 @@ export function PhotoGallery({
       <img
         src={urls[0]}
         alt={alt ?? ""}
-        className="aspect-square w-full rounded-2xl object-cover"
+        className="aspect-[4/5] w-full rounded-2xl object-cover"
       />
       {urls.length > 1 && (
         <div className="grid grid-cols-4 gap-2">
@@ -74,7 +77,7 @@ export function PhotoGallery({
               key={url}
               src={url}
               alt={alt ?? ""}
-              className="aspect-square w-full rounded-lg object-cover"
+              className="aspect-[4/5] w-full rounded-lg object-cover"
               loading="lazy"
             />
           ))}

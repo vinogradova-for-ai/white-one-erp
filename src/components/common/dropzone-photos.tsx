@@ -21,14 +21,49 @@ export function DropzonePhotos({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Сжимаем картинку прямо в браузере перед загрузкой:
+  // ресайз до 1600px, JPEG quality 0.82, авто-поворот по EXIF (createImageBitmap делает сам).
+  // HEIC/HEIF/GIF/SVG не трогаем — браузер их не декодит как canvas.
+  async function compressInBrowser(file: File): Promise<File> {
+    if (typeof window === "undefined" || !("createImageBitmap" in window)) return file;
+    if (!file.type.startsWith("image/")) return file;
+    const skip = ["image/heic", "image/heif", "image/gif", "image/svg+xml"];
+    if (skip.includes(file.type)) return file;
+
+    try {
+      const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+      const maxSide = 1600;
+      const ratio = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+      const w = Math.round(bitmap.width * ratio);
+      const h = Math.round(bitmap.height * ratio);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return file;
+      ctx.drawImage(bitmap, 0, 0, w, h);
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/jpeg", 0.82),
+      );
+      bitmap.close();
+      if (!blob) return file;
+      // если сжатая больше оригинала — оставляем оригинал
+      if (blob.size >= file.size) return file;
+      return new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" });
+    } catch {
+      return file;
+    }
+  }
+
   async function uploadFiles(files: FileList | File[]) {
     const list = Array.from(files).filter((f) => f && f.size > 0);
     if (list.length === 0) return;
     setError(null);
     setUploading(true);
     try {
+      const compressed = await Promise.all(list.map(compressInBrowser));
       const fd = new FormData();
-      for (const f of list) fd.append("file", f);
+      for (const f of compressed) fd.append("file", f);
       const res = await fetch("/api/uploads", { method: "POST", body: fd });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
