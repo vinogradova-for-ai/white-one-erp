@@ -7,7 +7,6 @@ import {
   ORDER_TYPE_LABELS, DELIVERY_METHOD_LABELS,
 } from "@/lib/constants";
 import { PhotoThumb } from "@/components/common/photo-thumb";
-import { OrderStatusChanger } from "@/components/orders/order-status-changer";
 import { DeleteButton } from "@/components/common/delete-button";
 import { InlineCheckbox } from "@/components/common/inline-checkbox";
 import { OrderPackagingSection } from "@/components/orders/order-packaging-section";
@@ -104,7 +103,6 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${ORDER_STATUS_COLORS[order.status]}`}>
             {ORDER_STATUS_LABELS[order.status]}
           </span>
-          <OrderStatusChanger orderId={order.id} currentStatus={order.status} />
           <Link
             href={`/orders/${order.id}/edit`}
             className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
@@ -231,12 +229,6 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* WB */}
-          <div>
-            <div className="mb-2 text-[11px] uppercase tracking-wider text-slate-400">Wildberries</div>
-            <InlineCheckbox label="Карточка WB готова" checked={order.wbCardReady} endpoint={endpoint} field="wbCardReady" />
           </div>
 
           {/* История статусов */}

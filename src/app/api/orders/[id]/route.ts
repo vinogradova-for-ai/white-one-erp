@@ -4,7 +4,12 @@ import { requireAuth, apiError } from "@/server/api-helpers";
 import { orderUpdateSchema } from "@/lib/validators/order";
 import { z } from "zod";
 
-// Универсальная схема для обновления заказа (поля + флаги + даты)
+// Универсальная схема для обновления заказа (поля + флаги + даты + платежи)
+const paymentInputSchema = z.object({
+  plannedDate: z.string(),
+  amount: z.number(),
+  label: z.string(),
+});
 const fullOrderPatchSchema = orderUpdateSchema.extend({
   // Флаги
   packagingOrdered: z.boolean().optional(),
@@ -29,6 +34,9 @@ const fullOrderPatchSchema = orderUpdateSchema.extend({
   packingDoneDate: z.string().nullable().optional(),
   wbShipmentDate: z.string().nullable().optional(),
   saleStartDate: z.string().nullable().optional(),
+
+  // График платежей: если передан — заменяет существующие платежи заказа
+  payments: z.array(paymentInputSchema).optional(),
 });
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -78,8 +86,34 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       const v = processed[f];
       if (typeof v === "string") processed[f] = v ? new Date(v) : null;
     }
+    // payments обрабатываем отдельной транзакцией, в основной update не передаём
+    const newPayments = processed.payments as
+      | Array<{ plannedDate: string; amount: number; label: string }>
+      | undefined;
+    delete processed.payments;
 
     const updated = await prisma.order.update({ where: { id }, data: processed });
+
+    if (newPayments) {
+      await prisma.$transaction([
+        prisma.payment.deleteMany({ where: { orderId: id, type: "ORDER" } }),
+        ...(newPayments.length > 0
+          ? [
+              prisma.payment.createMany({
+                data: newPayments.map((p) => ({
+                  type: "ORDER" as const,
+                  plannedDate: new Date(p.plannedDate),
+                  amount: p.amount,
+                  label: p.label,
+                  orderId: id,
+                  factoryId: updated.factoryId,
+                  createdById: session.user.id,
+                })),
+              }),
+            ]
+          : []),
+      ]);
+    }
     return NextResponse.json(updated);
   } catch (e) {
     return apiError(e);
