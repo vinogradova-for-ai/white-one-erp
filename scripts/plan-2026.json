@@ -1,0 +1,711 @@
+{
+  "П_038_шоколад_безэполет": {
+    "status": "повтор",
+    "color": "шоколад",
+    "fullCostRub": 4226.0,
+    "buyCostRub": 3576.0,
+    "source": "coats"
+  },
+  "П_035_черн_безэполет": {
+    "status": "повтор",
+    "color": "черный",
+    "fullCostRub": 4226.0,
+    "buyCostRub": 3576.0,
+    "source": "coats"
+  },
+  "П_039_бордо_безэполет": {
+    "status": "повтор",
+    "color": "бордо",
+    "fullCostRub": 4226.0,
+    "buyCostRub": 3576.0,
+    "source": "coats"
+  },
+  "П_040_темно-синий": {
+    "status": "повтор",
+    "color": "синий",
+    "fullCostRub": 4226.0,
+    "buyCostRub": 3576.0,
+    "source": "coats"
+  },
+  "П_031_графит_безэполет": {
+    "status": "повтор",
+    "color": "графит",
+    "fullCostRub": 4226.0,
+    "buyCostRub": 3576.0,
+    "source": "coats"
+  },
+  "П_023_син_безэполет": {
+    "status": "повтор",
+    "color": "синий",
+    "fullCostRub": 4226.0,
+    "buyCostRub": 3576.0,
+    "source": "coats"
+  },
+  "П_036_белый_безэполет": {
+    "status": "повтор",
+    "color": "белый",
+    "fullCostRub": 4226.0,
+    "buyCostRub": 3576.0,
+    "source": "coats"
+  },
+  "П_037_беж_безэполет": {
+    "status": "повтор",
+    "color": "бежевый",
+    "fullCostRub": 4226.0,
+    "buyCostRub": 3576.0,
+    "source": "coats"
+  },
+  "ПМ_01_шоколад_диагональ": {
+    "status": "повтор",
+    "color": "шоколад",
+    "fullCostRub": 4332.0,
+    "buyCostRub": 3682.0,
+    "source": "coats"
+  },
+  "ПМ_01_черный": {
+    "status": "повтор",
+    "color": "черный",
+    "fullCostRub": 4332.0,
+    "buyCostRub": 3682.0,
+    "source": "coats"
+  },
+  "ПМ_01_кор": {
+    "status": "повтор",
+    "color": "серо-коричневый",
+    "fullCostRub": 4332.0,
+    "buyCostRub": 3682.0,
+    "source": "coats"
+  },
+  "ПМ_01_графит": {
+    "status": "повтор",
+    "color": "бордо",
+    "fullCostRub": 4332.0,
+    "buyCostRub": 3682.0,
+    "source": "coats"
+  },
+  "ПМ_01_бордо_диагональ": {
+    "status": "повтор",
+    "color": "бордо",
+    "fullCostRub": 4332.0,
+    "buyCostRub": 3682.0,
+    "source": "coats"
+  },
+  "ПМ_01_темносиний": {
+    "status": "повтор",
+    "color": "синий",
+    "fullCostRub": 4226.0,
+    "buyCostRub": 3576.0,
+    "source": "coats"
+  },
+  "П_01_СТОЙКА_шоколад": {
+    "status": "повтор",
+    "color": "шоколад",
+    "fullCostRub": 4437.0,
+    "buyCostRub": 3787.0,
+    "source": "coats"
+  },
+  "П_01_СТОЙКА_черный": {
+    "status": "повтор",
+    "color": "черный",
+    "fullCostRub": 4437.0,
+    "buyCostRub": 3787.0,
+    "source": "coats"
+  },
+  "П_01_СТОЙКА_темносиний": {
+    "status": "повтор",
+    "color": "синий",
+    "fullCostRub": 4437.0,
+    "buyCostRub": 3787.0,
+    "source": "coats"
+  },
+  "ПП_001_оверсайз_шоколад": {
+    "status": "повтор",
+    "color": "шоколад",
+    "fullCostRub": 3806.0,
+    "buyCostRub": 3156.0,
+    "source": "coats"
+  },
+  "ПП_005_оверсайз_коричневый": {
+    "status": "повтор",
+    "color": "коричневый",
+    "fullCostRub": 3806.0,
+    "buyCostRub": 3156.0,
+    "source": "coats"
+  },
+  "ПП_001_оверсайз_бордо": {
+    "status": "повтор",
+    "color": "бордо",
+    "fullCostRub": 3806.0,
+    "buyCostRub": 3156.0,
+    "source": "coats"
+  },
+  "ПП_001_оверсайз ТЕМНО-СИНИЙ": {
+    "status": "повтор",
+    "color": "темно-синий",
+    "fullCostRub": 3806.0,
+    "buyCostRub": 3156.0,
+    "source": "coats"
+  },
+  "ПП_001_оверсайз_графит": {
+    "status": "повтор",
+    "color": "графит",
+    "fullCostRub": 3806.0,
+    "buyCostRub": 3156.0,
+    "source": "coats"
+  },
+  "ПП_01_двубортный_шоколад": {
+    "status": "повтор",
+    "color": "шоколад",
+    "fullCostRub": 4016.0,
+    "buyCostRub": 3366.0,
+    "source": "coats"
+  },
+  "КД_01_шоколад": {
+    "status": "повтор",
+    "color": "шоколад",
+    "fullCostRub": 4016.0,
+    "buyCostRub": 3366.0,
+    "source": "coats"
+  },
+  "КД_001_бел": {
+    "status": "повтор",
+    "color": "белый",
+    "fullCostRub": 4016.0,
+    "buyCostRub": 3366.0,
+    "source": "coats"
+  },
+  "КД_002_светлграфит": {
+    "status": "повтор",
+    "color": "графит",
+    "fullCostRub": 4016.0,
+    "buyCostRub": 3366.0,
+    "source": "coats"
+  },
+  "КК_01_шоколад": {
+    "status": "повтор",
+    "color": "шоколад",
+    "fullCostRub": 3911.0,
+    "buyCostRub": 3261.0,
+    "source": "coats"
+  },
+  "КК_01_бел": {
+    "status": "повтор",
+    "color": "белый",
+    "fullCostRub": 3911.0,
+    "buyCostRub": 3261.0,
+    "source": "coats"
+  },
+  "КК_01_светлграфит": {
+    "status": "повтор",
+    "color": "графит",
+    "fullCostRub": 3911.0,
+    "buyCostRub": 3261.0,
+    "source": "coats"
+  },
+  "ПП_01_стойка_БЕЖ": {
+    "status": "повтор",
+    "color": "бежевый",
+    "fullCostRub": 4016.0,
+    "buyCostRub": 3366.0,
+    "source": "coats"
+  },
+  "ПП_01_стойка ЧЕРНЫЙ": {
+    "status": "повтор",
+    "color": "черный",
+    "fullCostRub": 4016.0,
+    "buyCostRub": 3366.0,
+    "source": "coats"
+  },
+  "ПП_01_стойка ШОКОЛАД": {
+    "status": "повтор",
+    "color": "шоколад",
+    "fullCostRub": 4016.0,
+    "buyCostRub": 3366.0,
+    "source": "coats"
+  },
+  "ПП_01_стойка СИНИЙ": {
+    "status": "повтор",
+    "color": "синий",
+    "fullCostRub": 4016.0,
+    "buyCostRub": 3366.0,
+    "source": "coats"
+  },
+  "БР_аладдин_голуб": {
+    "status": "повтор",
+    "color": "голубая клетка",
+    "fullCostRub": 659.0,
+    "buyCostRub": 444.0,
+    "source": "trousers"
+  },
+  "БР_аладдин_корич": {
+    "status": "повтор",
+    "color": "коричневая клетка",
+    "fullCostRub": 659.0,
+    "buyCostRub": 444.0,
+    "source": "trousers"
+  },
+  "БР_ПАЛАЦЦО_ОВЕР_серый": {
+    "status": "повтор",
+    "color": "серый",
+    "fullCostRub": 743.0,
+    "buyCostRub": 528.0,
+    "source": "trousers"
+  },
+  "БР_ПАЛАЦЦО_ОВЕР_синий": {
+    "status": "повтор",
+    "color": "синий",
+    "fullCostRub": 743.0,
+    "buyCostRub": 528.0,
+    "source": "trousers"
+  },
+  "БР_ПАЛАЦЦО_ОВЕР_бежевый": {
+    "status": "повтор",
+    "color": "бежевый",
+    "fullCostRub": 743.0,
+    "buyCostRub": 528.0,
+    "source": "trousers"
+  },
+  "БР_ПАЛАЦЦО_ОВЕР_голубой": {
+    "status": "повтор",
+    "color": "голубой",
+    "fullCostRub": 743.0,
+    "buyCostRub": 528.0,
+    "source": "trousers"
+  },
+  "БР_ПАЛАЦЦО_ОВЕР_черный": {
+    "status": "повтор",
+    "color": "черный",
+    "fullCostRub": 743.0,
+    "buyCostRub": 528.0,
+    "source": "trousers"
+  },
+  "БР_бочки_шоколад": {
+    "status": "повтор",
+    "color": "шоколад",
+    "fullCostRub": 683.0,
+    "buyCostRub": 468.0,
+    "source": "trousers"
+  },
+  "БР_бочки_графит": {
+    "status": "повтор",
+    "color": "графит",
+    "fullCostRub": 683.0,
+    "buyCostRub": 468.0,
+    "source": "trousers"
+  },
+  "БР_бочки_черный": {
+    "status": "повтор",
+    "color": "черный",
+    "fullCostRub": 683.0,
+    "buyCostRub": 468.0,
+    "source": "trousers"
+  },
+  "БР_бочки_бежевый": {
+    "status": "повтор",
+    "color": "бежевый",
+    "fullCostRub": 683.0,
+    "buyCostRub": 468.0,
+    "source": "trousers"
+  },
+  "БР_ПОЯС_ПОЛОСКА_графит": {
+    "status": "тест",
+    "color": "графит",
+    "fullCostRub": 851.0,
+    "buyCostRub": 636.0,
+    "source": "trousers"
+  },
+  "БР_ПОЯС_ПОЛОСКА_серый": {
+    "status": "тест",
+    "color": "серый",
+    "fullCostRub": 851.0,
+    "buyCostRub": 636.0,
+    "source": "trousers"
+  },
+  "БР_ПОЯС_ПОЛОСКА_черный": {
+    "status": "тест",
+    "color": "черный",
+    "fullCostRub": 851.0,
+    "buyCostRub": 636.0,
+    "source": "trousers"
+  },
+  "БР_АЛЛАДИНОФИС_беж": {
+    "status": "тест",
+    "color": "бежевый",
+    "fullCostRub": 935.0,
+    "buyCostRub": 720.0,
+    "source": "trousers"
+  },
+  "БР_АЛЛАДИНОФИС_золото": {
+    "status": "тест",
+    "color": "золотой",
+    "fullCostRub": 935.0,
+    "buyCostRub": 720.0,
+    "source": "trousers"
+  },
+  "БР_АЛЛАДИН_ЛЕН_черн": {
+    "status": "тест",
+    "color": "черный",
+    "fullCostRub": 883.4,
+    "buyCostRub": 668.4,
+    "source": "trousers"
+  },
+  "БР_АЛЛАДИН_ЛЕН_шоколад": {
+    "status": "тест",
+    "color": "шоколад",
+    "fullCostRub": 883.4,
+    "buyCostRub": 668.4,
+    "source": "trousers"
+  },
+  "БР_палаццо_шоколад": {
+    "status": "повтор",
+    "color": "шоколадный",
+    "fullCostRub": 827.0,
+    "buyCostRub": 612.0,
+    "source": "trousers"
+  },
+  "БР_палаццо_бордо": {
+    "status": "повтор",
+    "color": "бордо",
+    "fullCostRub": 827.0,
+    "buyCostRub": 612.0,
+    "source": "trousers"
+  },
+  "БР_палаццо_серый": {
+    "status": "повтор",
+    "color": "серый",
+    "fullCostRub": 827.0,
+    "buyCostRub": 612.0,
+    "source": "trousers"
+  },
+  "БР_палаццо_черный": {
+    "status": "повтор",
+    "color": "черный",
+    "fullCostRub": 827.0,
+    "buyCostRub": 612.0,
+    "source": "trousers"
+  },
+  "БР_палаццо_синий": {
+    "status": "повтор",
+    "color": "синий",
+    "fullCostRub": 827.0,
+    "buyCostRub": 612.0,
+    "source": "trousers"
+  },
+  "БР_палаццо из летней ткани": {
+    "status": "повтор",
+    "color": "серый",
+    "fullCostRub": 827.0,
+    "buyCostRub": 612.0,
+    "source": "trousers"
+  },
+  "dkim_cho": {
+    "status": "тест",
+    "color": "шоколадный",
+    "modelDisplayName": "Платье-кимоно шоколадный",
+    "buyCostCny": 58.0,
+    "buyCostRub": 1252.8,
+    "fullCostRub": 1282.8,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dkim_mil": {
+    "status": "тест",
+    "color": "молочный",
+    "modelDisplayName": "Платье-кимоно молочный",
+    "buyCostCny": 58.0,
+    "buyCostRub": 1252.8,
+    "fullCostRub": 1282.8,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dkim_blc": {
+    "status": "тест",
+    "color": "черный",
+    "modelDisplayName": "Платье-кимоно черный",
+    "buyCostCny": 58.0,
+    "buyCostRub": 1252.8,
+    "fullCostRub": 1282.8,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dkim_red": {
+    "status": "тест",
+    "color": "красный",
+    "modelDisplayName": "Платье-кимоно красный",
+    "buyCostCny": 58.0,
+    "buyCostRub": 1252.8,
+    "fullCostRub": 1282.8,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dkim_grn": {
+    "status": "тест",
+    "color": "зеленый",
+    "modelDisplayName": "Платье-кимоно зеленый",
+    "buyCostCny": 58.0,
+    "buyCostRub": 1252.8,
+    "fullCostRub": 1282.8,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "drvoz_wht": {
+    "status": "тест",
+    "color": "белый",
+    "modelDisplayName": "Платье-рубашка воздушное",
+    "buyCostCny": 63.0,
+    "buyCostRub": 1360.8,
+    "fullCostRub": 1390.8,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "drvoz_dbl": {
+    "status": "тест",
+    "color": "джинсовый",
+    "modelDisplayName": "Платье-рубашка воздушное",
+    "buyCostCny": 63.0,
+    "buyCostRub": 1360.8,
+    "fullCostRub": 1390.8,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "drvoz_pin": {
+    "status": "тест",
+    "color": "розовый",
+    "modelDisplayName": "Платье-рубашка воздушное",
+    "buyCostCny": 63.0,
+    "buyCostRub": 1360.8,
+    "fullCostRub": 1390.8,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "drvoz_blu": {
+    "status": "тест",
+    "color": "голубой",
+    "modelDisplayName": "Платье-рубашка воздушное",
+    "buyCostCny": 63.0,
+    "buyCostRub": 1360.8,
+    "fullCostRub": 1390.8,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dhal_blu": {
+    "status": "тест",
+    "color": "голубой",
+    "modelDisplayName": "Платье-халтер голубой",
+    "buyCostCny": 55.0,
+    "buyCostRub": 1188.0,
+    "fullCostRub": 1218.0,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dhal_blc": {
+    "status": "тест",
+    "color": "черный",
+    "modelDisplayName": "Платье-халтер черный",
+    "buyCostCny": 55.0,
+    "buyCostRub": 1188.0,
+    "fullCostRub": 1218.0,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dhal_red": {
+    "status": "тест",
+    "color": "красный",
+    "modelDisplayName": "Платье-халтер красный",
+    "buyCostCny": 55.0,
+    "buyCostRub": 1188.0,
+    "fullCostRub": 1218.0,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dhal_kha": {
+    "status": "тест",
+    "color": "хаки",
+    "modelDisplayName": "Платье-халтер хаки",
+    "buyCostCny": 55.0,
+    "buyCostRub": 1188.0,
+    "fullCostRub": 1218.0,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dalla_bri": {
+    "status": "тест",
+    "color": "кирпичный",
+    "modelDisplayName": "Платье-алладин кирпичный",
+    "buyCostCny": 70.0,
+    "buyCostRub": 1512.0,
+    "fullCostRub": 1542.0,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dalla_blc": {
+    "status": "тест",
+    "color": "черный",
+    "modelDisplayName": "Платье-алладин черный",
+    "buyCostCny": 70.0,
+    "buyCostRub": 1512.0,
+    "fullCostRub": 1542.0,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dalla_bor": {
+    "status": "тест",
+    "color": "ягодный",
+    "modelDisplayName": "Платье-алладин ягодный",
+    "buyCostCny": 70.0,
+    "buyCostRub": 1512.0,
+    "fullCostRub": 1542.0,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dalla_mil": {
+    "status": "тест",
+    "color": "молочный",
+    "modelDisplayName": "Платье-алладин молочный",
+    "buyCostCny": 70.0,
+    "buyCostRub": 1512.0,
+    "fullCostRub": 1542.0,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dant_cho": {
+    "status": "тест",
+    "color": "шоколадный",
+    "modelDisplayName": "Платье Античное шоколадный",
+    "buyCostCny": 49.0,
+    "buyCostRub": 1058.4,
+    "fullCostRub": 1088.4,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dant_kha": {
+    "status": "тест",
+    "color": "хаки",
+    "modelDisplayName": "Платье Античное хаки",
+    "buyCostCny": 49.0,
+    "buyCostRub": 1058.4,
+    "fullCostRub": 1088.4,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dant_mil": {
+    "status": "тест",
+    "color": "молочный",
+    "modelDisplayName": "Платье Античное молочный",
+    "buyCostCny": 49.0,
+    "buyCostRub": 1058.4,
+    "fullCostRub": 1088.4,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "drub_cho": {
+    "status": "тест",
+    "color": "шоколадный",
+    "modelDisplayName": "Платье-рубашка шоколад",
+    "buyCostCny": 42.0,
+    "buyCostRub": 907.2,
+    "fullCostRub": 937.2,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "drub_kha": {
+    "status": "тест",
+    "color": "хаки",
+    "modelDisplayName": "Платье-рубашка хаки",
+    "buyCostCny": 42.0,
+    "buyCostRub": 907.2,
+    "fullCostRub": 937.2,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "drub_mil": {
+    "status": "тест",
+    "color": "молочный",
+    "modelDisplayName": "Платье-рубашка молочный",
+    "buyCostCny": 42.0,
+    "buyCostRub": 907.2,
+    "fullCostRub": 937.2,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "drub_ber": {
+    "status": "тест",
+    "color": "бордовый",
+    "modelDisplayName": "Платье-рубашка бордоыый",
+    "buyCostCny": 42.0,
+    "buyCostRub": 907.2,
+    "fullCostRub": 937.2,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dsol_wht": {
+    "status": "тест",
+    "color": "белый",
+    "modelDisplayName": "Платье-солнце белый",
+    "buyCostCny": 50.0,
+    "buyCostRub": 1080.0,
+    "fullCostRub": 1110.0,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dsol_blu": {
+    "status": "тест",
+    "color": "голубой",
+    "modelDisplayName": "Платье-солнце голубой",
+    "buyCostCny": 50.0,
+    "buyCostRub": 1080.0,
+    "fullCostRub": 1110.0,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dsol_pin": {
+    "status": "тест",
+    "color": "розовый",
+    "modelDisplayName": "Платье-солнце розовый",
+    "buyCostCny": 50.0,
+    "buyCostRub": 1080.0,
+    "fullCostRub": 1110.0,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "dsol_blc": {
+    "status": "тест",
+    "color": "черный",
+    "modelDisplayName": "Платье-солнце черный",
+    "buyCostCny": 50.0,
+    "buyCostRub": 1080.0,
+    "fullCostRub": 1110.0,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "craz_mil": {
+    "status": "тест",
+    "color": "молочный",
+    "modelDisplayName": "Костюм брючный",
+    "buyCostCny": 70.0,
+    "buyCostRub": 1512.0,
+    "fullCostRub": 1542.0,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "craz_kha": {
+    "status": "тест",
+    "color": "хаки",
+    "modelDisplayName": "Костюм брючный",
+    "buyCostCny": 70.0,
+    "buyCostRub": 1512.0,
+    "fullCostRub": 1542.0,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  },
+  "craz_blc": {
+    "status": "тест",
+    "color": "черный",
+    "modelDisplayName": "Костюм брючный",
+    "buyCostCny": 70.0,
+    "buyCostRub": 1512.0,
+    "fullCostRub": 1542.0,
+    "cnyRate": 21.6,
+    "source": "dresses"
+  }
+}
