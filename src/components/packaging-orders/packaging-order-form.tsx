@@ -424,13 +424,20 @@ export function PackagingOrderForm({
 
       {/* Параметры */}
       <Section title="Параметры">
-        <Field label="Поставщик / фабрика">
+        <Field label="Поставщик / фабрика из справочника">
           <select
             value={form.factoryId}
-            onChange={(e) => setForm({ ...form, factoryId: e.target.value })}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                factoryId: e.target.value,
+                // выбрали из справочника — стираем ручное имя
+                supplierName: e.target.value ? "" : form.supplierName,
+              })
+            }
             className={inputCls}
           >
-            <option value="">— из справочника —</option>
+            <option value="">— не выбрано —</option>
             {factories.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.name}
@@ -438,10 +445,17 @@ export function PackagingOrderForm({
             ))}
           </select>
         </Field>
-        <Field label="Или вручную">
+        <Field label="Или ввести имя поставщика вручную">
           <input
             value={form.supplierName}
-            onChange={(e) => setForm({ ...form, supplierName: e.target.value })}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                supplierName: e.target.value,
+                // ввели руками — снимаем выбор из справочника
+                factoryId: e.target.value ? "" : form.factoryId,
+              })
+            }
             placeholder="ИП Иванов / Pinhao Tags"
             className={inputCls}
           />

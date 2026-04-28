@@ -40,6 +40,8 @@ export function OrderEditForm({
     notes: string;
     timeline: Timeline;
     payments: PaymentRow[];
+    totalAmount?: number;
+    arrivalPlannedDate?: string;
   };
   factories: Option[];
   users: Option[];
@@ -57,7 +59,28 @@ export function OrderEditForm({
     notes: order.notes,
   });
   const [timeline, setTimeline] = useState<Timeline>(order.timeline);
-  const [payments, setPayments] = useState<PaymentRow[]>(order.payments);
+  // Если платежей нет, но известна сумма — автогенерация 30% / 70%
+  const initialPayments: PaymentRow[] = order.payments.length > 0
+    ? order.payments
+    : (order.totalAmount && order.totalAmount > 0
+        ? [
+            {
+              id: "auto-1",
+              plannedDate: new Date().toISOString().slice(0, 10),
+              amount: Math.round(order.totalAmount * 0.3),
+              label: "Предоплата 30%",
+              paid: false,
+            },
+            {
+              id: "auto-2",
+              plannedDate: order.arrivalPlannedDate || new Date().toISOString().slice(0, 10),
+              amount: Math.round(order.totalAmount * 0.7),
+              label: "Постоплата 70%",
+              paid: false,
+            },
+          ]
+        : []);
+  const [payments, setPayments] = useState<PaymentRow[]>(initialPayments);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

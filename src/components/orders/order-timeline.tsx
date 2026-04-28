@@ -168,10 +168,11 @@ export function OrderTimeline({
     onChange(next);
   }, [onChange]);
 
+  // Drag через window-слушатели — pointer capture мешал ловить движение
+  // когда курсор уходил с handle (был лаг между движением и обновлением).
   const onPointerDown = (e: React.PointerEvent, phase: Phase, mode: DragState["mode"]) => {
     if (!railRef.current) return;
     e.preventDefault();
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
     const rect = railRef.current.getBoundingClientRect();
     const pxPerDay = rect.width / totalDays;
     const prevPhase = PHASES[PHASES.indexOf(phase) - 1];
@@ -185,60 +186,65 @@ export function OrderTimeline({
       origProductionStart: productionStart,
       pxPerDay,
     };
-  };
 
-  const onPointerMove = (e: React.PointerEvent) => {
-    const s = dragRef.current;
-    if (!s) return;
-    const deltaPx = e.clientX - s.startX;
-    const deltaDays = Math.round(deltaPx / s.pxPerDay);
+    function handleMove(ev: PointerEvent) {
+      const s = dragRef.current;
+      if (!s) return;
+      const deltaPx = ev.clientX - s.startX;
+      const deltaDays = Math.round(deltaPx / s.pxPerDay);
 
-    const next: Timeline = { ...initial };
-    const idx = PHASES.indexOf(s.phase);
+      const next: Timeline = { ...initial };
+      const idx = PHASES.indexOf(s.phase);
 
-    if (s.mode === "resize-right") {
-      if (deltaDays === 0) return;
-      const newEnd = addDays(s.origEnd, deltaDays);
-      if (daysBetween(s.origStart, newEnd) < 0) return;
-      next[s.phase.endField] = newEnd;
-      setDragInfo({ left: posPct(newEnd), label: formatDM(newEnd) });
-    } else if (s.mode === "resize-left") {
-      if (deltaDays === 0) return;
-      if (idx === 0) {
-        const newStart = addDays(s.origProductionStart, deltaDays);
-        if (daysBetween(newStart, s.origEnd) < 0) return;
-        setProductionStart(newStart);
-        setTouched(true);
-        setDragInfo({ left: posPct(newStart), label: formatDM(newStart) });
-        return;
-      }
-      if (!s.origPrevEnd) return;
-      const newPrevEnd = addDays(s.origPrevEnd, deltaDays);
-      if (daysBetween(newPrevEnd, s.origEnd) < 0) return;
-      const prev = PHASES[idx - 1];
-      next[prev.endField] = newPrevEnd;
-      setDragInfo({ left: posPct(newPrevEnd), label: formatDM(newPrevEnd) });
-    } else {
-      if (deltaDays === 0) return;
-      const newEnd = addDays(s.origEnd, deltaDays);
-      next[s.phase.endField] = newEnd;
-      if (s.origPrevEnd) {
+      if (s.mode === "resize-right") {
+        if (deltaDays === 0) return;
+        const newEnd = addDays(s.origEnd, deltaDays);
+        if (daysBetween(s.origStart, newEnd) < 0) return;
+        next[s.phase.endField] = newEnd;
+        setDragInfo({ left: posPct(newEnd), label: formatDM(newEnd) });
+      } else if (s.mode === "resize-left") {
+        if (deltaDays === 0) return;
+        if (idx === 0) {
+          const newStart = addDays(s.origProductionStart, deltaDays);
+          if (daysBetween(newStart, s.origEnd) < 0) return;
+          setProductionStart(newStart);
+          setTouched(true);
+          setDragInfo({ left: posPct(newStart), label: formatDM(newStart) });
+          return;
+        }
+        if (!s.origPrevEnd) return;
+        const newPrevEnd = addDays(s.origPrevEnd, deltaDays);
+        if (daysBetween(newPrevEnd, s.origEnd) < 0) return;
         const prev = PHASES[idx - 1];
-        next[prev.endField] = addDays(s.origPrevEnd, deltaDays);
+        next[prev.endField] = newPrevEnd;
+        setDragInfo({ left: posPct(newPrevEnd), label: formatDM(newPrevEnd) });
       } else {
-        const newStart = addDays(s.origProductionStart, deltaDays);
-        setProductionStart(newStart);
+        if (deltaDays === 0) return;
+        const newEnd = addDays(s.origEnd, deltaDays);
+        next[s.phase.endField] = newEnd;
+        if (s.origPrevEnd) {
+          const prev = PHASES[idx - 1];
+          next[prev.endField] = addDays(s.origPrevEnd, deltaDays);
+        } else {
+          const newStart = addDays(s.origProductionStart, deltaDays);
+          setProductionStart(newStart);
+        }
+        setDragInfo({ left: posPct(newEnd), label: `${formatDM(addDays(s.origStart, deltaDays))} → ${formatDM(newEnd)}` });
       }
-      setDragInfo({ left: posPct(newEnd), label: `${formatDM(addDays(s.origStart, deltaDays))} → ${formatDM(newEnd)}` });
+      if (s.mode !== "resize-left" || idx !== 0) commitChange(next);
     }
-    if (s.mode !== "resize-left" || idx !== 0) commitChange(next);
-  };
 
-  const onPointerUp = (e: React.PointerEvent) => {
-    if (!dragRef.current) return;
-    try { (e.target as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
-    dragRef.current = null;
-    setDragInfo(null);
+    function handleUp() {
+      dragRef.current = null;
+      setDragInfo(null);
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleUp);
+    }
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleUp);
   };
 
   const ticks = useMemo(() => {
@@ -308,12 +314,7 @@ export function OrderTimeline({
           <div className="absolute inset-x-0 bottom-0 h-px bg-slate-300" />
         </div>
 
-        <div
-          className="relative"
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-        >
+        <div className="relative">
           {dragInfo && (
             <div
               className="pointer-events-none absolute -top-7 z-30 -translate-x-1/2 whitespace-nowrap rounded-md bg-emerald-600 px-2 py-1 text-xs font-bold text-white shadow-lg"

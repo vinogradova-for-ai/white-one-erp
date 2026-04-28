@@ -13,9 +13,9 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
     prisma.order.findFirst({
       where: { id, deletedAt: null },
       include: {
-        productModel: { select: { name: true } },
+        productModel: { select: { name: true, fullCost: true } },
         lines: {
-          select: { quantity: true, productVariant: { select: { colorName: true } } },
+          select: { quantity: true, snapshotFullCost: true, productVariant: { select: { colorName: true } } },
           orderBy: { createdAt: "asc" },
         },
         payments: {
@@ -37,6 +37,12 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
 
   const totalQty = order.lines.reduce((a, l) => a + l.quantity, 0);
   const colorList = order.lines.map((l) => l.productVariant.colorName).join(", ");
+
+  // Сумма заказа для авто-графика 30/70: сначала пробуем snapshot, потом fullCost фасона
+  const unitCost = Number(
+    order.lines[0]?.snapshotFullCost ?? order.productModel.fullCost ?? 0,
+  );
+  const totalAmount = unitCost > 0 ? Math.round(unitCost * totalQty) : 0;
 
   // launchMonth (число YYYYMM) → "YYYY-MM"
   const lm = String(order.launchMonth);
@@ -78,6 +84,8 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
               label: p.label ?? "Платёж",
               paid: p.status === "PAID",
             })),
+            totalAmount,
+            arrivalPlannedDate: iso(order.arrivalPlannedDate),
           }}
           factories={factories}
           users={users}

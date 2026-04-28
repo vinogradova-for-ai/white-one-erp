@@ -46,6 +46,10 @@ function daysBetween(a: Date, b: Date): number {
  * При смене способа доставки длительность фазы доставки автоматически
  * подстраивается под DELIVERY_DURATION_DAYS, но потом её можно сдвинуть руками.
  */
+// Дефолт для нового заказа упаковки: производство 30 дней + доставка 30 дней.
+const DEFAULT_PRODUCTION_DAYS = 30;
+const DEFAULT_DELIVERY_DAYS = 30;
+
 export function PackagingOrderTimeline({
   orderedDate,
   expectedDate,
@@ -53,26 +57,31 @@ export function PackagingOrderTimeline({
   deliveryMethod,
 }: Props) {
   const start = toDate(orderedDate) ?? new Date();
-  const initialEnd = toDate(expectedDate) ?? addDays(start, 30);
+  const existingEnd = toDate(expectedDate);
 
-  // Длина фазы доставки берётся из constants. Если способ не выбран — ½ от общего ориентира.
-  const deliveryDays = deliveryMethod ? DELIVERY_DURATION_DAYS[deliveryMethod] : null;
+  // Длина фазы доставки: либо ровно столько дней, сколько заявлено для способа доставки,
+  // либо стандартный дефолт 30. Берётся при первом монтировании и при смене способа,
+  // если пользователь ещё не двигал руками.
+  const deliveryDays = deliveryMethod ? DELIVERY_DURATION_DAYS[deliveryMethod] : DEFAULT_DELIVERY_DAYS;
 
   const [productionEnd, setProductionEnd] = useState<Date>(() => {
-    if (deliveryDays != null) return addDays(initialEnd, -deliveryDays);
-    // 60% по умолчанию
-    const ms = (initialEnd.getTime() - start.getTime()) * 0.6;
-    return new Date(start.getTime() + ms);
+    if (existingEnd) {
+      // Редактирование: восстанавливаем productionEnd как (end - deliveryDays)
+      return addDays(existingEnd, -deliveryDays);
+    }
+    return addDays(start, DEFAULT_PRODUCTION_DAYS);
   });
-  const [end, setEnd] = useState<Date>(initialEnd);
+  const [end, setEnd] = useState<Date>(() => {
+    if (existingEnd) return existingEnd;
+    return addDays(start, DEFAULT_PRODUCTION_DAYS + deliveryDays);
+  });
 
-  // При смене способа доставки — перепрокладываем фазы (если пользователь не двигал руками)
+  // При смене способа доставки пересчитываем границу производства/доставки —
+  // оставляем productionEnd на месте, а end сдвигаем по новой длине доставки.
   const userTouched = useRef(false);
   useEffect(() => {
     if (userTouched.current) return;
-    if (deliveryDays == null) return;
-    const newProductionEnd = addDays(end, -deliveryDays);
-    setProductionEnd(newProductionEnd);
+    setEnd(addDays(productionEnd, deliveryDays));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deliveryMethod]);
 
@@ -101,11 +110,12 @@ export function PackagingOrderTimeline({
     return Math.max(0, Math.min(100, (daysBetween(start, d) / totalDays) * 100));
   }
 
+  // Drag через window-слушатели — чтобы перехватывать движение даже когда курсор
+  // уходит за пределы плашки или над хэндлами (pointer capture мешал бы).
   function onPointerDown(e: React.PointerEvent, mode: DragMode) {
     e.preventDefault();
     e.stopPropagation();
     if (!trackRef.current) return;
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
     const rect = trackRef.current.getBoundingClientRect();
     dragRef.current = {
       mode,
@@ -114,50 +124,53 @@ export function PackagingOrderTimeline({
       origEnd: end,
       pxPerDay: rect.width / totalDays,
     };
-  }
 
-  function onPointerMove(e: React.PointerEvent) {
-    const s = dragRef.current;
-    if (!s) return;
-    const dx = e.clientX - s.startX;
-    const dd = Math.round(dx / s.pxPerDay);
-    if (dd === 0) return;
-    userTouched.current = true;
+    function handleMove(ev: PointerEvent) {
+      const s = dragRef.current;
+      if (!s) return;
+      const dx = ev.clientX - s.startX;
+      const dd = Math.round(dx / s.pxPerDay);
+      if (dd === 0) return;
+      userTouched.current = true;
 
-    if (s.mode === "production-end") {
-      const candidate = addDays(s.origProductionEnd, dd);
-      if (daysBetween(start, candidate) < 0) return;
-      if (daysBetween(candidate, s.origEnd) < 0) return;
-      setProductionEnd(candidate);
-      setDragInfo({ left: pct(candidate), label: formatRu(candidate) });
-    } else if (s.mode === "end") {
-      const candidate = addDays(s.origEnd, dd);
-      if (daysBetween(s.origProductionEnd, candidate) < 0) return;
-      setEnd(candidate);
-      setDragInfo({ left: pct(candidate), label: formatRu(candidate) });
-    } else if (s.mode === "production-bar") {
-      // Тянем фазу производства целиком — но конец производства не может уйти за конец доставки
-      const candidate = addDays(s.origProductionEnd, dd);
-      if (daysBetween(start, candidate) < 0) return;
-      if (daysBetween(candidate, s.origEnd) < 0) return;
-      setProductionEnd(candidate);
-      setDragInfo({ left: pct(candidate), label: formatRu(candidate) });
-    } else if (s.mode === "delivery-bar") {
-      // Тянем фазу доставки — двигаем оба края на одинаково
-      const newProdEnd = addDays(s.origProductionEnd, dd);
-      const newEnd = addDays(s.origEnd, dd);
-      if (daysBetween(start, newProdEnd) < 0) return;
-      setProductionEnd(newProdEnd);
-      setEnd(newEnd);
-      setDragInfo({ left: pct(newEnd), label: formatRu(newEnd) });
+      if (s.mode === "production-end") {
+        const candidate = addDays(s.origProductionEnd, dd);
+        if (daysBetween(start, candidate) < 0) return;
+        if (daysBetween(candidate, s.origEnd) < 0) return;
+        setProductionEnd(candidate);
+        setDragInfo({ left: pct(candidate), label: formatRu(candidate) });
+      } else if (s.mode === "end") {
+        const candidate = addDays(s.origEnd, dd);
+        if (daysBetween(s.origProductionEnd, candidate) < 0) return;
+        setEnd(candidate);
+        setDragInfo({ left: pct(candidate), label: formatRu(candidate) });
+      } else if (s.mode === "production-bar") {
+        const candidate = addDays(s.origProductionEnd, dd);
+        if (daysBetween(start, candidate) < 0) return;
+        if (daysBetween(candidate, s.origEnd) < 0) return;
+        setProductionEnd(candidate);
+        setDragInfo({ left: pct(candidate), label: formatRu(candidate) });
+      } else if (s.mode === "delivery-bar") {
+        const newProdEnd = addDays(s.origProductionEnd, dd);
+        const newEnd = addDays(s.origEnd, dd);
+        if (daysBetween(start, newProdEnd) < 0) return;
+        setProductionEnd(newProdEnd);
+        setEnd(newEnd);
+        setDragInfo({ left: pct(newEnd), label: formatRu(newEnd) });
+      }
     }
-  }
 
-  function onPointerUp(e: React.PointerEvent) {
-    if (!dragRef.current) return;
-    try { (e.target as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
-    dragRef.current = null;
-    setDragInfo(null);
+    function handleUp() {
+      dragRef.current = null;
+      setDragInfo(null);
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleUp);
+    }
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleUp);
   }
 
   const productionDays = Math.max(0, daysBetween(start, productionEnd));
@@ -180,9 +193,6 @@ export function PackagingOrderTimeline({
       <div
         ref={trackRef}
         className="relative h-10 rounded-lg bg-slate-100"
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
       >
         {dragInfo && (
           <div

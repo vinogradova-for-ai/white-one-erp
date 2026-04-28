@@ -23,7 +23,7 @@ export default async function GanttPage({
   const phaseFilter = sp.phase && PHASES.some((p) => p.key === sp.phase) ? sp.phase : null;
   const ownerFilter = sp.owner || null;
 
-  const [orders, owners] = await Promise.all([
+  const [orders, packagingOrders, owners] = await Promise.all([
     prisma.order.findMany({
       where: {
         deletedAt: null,
@@ -38,6 +38,20 @@ export default async function GanttPage({
         factory: { select: { name: true } },
         lines: {
           select: { quantity: true, productVariant: { select: { colorName: true, photoUrls: true } } },
+        },
+      },
+    }),
+    prisma.packagingOrder.findMany({
+      where: {
+        status: { notIn: ["ARRIVED", "CANCELLED"] },
+        ...(ownerFilter ? { ownerId: ownerFilter } : {}),
+      },
+      orderBy: { createdAt: "asc" },
+      include: {
+        owner: { select: { id: true, name: true } },
+        factory: { select: { name: true } },
+        lines: {
+          select: { quantity: true, packagingItem: { select: { name: true, photoUrl: true } } },
         },
       },
     }),
@@ -99,6 +113,40 @@ export default async function GanttPage({
       owner: o.owner?.name,
       thumbnails: thumbs,
       bars,
+    });
+  }
+
+  // Заказы упаковки: одна полоса от createdAt до expectedDate (если есть)
+  for (const po of packagingOrders) {
+    if (!po.expectedDate) continue;
+    const startIso = iso(po.createdAt) ?? todayIso;
+    const endIso = iso(po.expectedDate)!;
+    const overdue = po.status !== "IN_TRANSIT" && endIso < todayIso;
+    const totalQty = po.lines.reduce((a, l) => a + l.quantity, 0);
+    const names = po.lines.map((l) => l.packagingItem.name).join(", ");
+    const thumbs = po.lines
+      .map((l) => ({ photoUrl: l.packagingItem.photoUrl, colorName: null }))
+      .slice(0, 3);
+    rows.push({
+      group: "packaging",
+      id: po.id,
+      href: `/packaging-orders/${po.id}`,
+      title: `${po.orderNumber} · упаковка`,
+      subtitle: `${names} · ${totalQty} шт`,
+      statusLabel: po.status === "ORDERED" ? "Заказано" : po.status === "IN_PRODUCTION" ? "В пошиве" : "В пути",
+      owner: po.owner?.name,
+      thumbnails: thumbs,
+      bars: [{
+        key: "packaging",
+        title: "Упаковка",
+        color: "bg-violet-500",
+        start: startIso,
+        end: endIso,
+        owner: po.factory?.name ?? po.supplierName ?? po.owner?.name,
+        overdue,
+        orderId: po.id,
+        endField: "expectedDate",
+      }],
     });
   }
 
