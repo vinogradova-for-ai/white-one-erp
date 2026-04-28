@@ -75,11 +75,10 @@ enum OrderStatus {
 }
 
 enum DeliveryMethod {
-  CARGO
-  AIR
-  RAIL
-  DOMESTIC
-  CHINA_INTERNAL
+  DOMESTIC_RU
+  CARGO_KG
+  CARGO_CN
+  TK_CN
 }
 
 enum IdeaStatus {

@@ -9,6 +9,7 @@ import { VariantVisual } from "@/components/common/variant-visual";
 import { VariantPicker } from "@/components/common/variant-picker";
 import { parsePaymentTerms, allocatePaymentDates, paymentLabel } from "@/lib/payments/parse-terms";
 import { OrderTimeline } from "@/components/orders/order-timeline";
+import type { DeliveryMethod } from "@prisma/client";
 import { parseApiError, type ApiErrorResult } from "@/lib/api-error";
 import { FormErrorBanner } from "@/components/common/form-errors";
 
@@ -109,7 +110,7 @@ export function OrderForm({
     launchMonth: defaultLaunchMonth,
     factoryId: "",
     ownerId: (defaultOwnerId && users.some((u) => u.id === defaultOwnerId)) ? defaultOwnerId : (users[0]?.id ?? ""),
-    deliveryMethod: "CARGO",
+    deliveryMethod: "CARGO_CN",
     paymentTerms: "30/70",
     notes: "",
   });
@@ -120,7 +121,7 @@ export function OrderForm({
   );
 
   // Платежи — массив строк, пересчитывается из paymentTerms пока юзер не правил вручную
-  type PaymentRow = { id: string; plannedDate: string; amount: number; label: string };
+  type PaymentRow = { id: string; plannedDate: string; amount: number; label: string; paid: boolean };
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [paymentsTouched, setPaymentsTouched] = useState(false);
 
@@ -189,6 +190,7 @@ export function OrderForm({
         plannedDate: estimateCloseDate(common.launchMonth).toISOString().slice(0, 10),
         amount: Math.round(totalBatchCost),
         label: "Оплата по заказу",
+        paid: false,
       }] : []);
       return;
     }
@@ -200,6 +202,7 @@ export function OrderForm({
       plannedDate: dates[i].toISOString().slice(0, 10),
       amount: Math.round(totalBatchCost * share),
       label: paymentLabel(i, shares.length, share * 100),
+      paid: false,
     })));
   }, [common.paymentTerms, common.launchMonth, totalBatchCost, paymentsTouched]);
 
@@ -231,6 +234,7 @@ export function OrderForm({
       plannedDate: new Date().toISOString().slice(0, 10),
       amount: 0,
       label: "Платёж",
+      paid: false,
     }]);
   }
   function removePayment(idx: number) {
@@ -275,6 +279,7 @@ export function OrderForm({
           plannedDate: p.plannedDate,
           amount: p.amount,
           label: p.label,
+          paid: p.paid,
         }));
       }
       // Таймлайн — даты этапов
@@ -459,7 +464,7 @@ export function OrderForm({
               )}
             </div>
             {payments.map((p, idx) => (
-              <div key={p.id} className="grid grid-cols-[140px_1fr_140px_auto] gap-2">
+              <div key={p.id} className="grid grid-cols-[140px_1fr_140px_auto_auto] gap-2 items-center">
                 <input
                   type="date"
                   value={p.plannedDate}
@@ -479,6 +484,14 @@ export function OrderForm({
                   onChange={(e) => updatePayment(idx, { amount: Number(e.target.value) || 0 })}
                   className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-right text-sm"
                 />
+                <label className="flex items-center gap-1 text-xs text-slate-600 whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={p.paid}
+                    onChange={(e) => updatePayment(idx, { paid: e.target.checked })}
+                  />
+                  Оплачено
+                </label>
                 <button
                   type="button"
                   onClick={() => removePayment(idx)}
@@ -572,7 +585,12 @@ export function OrderForm({
 
       {model && totalQty > 0 && (
         <div id="sec-timeline" className="scroll-mt-24">
-          <OrderTimeline launchMonth={common.launchMonth} onChange={setTimeline} initial={timeline} />
+          <OrderTimeline
+            launchMonth={common.launchMonth}
+            onChange={setTimeline}
+            initial={timeline}
+            deliveryMethod={(common.deliveryMethod || null) as DeliveryMethod | null}
+          />
         </div>
       )}
 

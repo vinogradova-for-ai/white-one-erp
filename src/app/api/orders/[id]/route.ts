@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { orderUpdateSchema } from "@/lib/validators/order";
+import { computeOrderStatus } from "@/lib/order-auto-status";
 import { z } from "zod";
 
 // Универсальная схема для обновления заказа (поля + флаги + даты + платежи)
@@ -9,6 +10,7 @@ const paymentInputSchema = z.object({
   plannedDate: z.string(),
   amount: z.number(),
   label: z.string(),
+  paid: z.boolean().optional(),
 });
 const fullOrderPatchSchema = orderUpdateSchema.extend({
   // Флаги
@@ -88,11 +90,32 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
     // payments обрабатываем отдельной транзакцией, в основной update не передаём
     const newPayments = processed.payments as
-      | Array<{ plannedDate: string; amount: number; label: string }>
+      | Array<{ plannedDate: string; amount: number; label: string; paid?: boolean }>
       | undefined;
     delete processed.payments;
 
-    const updated = await prisma.order.update({ where: { id }, data: processed });
+    let updated = await prisma.order.update({ where: { id }, data: processed });
+
+    // Автостатус из положения в Ганте
+    const newStatus = computeOrderStatus({
+      readyAtFactoryDate: updated.readyAtFactoryDate,
+      qcDate: updated.qcDate,
+      arrivalPlannedDate: updated.arrivalPlannedDate,
+      arrivalActualDate: updated.arrivalActualDate,
+    });
+    if (newStatus !== updated.status) {
+      const prev = updated.status;
+      updated = await prisma.order.update({ where: { id }, data: { status: newStatus } });
+      await prisma.orderStatusLog.create({
+        data: {
+          orderId: id,
+          fromStatus: prev,
+          toStatus: newStatus,
+          changedById: session.user.id,
+          comment: "Автостатус по таймлайну",
+        },
+      });
+    }
 
     if (newPayments) {
       await prisma.$transaction([
@@ -108,6 +131,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
                   orderId: id,
                   factoryId: updated.factoryId,
                   createdById: session.user.id,
+                  status: p.paid ? "PAID" as const : "PENDING" as const,
+                  paidAt: p.paid ? new Date() : null,
+                  paidById: p.paid ? session.user.id : null,
                 })),
               }),
             ]

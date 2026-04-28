@@ -172,11 +172,18 @@ export const IDEA_PRIORITY_COLORS: Record<IdeaPriority, string> = {
 };
 
 export const DELIVERY_METHOD_LABELS: Record<DeliveryMethod, string> = {
-  CARGO: "Карго",
-  AIR: "Авиа",
-  RAIL: "ЖД",
-  DOMESTIC: "Внутри РФ",
-  CHINA_INTERNAL: "Внутри Китая",
+  DOMESTIC_RU: "Внутри РФ",
+  CARGO_KG: "Карго Киргизия",
+  CARGO_CN: "Карго Китай",
+  TK_CN: "Транспортная компания Китай",
+};
+
+// Дефолтная длительность фазы доставки в днях
+export const DELIVERY_DURATION_DAYS: Record<DeliveryMethod, number> = {
+  DOMESTIC_RU: 0,
+  CARGO_KG: 14,
+  CARGO_CN: 30,
+  TK_CN: 45,
 };
 
 export const CURRENCY_LABELS: Record<Currency, string> = {

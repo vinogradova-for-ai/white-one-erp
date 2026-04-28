@@ -133,6 +133,9 @@ export async function POST(req: NextRequest) {
           orderId: order.id,
           factoryId: order.factoryId,
           createdById: session.user.id,
+          status: p.paid ? "PAID" as const : "PENDING" as const,
+          paidAt: p.paid ? new Date() : null,
+          paidById: p.paid ? session.user.id : null,
         })),
       });
     } else {

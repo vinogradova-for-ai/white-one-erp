@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PackagingType } from "@prisma/client";
 import { PackagingPicker, type PackagingPickerOption } from "@/components/common/packaging-picker";
@@ -28,6 +28,14 @@ type LineInput = {
   cnyRubRate: string;
 };
 
+type PaymentRow = {
+  id: string;
+  plannedDate: string;
+  amount: number;
+  label: string;
+  paid: boolean;
+};
+
 type Initial = {
   id?: string;
   lines: LineInput[];
@@ -37,10 +45,14 @@ type Initial = {
   ownerId: string;
   notes: string;
   deliveryMethod: DeliveryMethod | "";
+  payments?: PaymentRow[];
 };
 
 const inputCls =
   "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
+
+// По умолчанию курс юаня — 12 ₽/¥. Можно переопределить в форме.
+const DEFAULT_CNY_RATE = "12";
 
 function makeEmptyLine(): LineInput {
   return {
@@ -48,8 +60,8 @@ function makeEmptyLine(): LineInput {
     quantity: 1000,
     unitPriceRub: "",
     unitPriceCny: "",
-    priceCurrency: "RUB",
-    cnyRubRate: "",
+    priceCurrency: "CNY",
+    cnyRubRate: DEFAULT_CNY_RATE,
   };
 }
 
@@ -75,9 +87,13 @@ export function PackagingOrderForm({
       expectedDate: "",
       ownerId: defaultOwnerId,
       notes: "",
-      deliveryMethod: "CHINA_INTERNAL",
+      deliveryMethod: "CARGO_CN",
     },
   );
+  const [payments, setPayments] = useState<PaymentRow[]>(
+    initial?.payments ?? [],
+  );
+  const [paymentsTouched, setPaymentsTouched] = useState(!!initial?.payments?.length);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [apiErr, setApiErr] = useState<ApiErrorResult | null>(null);
@@ -100,8 +116,8 @@ export function PackagingOrderForm({
       packagingItemId,
       unitPriceRub: p?.unitPriceRub ?? "",
       unitPriceCny: p?.unitPriceCny ?? "",
-      priceCurrency: (p?.priceCurrency ?? "RUB") as "RUB" | "CNY",
-      cnyRubRate: p?.cnyRubRate ?? "",
+      priceCurrency: (p?.priceCurrency ?? "CNY") as "RUB" | "CNY",
+      cnyRubRate: p?.cnyRubRate ?? DEFAULT_CNY_RATE,
     });
   }
 
@@ -131,6 +147,39 @@ export function PackagingOrderForm({
   const totalRub = form.lines.reduce((a, l) => a + lineTotalRub(l), 0);
   const usedItemIds = new Set(form.lines.map((l) => l.packagingItemId).filter(Boolean));
 
+  // Авто-генерация графика 30/70, пока пользователь не правил вручную
+  useEffect(() => {
+    if (paymentsTouched) return;
+    if (totalRub <= 0) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const arrival = form.expectedDate || today;
+    setPayments([
+      { id: "p1", plannedDate: today, amount: Math.round(totalRub * 0.3), label: "Предоплата 30%", paid: false },
+      { id: "p2", plannedDate: arrival, amount: Math.round(totalRub * 0.7), label: "Постоплата 70%", paid: false },
+    ]);
+  }, [totalRub, form.expectedDate, paymentsTouched]);
+
+  function updatePayment(idx: number, patch: Partial<PaymentRow>) {
+    setPaymentsTouched(true);
+    setPayments(payments.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
+  }
+  function addPayment() {
+    setPaymentsTouched(true);
+    setPayments([...payments, {
+      id: `pay-${Date.now()}`,
+      plannedDate: new Date().toISOString().slice(0, 10),
+      amount: 0,
+      label: "Платёж",
+      paid: false,
+    }]);
+  }
+  function removePayment(idx: number) {
+    setPaymentsTouched(true);
+    setPayments(payments.filter((_, i) => i !== idx));
+  }
+  const paymentsTotal = payments.reduce((a, p) => a + (Number(p.amount) || 0), 0);
+  const paymentsMismatch = totalRub > 0 && Math.abs(paymentsTotal - totalRub) > 1;
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -141,7 +190,7 @@ export function PackagingOrderForm({
         setError("Во всех позициях выберите упаковку");
         return;
       }
-      const payload = {
+      const payload: Record<string, unknown> = {
         factoryId: form.factoryId || null,
         supplierName: form.supplierName.trim() || null,
         expectedDate: form.expectedDate || null,
@@ -160,6 +209,14 @@ export function PackagingOrderForm({
           };
         }),
       };
+      if (payments.length > 0) {
+        payload.payments = payments.map((p) => ({
+          plannedDate: p.plannedDate,
+          amount: p.amount,
+          label: p.label,
+          paid: p.paid,
+        }));
+      }
       const url = initial?.id ? `/api/packaging-orders/${initial.id}` : "/api/packaging-orders";
       const method = initial?.id ? "PATCH" : "POST";
       const res = await fetch(url, {
@@ -296,10 +353,73 @@ export function PackagingOrderForm({
           <div className="mt-1 text-2xl font-semibold text-emerald-900">
             {totalRub.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽
           </div>
-          <div className="mt-0.5 text-xs text-emerald-700">
-            Автоматически создастся платёж (PACKAGING) на эту сумму при создании заказа
-          </div>
         </div>
+      )}
+
+      {/* График платежей */}
+      {totalRub > 0 && (
+        <Section title="График платежей">
+          <div className="md:col-span-2 space-y-2">
+            {payments.map((p, idx) => (
+              <div key={p.id} className="grid grid-cols-[140px_1fr_140px_auto_auto] gap-2 items-center">
+                <input
+                  type="date"
+                  value={p.plannedDate}
+                  onChange={(e) => updatePayment(idx, { plannedDate: e.target.value })}
+                  className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm"
+                />
+                <input
+                  type="text"
+                  value={p.label}
+                  onChange={(e) => updatePayment(idx, { label: e.target.value })}
+                  placeholder="Название"
+                  className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm"
+                />
+                <input
+                  type="number"
+                  value={p.amount}
+                  onChange={(e) => updatePayment(idx, { amount: Number(e.target.value) || 0 })}
+                  className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-right text-sm"
+                />
+                <label className="flex items-center gap-1 text-xs text-slate-600 whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={p.paid}
+                    onChange={(e) => updatePayment(idx, { paid: e.target.checked })}
+                  />
+                  Оплачено
+                </label>
+                <button
+                  type="button"
+                  onClick={() => removePayment(idx)}
+                  className="rounded-lg border border-slate-300 bg-white px-2 text-xs text-red-600 hover:bg-red-50"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <div className="flex items-center justify-between pt-1">
+              <button
+                type="button"
+                onClick={addPayment}
+                className="text-sm text-slate-600 hover:text-slate-900 underline"
+              >
+                + Добавить платёж
+              </button>
+              <div className="text-sm">
+                <span className="text-slate-500">Итого:</span>{" "}
+                <span className={paymentsMismatch ? "font-semibold text-red-600" : "font-semibold text-slate-900"}>
+                  {paymentsTotal.toLocaleString("ru-RU")} ₽
+                </span>
+                {paymentsMismatch && (
+                  <span className="ml-2 text-xs text-red-600">
+                    расхождение: {(paymentsTotal - totalRub).toLocaleString("ru-RU")} ₽
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        </Section>
       )}
 
       {/* Параметры */}
@@ -357,17 +477,9 @@ export function PackagingOrderForm({
             )}
           </select>
         </Field>
-        <Field label="Дедлайн поставки">
-          <input
-            type="date"
-            value={form.expectedDate}
-            onChange={(e) => setForm({ ...form, expectedDate: e.target.value })}
-            className={inputCls}
-          />
-        </Field>
       </Section>
 
-      {/* Гант: Производство → Доставка. Дедлайн тащится мышкой. */}
+      {/* Гант: Производство → Доставка. Каждую плашку можно тащить отдельно. */}
       <Section title="График заказа упаковки">
         <div className="md:col-span-2">
           <PackagingOrderTimeline
@@ -380,10 +492,8 @@ export function PackagingOrderForm({
             })()}
             expectedDate={form.expectedDate}
             onChangeExpected={(value) => setForm({ ...form, expectedDate: value })}
+            deliveryMethod={form.deliveryMethod || null}
           />
-          <p className="mt-2 text-xs text-slate-500">
-            Перетащите правый край, чтобы поставить дедлайн прибытия. Полоса разделится на «Производство» (60%) и «Доставка» (40%) автоматически.
-          </p>
         </div>
       </Section>
 

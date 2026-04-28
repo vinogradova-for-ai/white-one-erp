@@ -96,27 +96,45 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Автоплатёж на сумму по всем линиям, если что-то посчиталось
-      const totalRub = data.lines.reduce((sum, l) => sum + lineTotalRub(l), 0);
-      if (totalRub > 0) {
-        const labelParts = data.lines.slice(0, 2).map((l) => {
-          const name = itemsById.get(l.packagingItemId)?.name ?? "упаковка";
-          return `${name} · ${l.quantity} шт`;
-        });
-        const more = data.lines.length > 2 ? ` +${data.lines.length - 2}` : "";
-        await tx.payment.create({
-          data: {
-            type: "PACKAGING",
-            status: "PENDING",
-            plannedDate: data.expectedDate ? new Date(data.expectedDate) : new Date(),
-            amount: totalRub,
-            currency: "RUB",
-            label: `${labelParts.join(" · ")}${more} · ${order.orderNumber}`,
+      // Платежи: либо берём график из формы, либо генерим один автоплатёж на полную сумму
+      if (data.payments && data.payments.length > 0) {
+        await tx.payment.createMany({
+          data: data.payments.map((p) => ({
+            type: "PACKAGING" as const,
+            status: p.paid ? "PAID" as const : "PENDING" as const,
+            paidAt: p.paid ? new Date() : null,
+            paidById: p.paid ? session.user.id : null,
+            plannedDate: new Date(p.plannedDate),
+            amount: p.amount,
+            currency: "RUB" as const,
+            label: p.label,
             packagingOrderId: order.id,
             supplierName: data.supplierName || null,
             createdById: session.user.id,
-          },
+          })),
         });
+      } else {
+        const totalRub = data.lines.reduce((sum, l) => sum + lineTotalRub(l), 0);
+        if (totalRub > 0) {
+          const labelParts = data.lines.slice(0, 2).map((l) => {
+            const name = itemsById.get(l.packagingItemId)?.name ?? "упаковка";
+            return `${name} · ${l.quantity} шт`;
+          });
+          const more = data.lines.length > 2 ? ` +${data.lines.length - 2}` : "";
+          await tx.payment.create({
+            data: {
+              type: "PACKAGING",
+              status: "PENDING",
+              plannedDate: data.expectedDate ? new Date(data.expectedDate) : new Date(),
+              amount: totalRub,
+              currency: "RUB",
+              label: `${labelParts.join(" · ")}${more} · ${order.orderNumber}`,
+              packagingOrderId: order.id,
+              supplierName: data.supplierName || null,
+              createdById: session.user.id,
+            },
+          });
+        }
       }
 
       return order;

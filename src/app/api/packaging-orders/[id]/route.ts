@@ -48,7 +48,7 @@ async function applyStockDelta(
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
     const { id } = await ctx.params;
     const data = packagingOrderUpdateSchema.parse(await req.json());
 
@@ -92,7 +92,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         ? (data.arrivedDate ? new Date(data.arrivedDate) : null)
         : old.arrivedDate;
 
-      return tx.packagingOrder.update({
+      const updatedOrder = await tx.packagingOrder.update({
         where: { id },
         data: {
           ...(data.factoryId !== undefined && { factoryId: data.factoryId || null }),
@@ -105,6 +105,30 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
           arrivedDate: willBeArrived && !arrivedDateRaw ? new Date() : arrivedDateRaw,
         },
       });
+
+      // Если пришёл график платежей — заменяем существующие
+      if (data.payments) {
+        await tx.payment.deleteMany({ where: { packagingOrderId: id } });
+        if (data.payments.length > 0) {
+          await tx.payment.createMany({
+            data: data.payments.map((p) => ({
+              type: "PACKAGING" as const,
+              status: p.paid ? "PAID" as const : "PENDING" as const,
+              paidAt: p.paid ? new Date() : null,
+              paidById: p.paid ? session.user.id : null,
+              plannedDate: new Date(p.plannedDate),
+              amount: p.amount,
+              currency: "RUB" as const,
+              label: p.label,
+              packagingOrderId: id,
+              supplierName: updatedOrder.supplierName,
+              createdById: session.user.id,
+            })),
+          });
+        }
+      }
+
+      return updatedOrder;
     });
 
     return NextResponse.json(updated);

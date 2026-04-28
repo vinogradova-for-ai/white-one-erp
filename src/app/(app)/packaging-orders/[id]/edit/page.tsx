@@ -11,7 +11,10 @@ export default async function EditPackagingOrderPage({ params }: { params: Promi
   const [order, packagings, factories, users] = await Promise.all([
     prisma.packagingOrder.findUnique({
       where: { id },
-      include: { lines: true },
+      include: {
+        lines: true,
+        payments: { orderBy: { plannedDate: "asc" } },
+      },
     }),
     prisma.packagingItem.findMany({
       where: { isActive: true },
@@ -59,7 +62,14 @@ export default async function EditPackagingOrderPage({ params }: { params: Promi
           expectedDate: order.expectedDate ? order.expectedDate.toISOString().slice(0, 10) : "",
           ownerId: order.ownerId,
           notes: order.notes ?? "",
-          deliveryMethod: order.deliveryMethod ?? "CHINA_INTERNAL",
+          deliveryMethod: order.deliveryMethod ?? "CARGO_CN",
+          payments: order.payments.map((p) => ({
+            id: p.id,
+            plannedDate: p.plannedDate.toISOString().slice(0, 10),
+            amount: Number(p.amount),
+            label: p.label,
+            paid: p.status === "PAID",
+          })),
         }}
       />
     </div>

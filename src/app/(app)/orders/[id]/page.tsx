@@ -11,6 +11,7 @@ import { DeleteButton } from "@/components/common/delete-button";
 import { InlineCheckbox } from "@/components/common/inline-checkbox";
 import { OrderPackagingSection } from "@/components/orders/order-packaging-section";
 import { OrderLinesSection } from "@/components/orders/order-lines-section";
+import { OrderTimelineEditor } from "@/components/orders/order-timeline-editor";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -32,7 +33,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       packagingItems: {
         include: {
           packagingItem: {
-            include: {
+            select: {
+              id: true, name: true, type: true, stock: true, photoUrl: true,
               packagingOrderLines: {
                 where: { packagingOrder: { status: { notIn: ["ARRIVED", "CANCELLED"] } } },
                 select: { quantity: true },
@@ -173,6 +175,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 name: p.packagingItem.name,
                 type: p.packagingItem.type,
                 stock: p.packagingItem.stock,
+                photoUrl: p.packagingItem.photoUrl,
                 inProductionQty: p.packagingItem.packagingOrderLines.reduce((a, l) => a + l.quantity, 0),
               },
             }))}
@@ -187,77 +190,49 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </div>
       </section>
 
-      {/* Сворачиваемые «Подробности»: даты, оплаты, ВЭД, история */}
-      <details className="rounded-2xl bg-white">
-        <summary className="cursor-pointer select-none px-5 py-4 text-sm font-medium text-slate-700 hover:text-slate-900">
-          Подробности и документы
-        </summary>
-        <div className="space-y-5 border-t border-slate-100 px-5 py-5">
-          {/* Даты этапов */}
-          <div>
-            <div className="mb-2 text-[11px] uppercase tracking-wider text-slate-400">Даты этапов</div>
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-sm md:grid-cols-3">
-              <Fact label="Передача на фабрику" value={formatDate(order.handedToFactoryDate)} />
-              <Fact label="Готово на фабрике" value={formatDate(order.readyAtFactoryDate)} />
-              <Fact label="ОТК" value={formatDate(order.qcDate)} />
-              <Fact label="Отгрузка" value={formatDate(order.shipmentDate)} />
-              <Fact label="Прибытие план" value={formatDate(order.arrivalPlannedDate)} />
-              <Fact label="Прибытие факт" value={formatDate(order.arrivalActualDate)} />
-            </dl>
-          </div>
-
-          {/* Оплаты */}
-          <div>
-            <div className="mb-2 text-[11px] uppercase tracking-wider text-slate-400">Оплаты</div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-xl bg-slate-50 px-4 py-3">
-                <div className="text-xs text-slate-500">Предоплата</div>
-                <div className="mt-0.5 text-sm font-semibold text-slate-900">
-                  {order.prepaymentAmount ? formatCurrency(order.prepaymentAmount.toString()) : "—"}
-                </div>
-                <div className="mt-2">
-                  <InlineCheckbox label="Оплачено" checked={order.prepaymentPaid} endpoint={endpoint} field="prepaymentPaid" />
-                </div>
-              </div>
-              <div className="rounded-xl bg-slate-50 px-4 py-3">
-                <div className="text-xs text-slate-500">Остаток</div>
-                <div className="mt-0.5 text-sm font-semibold text-slate-900">
-                  {order.finalPaymentAmount ? formatCurrency(order.finalPaymentAmount.toString()) : "—"}
-                </div>
-                <div className="mt-2">
-                  <InlineCheckbox label="Оплачено" checked={order.finalPaymentPaid} endpoint={endpoint} field="finalPaymentPaid" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* История статусов */}
-          {order.statusLogs.length > 0 && (
-            <div>
-              <div className="mb-2 text-[11px] uppercase tracking-wider text-slate-400">История</div>
-              <ul className="space-y-1.5 text-xs">
-                {order.statusLogs.map((log) => (
-                  <li key={log.id} className="flex items-center gap-2">
-                    <span className="text-slate-400">{log.fromStatus ? ORDER_STATUS_LABELS[log.fromStatus] : "—"}</span>
-                    <span className="text-slate-300">→</span>
-                    <span className="font-medium text-slate-700">{ORDER_STATUS_LABELS[log.toStatus]}</span>
-                    <span className="ml-auto text-slate-400">
-                      {formatDateTime(log.changedAt)} · {log.changedBy.name}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {order.notes && (
-            <div>
-              <div className="mb-2 text-[11px] uppercase tracking-wider text-slate-400">Примечания</div>
-              <p className="whitespace-pre-line text-sm text-slate-700">{order.notes}</p>
-            </div>
-          )}
+      {/* Гант-таймлайн заказа: тащи плашки, чтобы изменить даты — сохраняется автоматически */}
+      <section>
+        <h2 className="mb-3 text-base font-semibold text-slate-900">Таймлайн</h2>
+        <div className="rounded-2xl bg-white p-5">
+          <OrderTimelineEditor
+            orderId={order.id}
+            launchMonth={`${String(order.launchMonth).slice(0, 4)}-${String(order.launchMonth).slice(4, 6)}`}
+            initial={{
+              readyAtFactoryDate: order.readyAtFactoryDate ? order.readyAtFactoryDate.toISOString().slice(0, 10) : "",
+              qcDate: order.qcDate ? order.qcDate.toISOString().slice(0, 10) : "",
+              arrivalPlannedDate: order.arrivalPlannedDate ? order.arrivalPlannedDate.toISOString().slice(0, 10) : "",
+            }}
+          />
         </div>
-      </details>
+      </section>
+
+      {order.statusLogs.length > 0 && (
+        <details className="rounded-2xl bg-white">
+          <summary className="cursor-pointer select-none px-5 py-4 text-sm font-medium text-slate-700 hover:text-slate-900">
+            История статусов
+          </summary>
+          <div className="space-y-3 border-t border-slate-100 px-5 py-5">
+            <ul className="space-y-1.5 text-xs">
+              {order.statusLogs.map((log) => (
+                <li key={log.id} className="flex items-center gap-2">
+                  <span className="text-slate-400">{log.fromStatus ? ORDER_STATUS_LABELS[log.fromStatus] : "—"}</span>
+                  <span className="text-slate-300">→</span>
+                  <span className="font-medium text-slate-700">{ORDER_STATUS_LABELS[log.toStatus]}</span>
+                  <span className="ml-auto text-slate-400">
+                    {formatDateTime(log.changedAt)} · {log.changedBy.name}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {order.notes && (
+              <div>
+                <div className="mb-2 text-[11px] uppercase tracking-wider text-slate-400">Примечания</div>
+                <p className="whitespace-pre-line text-sm text-slate-700">{order.notes}</p>
+              </div>
+            )}
+          </div>
+        </details>
+      )}
     </div>
   );
 }

@@ -10,6 +10,7 @@ export const orderPaymentInputSchema = z.object({
   plannedDate: z.string().min(1, "Дата обязательна"),
   amount: z.union([z.number(), z.string()]).transform((v) => Number(v)).pipe(z.number().nonnegative()),
   label: z.string().min(1, "Название платежа").max(200),
+  paid: z.boolean().optional(),
 });
 
 export const orderCreateSchema = z.object({
@@ -20,7 +21,7 @@ export const orderCreateSchema = z.object({
   launchMonth: z.number().int().min(202501).max(203012),
   factoryId: z.string().optional().nullable(),
   ownerId: z.string().min(1),
-  deliveryMethod: z.enum(["CARGO", "AIR", "RAIL", "DOMESTIC"]).optional().nullable(),
+  deliveryMethod: z.enum(["DOMESTIC_RU", "CARGO_KG", "CARGO_CN", "TK_CN"]).optional().nullable(),
   paymentTerms: z.string().optional().nullable(),
   packagingType: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),

@@ -20,9 +20,16 @@ export const packagingOrderLineSchema = z.object({
 });
 
 const deliveryMethod = z
-  .enum(["CARGO", "AIR", "RAIL", "DOMESTIC", "CHINA_INTERNAL"])
+  .enum(["DOMESTIC_RU", "CARGO_KG", "CARGO_CN", "TK_CN"])
   .optional()
   .nullable();
+
+const paymentInput = z.object({
+  plannedDate: z.string(),
+  amount: z.number(),
+  label: z.string(),
+  paid: z.boolean().optional(),
+});
 
 export const packagingOrderCreateSchema = z.object({
   factoryId: z.string().optional().nullable(),
@@ -32,6 +39,7 @@ export const packagingOrderCreateSchema = z.object({
   notes: z.string().max(2000).optional().nullable(),
   deliveryMethod,
   lines: z.array(packagingOrderLineSchema).min(1, "Нужна хотя бы одна позиция"),
+  payments: z.array(paymentInput).optional(),
 });
 
 export const packagingOrderUpdateSchema = z.object({
@@ -44,6 +52,7 @@ export const packagingOrderUpdateSchema = z.object({
   status: z.enum(PACKAGING_ORDER_STATUSES).optional(),
   arrivedDate: z.string().optional().nullable(),
   lines: z.array(packagingOrderLineSchema).optional(),
+  payments: z.array(paymentInput).optional(),
 });
 
 export type PackagingOrderLineInput = z.infer<typeof packagingOrderLineSchema>;

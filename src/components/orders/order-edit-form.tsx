@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ORDER_TYPE_LABELS, DELIVERY_METHOD_LABELS } from "@/lib/constants";
 import { OrderTimeline } from "@/components/orders/order-timeline";
+import type { DeliveryMethod } from "@prisma/client";
 
 type Option = { id: string; name: string };
 
@@ -103,6 +104,7 @@ export function OrderEditForm({
           plannedDate: p.plannedDate,
           amount: Number(p.amount) || 0,
           label: p.label,
+          paid: p.paid,
         })),
       };
       const res = await fetch(`/api/orders/${order.id}`, {
@@ -169,7 +171,12 @@ export function OrderEditForm({
         </Field>
       </Section>
 
-      <OrderTimeline launchMonth={common.launchMonth} initial={timeline} onChange={setTimeline} />
+      <OrderTimeline
+        launchMonth={common.launchMonth}
+        initial={timeline}
+        onChange={setTimeline}
+        deliveryMethod={(common.deliveryMethod || null) as DeliveryMethod | null}
+      />
 
       <Section title="График платежей">
         <Field label="Условия (например, 30/70)">
@@ -199,7 +206,14 @@ export function OrderEditForm({
                 onChange={(e) => updatePayment(idx, { label: e.target.value })}
                 className="flex-1 min-w-[140px] rounded border border-slate-300 bg-white px-2 py-1 text-sm"
               />
-              {p.paid && <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">оплачен</span>}
+              <label className="flex items-center gap-1 text-xs text-slate-600 whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  checked={p.paid}
+                  onChange={(e) => updatePayment(idx, { paid: e.target.checked })}
+                />
+                Оплачено
+              </label>
               <button
                 type="button"
                 onClick={() => removePayment(idx)}

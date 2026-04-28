@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { PACKAGING_TYPE_LABELS } from "@/lib/constants";
 import { PackagingType } from "@prisma/client";
+import { PhotoThumb } from "@/components/common/photo-thumb";
 
 type Item = {
   id: string;
@@ -16,6 +17,7 @@ type Item = {
     name: string;
     type: PackagingType;
     stock: number;
+    photoUrl?: string | null;
     inProductionQty: number;
   };
 };
@@ -132,14 +134,19 @@ export function OrderPackagingSection({
                 return (
                   <tr key={x.id}>
                     <td className="px-2 py-2">
-                      <Link
-                        href={`/packaging/${x.packagingItem.id}`}
-                        className="font-medium text-slate-900 hover:underline"
-                      >
-                        {x.packagingItem.name}
-                      </Link>
-                      <div className="text-xs text-slate-500">
-                        {PACKAGING_TYPE_LABELS[x.packagingItem.type]}
+                      <div className="flex items-center gap-2">
+                        <PhotoThumb url={x.packagingItem.photoUrl} alt={x.packagingItem.name} size={36} />
+                        <div className="min-w-0">
+                          <Link
+                            href={`/packaging/${x.packagingItem.id}`}
+                            className="block truncate font-medium text-slate-900 hover:underline"
+                          >
+                            {x.packagingItem.name}
+                          </Link>
+                          <div className="text-xs text-slate-500">
+                            {PACKAGING_TYPE_LABELS[x.packagingItem.type]}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td className="px-2 py-2 text-right">

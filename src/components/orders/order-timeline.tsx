@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DELIVERY_DURATION_DAYS } from "@/lib/constants";
+import type { DeliveryMethod } from "@prisma/client";
 
 type Timeline = {
   readyAtFactoryDate: string;
@@ -62,7 +64,7 @@ function addDays(iso: string, days: number): string {
   return toISO(d);
 }
 
-function calcTimeline(launchMonth: string): Timeline {
+function calcTimeline(launchMonth: string, deliveryMethod?: DeliveryMethod | null): Timeline {
   const [y, m] = launchMonth.split("-").map(Number);
   const empty: Timeline = {
     readyAtFactoryDate: "", qcDate: "", arrivalPlannedDate: "",
@@ -73,6 +75,24 @@ function calcTimeline(launchMonth: string): Timeline {
   const t1 = new Date(Date.UTC(y, m - 1, 1));
   const totalMs = t1.getTime() - t0.getTime();
   if (totalMs <= 0) return empty;
+
+  // Если есть способ доставки — фаза доставки берёт ровно столько дней, сколько прописано
+  // в DELIVERY_DURATION_DAYS, остальное идёт под производство+ОТК.
+  const deliveryDays = deliveryMethod ? DELIVERY_DURATION_DAYS[deliveryMethod] : null;
+  if (deliveryDays != null) {
+    const arrival = t1; // прибытие = 1-е число месяца продаж
+    const qcDate = new Date(arrival.getTime() - deliveryDays * 86400000);
+    const productionMs = qcDate.getTime() - t0.getTime();
+    const ready = productionMs > 0
+      ? new Date(t0.getTime() + productionMs * 0.85) // 85% времени до ОТК — производство
+      : qcDate;
+    return {
+      readyAtFactoryDate: toISO(ready),
+      qcDate: toISO(qcDate),
+      arrivalPlannedDate: toISO(arrival),
+    };
+  }
+
   const result: Timeline = { ...empty };
   (Object.keys(AUTO_SHARES) as (keyof Timeline)[]).forEach((k) => {
     const d = new Date(t0.getTime() + totalMs * AUTO_SHARES[k]);
@@ -87,10 +107,12 @@ export function OrderTimeline({
   launchMonth,
   initial,
   onChange,
+  deliveryMethod,
 }: {
   launchMonth: string;
   initial: Timeline;
   onChange: (t: Timeline) => void;
+  deliveryMethod?: DeliveryMethod | null;
 }) {
   const [touched, setTouched] = useState(false);
   const [productionStart, setProductionStart] = useState(() => toISO(new Date()));
@@ -99,14 +121,14 @@ export function OrderTimeline({
 
   useEffect(() => {
     if (touched) return;
-    const calc = calcTimeline(launchMonth);
+    const calc = calcTimeline(launchMonth, deliveryMethod);
     onChange(calc);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [launchMonth]);
+  }, [launchMonth, deliveryMethod]);
 
   function resetAuto() {
     setTouched(false);
-    onChange(calcTimeline(launchMonth));
+    onChange(calcTimeline(launchMonth, deliveryMethod));
   }
 
   // Шкала: от старта производства (или сегодня, если он позже) до даты прибытия
@@ -177,14 +199,14 @@ export function OrderTimeline({
     if (s.mode === "resize-right") {
       if (deltaDays === 0) return;
       const newEnd = addDays(s.origEnd, deltaDays);
-      if (daysBetween(s.origStart, newEnd) < 1) return;
+      if (daysBetween(s.origStart, newEnd) < 0) return;
       next[s.phase.endField] = newEnd;
       setDragInfo({ left: posPct(newEnd), label: formatDM(newEnd) });
     } else if (s.mode === "resize-left") {
       if (deltaDays === 0) return;
       if (idx === 0) {
         const newStart = addDays(s.origProductionStart, deltaDays);
-        if (daysBetween(newStart, s.origEnd) < 1) return;
+        if (daysBetween(newStart, s.origEnd) < 0) return;
         setProductionStart(newStart);
         setTouched(true);
         setDragInfo({ left: posPct(newStart), label: formatDM(newStart) });
@@ -192,7 +214,7 @@ export function OrderTimeline({
       }
       if (!s.origPrevEnd) return;
       const newPrevEnd = addDays(s.origPrevEnd, deltaDays);
-      if (daysBetween(newPrevEnd, s.origEnd) < 1) return;
+      if (daysBetween(newPrevEnd, s.origEnd) < 0) return;
       const prev = PHASES[idx - 1];
       next[prev.endField] = newPrevEnd;
       setDragInfo({ left: posPct(newPrevEnd), label: formatDM(newPrevEnd) });
