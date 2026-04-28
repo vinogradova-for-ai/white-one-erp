@@ -1,0 +1,55 @@
+[
+  {
+    "modelName": "Платье Пуфина (slim)",
+    "factory": "Фабрика Вера",
+    "deliveryMethod": "TK_CN",
+    "sizes": [
+      "40",
+      "42",
+      "44",
+      "46",
+      "48"
+    ],
+    "variants": [
+      {
+        "sku": "Dress_01_slim_red",
+        "colorName": "бордо",
+        "colorCode": "",
+        "sizes": {
+          "40": 55,
+          "42": 135,
+          "44": 135,
+          "46": 110,
+          "48": 65
+        },
+        "totalQty": 500
+      },
+      {
+        "sku": "Dress_01_slim_brown",
+        "colorName": "Коричневый",
+        "colorCode": "",
+        "sizes": {
+          "40": 55,
+          "42": 135,
+          "44": 135,
+          "46": 110,
+          "48": 65
+        },
+        "totalQty": 500
+      },
+      {
+        "sku": "Dress_01_slim_black",
+        "colorName": "черный",
+        "colorCode": "",
+        "sizes": {
+          "40": 55,
+          "42": 135,
+          "44": 135,
+          "46": 110,
+          "48": 65
+        },
+        "totalQty": 500
+      }
+    ]
+  }
+]
