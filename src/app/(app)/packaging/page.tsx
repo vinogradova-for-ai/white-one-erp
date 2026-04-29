@@ -94,7 +94,65 @@ export default async function PackagingListPage() {
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+      {/* Мобильная версия */}
+      <div className="space-y-2 md:hidden">
+        {rows.map((r) => (
+          <Link
+            key={r.id}
+            href={`/packaging/${r.id}`}
+            className={`block rounded-xl border bg-white p-3 active:bg-slate-50 ${r.shortage > 0 ? "border-red-200" : "border-slate-200"} ${r.isActive ? "" : "opacity-60"}`}
+          >
+            <div className="flex items-center gap-3">
+              {r.photoUrl ? (
+                <PhotoThumb url={r.photoUrl} size={44} />
+              ) : (
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded bg-slate-100 text-[10px] text-slate-400">
+                  нет фото
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-medium text-slate-900">{r.name}</div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
+                  <span>{PACKAGING_TYPE_ICONS[r.type]} {PACKAGING_TYPE_LABELS[r.type]}</span>
+                  {r.sku && <span className="font-mono text-[11px] text-slate-400">{r.sku}</span>}
+                </div>
+              </div>
+              {r.shortage > 0 ? (
+                <span className="shrink-0 rounded bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                  -{r.shortage.toLocaleString("ru-RU")}
+                </span>
+              ) : (
+                <span className="shrink-0 text-[11px] text-emerald-600">✓ Хватает</span>
+              )}
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+              <div>
+                <div className="text-slate-400">Склад</div>
+                <div className={`font-semibold ${r.lowStock ? "text-amber-700" : "text-slate-900"}`}>
+                  {r.stock.toLocaleString("ru-RU")}
+                </div>
+              </div>
+              <div>
+                <div className="text-slate-400">В произв.</div>
+                <div className="font-medium text-slate-900">{r.inProduction > 0 ? r.inProduction.toLocaleString("ru-RU") : "—"}</div>
+              </div>
+              <div>
+                <div className="text-slate-400">Нужно</div>
+                <div className="font-medium text-slate-900">{r.required > 0 ? r.required.toLocaleString("ru-RU") : "—"}</div>
+              </div>
+            </div>
+          </Link>
+        ))}
+        {rows.length === 0 && (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">
+            Карточек упаковки пока нет.{" "}
+            <Link href="/packaging/new" className="text-slate-900 underline">Создать первую?</Link>
+          </div>
+        )}
+      </div>
+
+      {/* Десктопная версия — таблица */}
+      <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white md:block">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
