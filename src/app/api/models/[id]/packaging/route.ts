@@ -39,15 +39,36 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       );
     }
 
+    const qty = data.quantityPerUnit != null ? Number(data.quantityPerUnit) : 1;
     const link = await prisma.modelPackaging.create({
       data: {
         productModelId: id,
         packagingItemId: data.packagingItemId,
-        quantityPerUnit: data.quantityPerUnit != null ? Number(data.quantityPerUnit) : 1,
+        quantityPerUnit: qty,
       },
       include: { packagingItem: true },
     });
-    return NextResponse.json(link, { status: 201 });
+
+    // Каскад: добавить эту упаковку во все ещё не проданные заказы этого фасона.
+    const openOrders = await prisma.order.findMany({
+      where: {
+        productModelId: id,
+        deletedAt: null,
+        status: { not: "ON_SALE" },
+      },
+      select: { id: true, packaging: { select: { packagingItemId: true } } },
+    });
+    const toCreate = openOrders
+      .filter((o) => !o.packaging.some((p) => p.packagingItemId === data.packagingItemId))
+      .map((o) => ({
+        orderId: o.id,
+        packagingItemId: data.packagingItemId,
+        quantityPerUnit: qty,
+      }));
+    if (toCreate.length > 0) {
+      await prisma.orderPackaging.createMany({ data: toCreate, skipDuplicates: true });
+    }
+    return NextResponse.json({ ...link, propagatedToOrders: toCreate.length }, { status: 201 });
   } catch (e) {
     return apiError(e);
   }
