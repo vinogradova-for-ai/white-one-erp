@@ -23,7 +23,7 @@ async function main() {
   const orders = await prisma.order.findMany({
     where: {
       deletedAt: null,
-      status: { notIn: ["ON_SALE", "CANCELLED"] },
+      status: { not: "ON_SALE" },
       productModel: {
         OR: [
           { name: { startsWith: "Пальто", mode: "insensitive" } },

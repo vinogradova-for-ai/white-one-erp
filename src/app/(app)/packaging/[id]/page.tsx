@@ -163,11 +163,18 @@ export default async function PackagingDetailPage({ params }: { params: Promise<
               : "Нет активных заказов"
           }
         />
-        <Metric
-          label="Потребность по заказам"
-          value={Math.ceil(required)}
-          accent={shortage > 0 ? "danger" : "ok"}
-          footer={shortage > 0 ? `Дефицит: ${shortage} шт — нужно запустить в производство` : "Хватает"}
+        <DemandMetric
+          required={Math.ceil(required)}
+          shortage={shortage}
+          breakdown={activeUsages
+            .map((u) => ({
+              orderId: u.order.id,
+              orderNumber: u.order.orderNumber,
+              modelName: u.order.productModel.name,
+              qty: Math.ceil(orderTotalQty(u) * Number(u.quantityPerUnit)),
+            }))
+            .filter((b) => b.qty > 0)
+            .sort((a, b) => b.qty - a.qty)}
         />
       </div>
 
@@ -260,6 +267,40 @@ export default async function PackagingDetailPage({ params }: { params: Promise<
             </ul>
           </div>
         </section>
+      )}
+    </div>
+  );
+}
+
+function DemandMetric({
+  required,
+  shortage,
+  breakdown,
+}: {
+  required: number;
+  shortage: number;
+  breakdown: Array<{ orderId: string; orderNumber: string; modelName: string; qty: number }>;
+}) {
+  const accentClass = shortage > 0 ? "border-red-200 bg-red-50" : "border-slate-200 bg-white";
+  return (
+    <div className={`rounded-2xl border p-4 ${accentClass}`}>
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Потребность по заказам</div>
+      <div className="mt-1 text-2xl font-semibold text-slate-900">{required.toLocaleString("ru-RU")}</div>
+      <div className="mt-1 text-xs text-slate-500">
+        {shortage > 0 ? `Дефицит: ${shortage.toLocaleString("ru-RU")} шт — нужно запустить в производство` : "Хватает"}
+      </div>
+      {breakdown.length > 0 && (
+        <ul className="mt-2 space-y-0.5 border-t border-slate-200 pt-2 text-xs">
+          {breakdown.map((b) => (
+            <li key={b.orderId} className="flex items-baseline justify-between gap-2">
+              <Link href={`/orders/${b.orderId}`} className="min-w-0 flex-1 truncate text-slate-700 hover:underline">
+                <span className="font-mono text-[11px] text-slate-500">{b.orderNumber}</span>
+                <span className="ml-1.5 text-slate-700">{b.modelName}</span>
+              </Link>
+              <span className="font-semibold tabular-nums text-slate-900">{b.qty.toLocaleString("ru-RU")} шт</span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );
