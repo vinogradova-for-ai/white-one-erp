@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ModelEditForm } from "@/components/models/model-edit-form";
+import { ModelEditFooter } from "@/components/models/model-edit-footer";
 import { ModelPackagingKit } from "@/components/models/model-packaging-kit";
 
 export default async function EditModelPage({ params }: { params: Promise<{ id: string }> }) {
@@ -75,6 +76,7 @@ export default async function EditModelPage({ params }: { params: Promise<{ id: 
       <div className="rounded-2xl border border-slate-200 bg-white p-6">
         <ModelPackagingKit modelId={model.id} allPackagings={packagingItems} />
       </div>
+      <ModelEditFooter />
     </div>
   );
 }

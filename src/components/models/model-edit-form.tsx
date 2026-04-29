@@ -120,7 +120,7 @@ export function ModelEditForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
+    <form id="model-edit-form" onSubmit={onSubmit} className="space-y-6">
       <Section title="Основное">
         <Field label="Название *" full>
           <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} />
@@ -243,15 +243,6 @@ export function ModelEditForm({
 
 
       {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-
-      <div className="sticky bottom-0 flex justify-end gap-2 border-t border-slate-200 bg-white pt-4">
-        <button type="button" onClick={() => router.back()} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm">
-          Отмена
-        </button>
-        <button type="submit" disabled={saving} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
-          {saving ? "Сохранение…" : "Сохранить"}
-        </button>
-      </div>
     </form>
   );
 }

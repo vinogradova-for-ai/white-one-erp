@@ -299,7 +299,9 @@ function RowView({
           const left = posPct(s);
           const width = Math.max(0.3, posPct(e) - left);
           const days = Math.round((parseISO(effEnd).getTime() - parseISO(b.start).getTime()) / 86400000);
-          const barColor = dirty ? "bg-amber-500" : (b.overdue ? "bg-red-500" : b.color);
+          // Цвет фазы фиксирован (производство/ОТК/доставка). Просрочка показывается красным,
+          // но "грязное" состояние (несохранённый drag) НЕ меняет цвет — оставляем родной цвет фазы.
+          const barColor = b.overdue ? "bg-red-500" : b.color;
           const tooltip = `${b.title} · ${formatDM(b.start)} → ${formatDM(effEnd)} · ${days} дн${b.owner ? ` · ${b.owner}` : ""}${b.overdue ? " · ПРОСРОЧЕНО" : ""}${dirty ? " · ИЗМЕНЕНО" : ""}`;
           // Все фазы одного заказа в одну строку — они идут последовательно по времени.
           const editable = !!(b.orderId && b.endField && onBarEndChange);
@@ -318,7 +320,22 @@ function RowView({
               startIso={b.start}
               onCommit={(newEndIso) => {
                 if (b.orderId && b.endField && onBarEndChange) {
+                  // Каскадный сдвиг: при изменении end этой фазы все последующие
+                  // фазы того же заказа двигаются на ту же дельту, сохраняя длительности.
+                  const oldEndIso = pendingChanges?.[pendKey ?? ""] ?? b.end;
+                  const deltaMs = parseISO(newEndIso).getTime() - parseISO(oldEndIso).getTime();
+                  const deltaDays = Math.round(deltaMs / 86400000);
                   onBarEndChange(b.orderId, b.endField, newEndIso);
+                  if (deltaDays !== 0) {
+                    for (let j = i + 1; j < row.bars.length; j++) {
+                      const nb = row.bars[j];
+                      if (!nb.orderId || !nb.endField) continue;
+                      const nbKey = `${nb.orderId}:${nb.endField}`;
+                      const nbCur = pendingChanges?.[nbKey] ?? nb.end;
+                      const shifted = toISO(addDays(parseISO(nbCur), deltaDays));
+                      onBarEndChange(nb.orderId, nb.endField, shifted);
+                    }
+                  }
                 }
               }}
             />
@@ -340,7 +357,9 @@ function DraggableBar({
   chartStart,
   chartEnd,
   startIso,
+  endIso,
   onCommit,
+  onCommitStart,
 }: {
   left: number;
   width: number;
@@ -352,11 +371,13 @@ function DraggableBar({
   chartStart: string;
   chartEnd: string;
   startIso: string;
+  endIso: string;
   onCommit: (newEndIso: string) => void;
+  onCommitStart?: (newStartIso: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [dragging, setDragging] = useState(false);
-  const [hoverEnd, setHoverEnd] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<"end" | "start" | null>(null);
+  const [hoverIso, setHoverIso] = useState<string | null>(null);
 
   useEffect(() => {
     if (!dragging) return;
@@ -368,19 +389,21 @@ function DraggableBar({
       const startMs = parseISO(chartStart).getTime();
       const endMs = parseISO(chartEnd).getTime();
       const newMs = startMs + (endMs - startMs) * ratio;
-      const newDate = new Date(newMs);
-      const iso = toISO(newDate);
-      // не даём сделать end раньше start полосы
-      if (iso < startIso) {
-        setHoverEnd(startIso);
+      const iso = toISO(new Date(newMs));
+      if (dragging === "end") {
+        setHoverIso(iso < startIso ? startIso : iso);
       } else {
-        setHoverEnd(iso);
+        // start: не даём перетащить старт правее текущего конца
+        setHoverIso(iso > endIso ? endIso : iso);
       }
     }
     function onUp() {
-      if (hoverEnd) onCommit(hoverEnd);
-      setDragging(false);
-      setHoverEnd(null);
+      if (hoverIso) {
+        if (dragging === "end") onCommit(hoverIso);
+        else if (onCommitStart) onCommitStart(hoverIso);
+      }
+      setDragging(null);
+      setHoverIso(null);
     }
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -388,7 +411,7 @@ function DraggableBar({
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [dragging, hoverEnd, onCommit, chartStart, chartEnd, startIso]);
+  }, [dragging, hoverIso, onCommit, onCommitStart, chartStart, chartEnd, startIso, endIso]);
 
   return (
     <div
@@ -400,20 +423,33 @@ function DraggableBar({
       <div className="pointer-events-none absolute left-1/2 top-full z-20 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] text-white shadow-lg group-hover:block">
         {tooltip}
       </div>
+      {editable && onCommitStart && (
+        <span
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setDragging("start");
+          }}
+          className="absolute left-0 top-0 h-full w-1.5 cursor-ew-resize rounded-l bg-slate-900/40 hover:bg-slate-900/70"
+          title="Перетащить старт фазы"
+        />
+      )}
       {editable && (
         <span
           onMouseDown={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            setDragging(true);
+            setDragging("end");
           }}
           className="absolute right-0 top-0 h-full w-1.5 cursor-ew-resize rounded-r bg-slate-900/40 hover:bg-slate-900/70"
           title="Перетащить дедлайн"
         />
       )}
-      {dragging && hoverEnd && (
-        <div className="pointer-events-none absolute -top-5 right-0 whitespace-nowrap rounded-md bg-slate-900 px-1.5 py-0.5 text-[10px] text-white shadow">
-          → {formatDM(hoverEnd)}
+      {dragging && hoverIso && (
+        <div
+          className={`pointer-events-none absolute -top-5 whitespace-nowrap rounded-md bg-slate-900 px-1.5 py-0.5 text-[10px] text-white shadow ${dragging === "end" ? "right-0" : "left-0"}`}
+        >
+          {dragging === "end" ? "→" : "←"} {formatDM(hoverIso)}
         </div>
       )}
     </div>
