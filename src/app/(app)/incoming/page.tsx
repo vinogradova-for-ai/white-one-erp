@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatDate, formatNumber } from "@/lib/format";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, DELIVERY_METHOD_LABELS } from "@/lib/constants";
 import { VariantVisual } from "@/components/common/variant-visual";
+import { ClickableRow } from "@/components/common/clickable-row";
 import { ColorChip } from "@/components/common/color-chip";
 
 /**
@@ -57,7 +58,7 @@ export default async function IncomingPage() {
               const colorNames = o.lines.map((l) => l.productVariant.colorName);
               const firstLine = o.lines[0];
               return (
-              <tr key={o.id} className="hover:bg-slate-50">
+              <ClickableRow key={o.id} href={`/orders/${o.id}`} className="hover:bg-slate-50">
                 <td className="px-3 py-2">
                   <VariantVisual
                     variantPhotoUrl={firstLine?.productVariant.photoUrls[0] ?? null}
@@ -86,7 +87,7 @@ export default async function IncomingPage() {
                 </td>
                 <td className="px-3 py-2 text-xs">{formatDate(o.arrivalPlannedDate)}</td>
                 <td className="px-3 py-2 text-xs">{formatDate(o.arrivalActualDate)}</td>
-              </tr>
+              </ClickableRow>
               );
             })}
           </tbody>

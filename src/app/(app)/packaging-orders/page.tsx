@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatDate, formatNumber, formatCurrency } from "@/lib/format";
 import { PACKAGING_ORDER_STATUS_LABELS, PACKAGING_ORDER_STATUS_COLORS } from "@/lib/packaging-orders";
 import { PhotoThumb } from "@/components/common/photo-thumb";
+import { ClickableRow } from "@/components/common/clickable-row";
 
 function lineTotalRub(line: {
   quantity: number;
@@ -143,7 +144,7 @@ export default async function PackagingOrdersPage() {
                 o.status !== "ARRIVED" &&
                 o.status !== "CANCELLED";
               return (
-                <tr key={o.id} className="hover:bg-slate-50">
+                <ClickableRow key={o.id} href={`/packaging-orders/${o.id}`} className="hover:bg-slate-50">
                   <td className="px-3 py-2">
                     <div className="flex -space-x-2">
                       {o.lines.slice(0, 3).map((l) => (
@@ -181,7 +182,7 @@ export default async function PackagingOrdersPage() {
                     {formatDate(o.expectedDate)}
                   </td>
                   <td className="px-3 py-2 text-xs">{o.owner?.name ?? "—"}</td>
-                </tr>
+                </ClickableRow>
               );
             })}
           </tbody>

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { PACKAGING_TYPE_LABELS, PACKAGING_TYPE_ICONS } from "@/lib/constants";
 import { PACKAGING_STATUS_LABELS, PACKAGING_STATUS_COLORS } from "@/lib/status-machine/packaging-statuses";
 import { PhotoThumb } from "@/components/common/photo-thumb";
+import { ClickableRow } from "@/components/common/clickable-row";
 
 export default async function PackagingListPage() {
   const items = await prisma.packagingItem.findMany({
@@ -109,7 +110,7 @@ export default async function PackagingListPage() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {rows.map((r) => (
-              <tr key={r.id} className={`hover:bg-slate-50 ${r.isActive ? "" : "text-slate-400"}`}>
+              <ClickableRow key={r.id} href={`/packaging/${r.id}`} className={`hover:bg-slate-50 ${r.isActive ? "" : "text-slate-400"}`}>
                 <td className="px-3 py-2">
                   {r.photoUrl ? (
                     <PhotoThumb url={r.photoUrl} size={40} />
@@ -157,7 +158,7 @@ export default async function PackagingListPage() {
                     {PACKAGING_STATUS_LABELS[r.status]}
                   </span>
                 </td>
-              </tr>
+              </ClickableRow>
             ))}
             {rows.length === 0 && (
               <tr>
