@@ -12,9 +12,21 @@ import { InlineCheckbox } from "@/components/common/inline-checkbox";
 import { OrderPackagingSection } from "@/components/orders/order-packaging-section";
 import { OrderLinesSection } from "@/components/orders/order-lines-section";
 import { OrderTimelineEditor } from "@/components/orders/order-timeline-editor";
+import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // Авто-синк упаковки фасона. Если у фасона есть привязанная упаковка,
+  // которая по какой-то причине не «протекла» в этот заказ — она
+  // подтянется при следующем открытии заказа. Идемпотентно.
+  const orderHead = await prisma.order.findUnique({
+    where: { id },
+    select: { productModelId: true, status: true },
+  });
+  if (orderHead && orderHead.status !== "ON_SALE") {
+    await syncModelPackagingToOrders(orderHead.productModelId);
+  }
+
   const order = await prisma.order.findFirst({
     where: { id, deletedAt: null },
     include: {

@@ -11,9 +11,13 @@ import { PhotoGallery } from "@/components/common/photo-thumb";
 import { VariantVisual } from "@/components/common/variant-visual";
 import { ColorChip } from "@/components/common/color-chip";
 import { DeleteButton } from "@/components/common/delete-button";
+import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
 
 export default async function ModelDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // Авто-синк упаковки фасона → открытые заказы (идемпотентно).
+  await syncModelPackagingToOrders(id);
+
   const model = await prisma.productModel.findFirst({
     where: { id, deletedAt: null },
     include: {
