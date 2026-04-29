@@ -264,7 +264,13 @@ function RowView({
           </div>
         </div>
       </div>
-      <div className="relative h-[46px]">
+      <div
+        className="relative h-[46px]"
+        style={{
+          backgroundImage: `linear-gradient(to right, rgba(148, 163, 184, 0.16) 1px, transparent 1px)`,
+          backgroundSize: `${100 / Math.max(1, dayDiff(chartStart, chartEnd))}% 100%`,
+        }}
+      >
         {/* Сетка недель на фоне */}
         {weekMarks.map((m) => (
           <div
@@ -295,15 +301,14 @@ function RowView({
           const days = Math.round((parseISO(effEnd).getTime() - parseISO(b.start).getTime()) / 86400000);
           const barColor = dirty ? "bg-amber-500" : (b.overdue ? "bg-red-500" : b.color);
           const tooltip = `${b.title} · ${formatDM(b.start)} → ${formatDM(effEnd)} · ${days} дн${b.owner ? ` · ${b.owner}` : ""}${b.overdue ? " · ПРОСРОЧЕНО" : ""}${dirty ? " · ИЗМЕНЕНО" : ""}`;
-          // Вертикальная укладка полос в 2 ряда чтобы не слипались
-          const lane = i % 2;
+          // Все фазы одного заказа в одну строку — они идут последовательно по времени.
           const editable = !!(b.orderId && b.endField && onBarEndChange);
           return (
             <DraggableBar
               key={b.key + i}
               left={left}
               width={width}
-              top={lane === 0 ? 8 : 26}
+              top={8}
               barColor={barColor}
               done={b.done}
               tooltip={tooltip}

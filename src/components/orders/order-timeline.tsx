@@ -326,9 +326,15 @@ export function OrderTimeline({
               {dragInfo.label}
             </div>
           )}
-          <div className="pointer-events-none absolute inset-0">
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              backgroundImage: `linear-gradient(to right, rgba(148, 163, 184, 0.18) 1px, transparent 1px)`,
+              backgroundSize: `${100 / totalDays}% 100%`,
+            }}
+          >
             {ticks.weekly.map((w) => (
-              <div key={"g" + w.iso} className="absolute top-0 bottom-0 border-l border-slate-200/70" style={{ left: `${w.pct}%` }} />
+              <div key={"g" + w.iso} className="absolute top-0 bottom-0 border-l border-slate-300/80" style={{ left: `${w.pct}%` }} />
             ))}
             {ticks.monthly.map((m) => (
               <div key={"gm" + m.iso} className="absolute top-0 bottom-0 border-l border-slate-400/60" style={{ left: `${m.pct}%` }} />
@@ -373,14 +379,8 @@ export function OrderTimeline({
                       <span className="opacity-80">· {days} дн</span>
                     </div>
 
-                    <div className="pointer-events-none absolute -top-5 left-0 rounded bg-slate-900/90 px-1 py-0.5 text-[10px] font-semibold text-white shadow-sm">
-                      {formatDM(startIso)}
-                    </div>
-                    <div className="pointer-events-none absolute -top-5 left-1/2 -translate-x-1/2 rounded bg-white px-1 py-0.5 text-[10px] font-semibold text-slate-700 ring-1 ring-slate-300 shadow-sm">
-                      {days} дн
-                    </div>
-                    <div className="pointer-events-none absolute -top-5 right-0 rounded bg-slate-900/90 px-1 py-0.5 text-[10px] font-semibold text-white shadow-sm">
-                      {formatDM(endIso)}
+                    <div className="pointer-events-none absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-slate-900/90 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+                      {formatDM(startIso)} → {formatDM(endIso)} · {days} дн
                     </div>
 
                     <div
