@@ -61,7 +61,7 @@ export default async function HomePage({
       {/* Заголовок и быстрые действия */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-slate-900">Главный</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 md:text-3xl">Главный</h1>
           <p className="mt-0.5 text-sm text-slate-500">
             {filtered.length === all.length
               ? `${all.length} задач в работе`

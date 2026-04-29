@@ -45,7 +45,7 @@ export default async function OrdersPage({
         </div>
         <Link
           href="/orders/new"
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          className="rounded-lg bg-slate-900 px-4 py-3 text-sm font-medium text-white hover:bg-slate-800 md:py-2"
         >
           + Создать заказ
         </Link>
