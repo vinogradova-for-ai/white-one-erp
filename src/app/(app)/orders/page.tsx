@@ -4,6 +4,7 @@ import { formatDate, formatNumber } from "@/lib/format";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_TYPE_LABELS } from "@/lib/constants";
 import { VariantVisual } from "@/components/common/variant-visual";
 import { ColorChip } from "@/components/common/color-chip";
+import { ClickableRow } from "@/components/common/clickable-row";
 import { OrderStatus } from "@prisma/client";
 
 export default async function OrdersPage({
@@ -91,7 +92,7 @@ export default async function OrdersPage({
               const colorNames = o.lines.map((l) => l.productVariant.colorName);
               const firstLine = o.lines[0];
               return (
-                <tr key={o.id} className={`hover:bg-slate-50 ${o.isDelayed ? "bg-red-50/40" : ""}`}>
+                <ClickableRow key={o.id} href={`/orders/${o.id}`} className={`hover:bg-slate-50 ${o.isDelayed ? "bg-red-50/40" : ""}`}>
                   <td className="px-3 py-2">
                     <VariantVisual
                       variantPhotoUrl={firstLine?.productVariant.photoUrls[0] ?? null}
@@ -122,7 +123,7 @@ export default async function OrdersPage({
                     {salesStartMonth(o.arrivalPlannedDate)}
                   </td>
                   <td className="px-3 py-2 text-xs text-slate-600">{o.owner.name}</td>
-                </tr>
+                </ClickableRow>
               );
             })}
           </tbody>
