@@ -232,15 +232,19 @@ function CalendarChip({ p, isPast }: { p: PaymentWithRelations; isPast: boolean 
     : p.type === "ORDER"
     ? "bg-blue-50 text-blue-700 border-blue-200"
     : "bg-amber-50 text-amber-800 border-amber-200";
+  // ЗА ЧТО плачу: для заказа — имя фасона, для упаковки — имя упаковки
+  const subject = p.type === "ORDER"
+    ? (p.order?.productModel.name ?? p.factory?.name ?? "—")
+    : (p.packagingItem?.name ?? p.supplierName ?? "—");
   const counterparty = p.type === "ORDER" ? p.factory?.name : p.supplierName;
   return (
     <Link
       href={paymentTargetHref(p)}
       className={`block rounded border px-1.5 py-0.5 text-[11px] leading-tight ${cls} hover:brightness-95`}
-      title={`${p.label}${counterparty ? " · " + counterparty : ""} · ${formatCurrency(p.amount.toString())}`}
+      title={`${subject}${counterparty ? " · " + counterparty : ""} · ${p.label} · ${formatCurrency(p.amount.toString())}`}
     >
       <div className="truncate font-semibold">{formatCurrency(p.amount.toString())}</div>
-      <div className="truncate opacity-80">{p.label}</div>
+      <div className="truncate text-[10px] opacity-90">{subject}</div>
     </Link>
   );
 }
@@ -404,36 +408,45 @@ function BigCard({
         <div className="text-xs text-slate-500">{p.label}</div>
       </div>
 
-      {/* Контрагент / заказ */}
+      {/* За что плачу */}
       <div className="flex-1 min-w-[200px]">
-        <div className="flex items-center gap-2">
+        {/* 1-я строка: имя товара/упаковки — крупно. Это «ЗА ЧТО» */}
+        {p.type === "ORDER" && p.order ? (
+          <Link href={`/orders/${p.order.id}`} className="block text-base font-semibold text-slate-900 hover:underline">
+            {p.order.productModel.name}
+            {p.order.lines.length > 0 && (
+              <span className="ml-1 text-sm font-normal text-slate-500">
+                · {p.order.lines.map((l) => l.productVariant.colorName).join(", ")}
+              </span>
+            )}
+          </Link>
+        ) : p.type === "PACKAGING" && p.packagingItem ? (
+          <Link
+            href={p.packagingOrder ? `/packaging-orders/${p.packagingOrder.id}` : `/payments/${p.id}/edit`}
+            className="block text-base font-semibold text-slate-900 hover:underline"
+          >
+            {p.packagingItem.name}
+          </Link>
+        ) : (
+          <div className="text-base font-semibold text-slate-700">{counterparty ?? "—"}</div>
+        )}
+        {/* 2-я строка: контрагент + номер заказа + тип-плашка */}
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
           <span
-            className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+            className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
               p.type === "ORDER" ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"
             }`}
           >
             {p.type === "ORDER" ? "Фабрика" : "Упаковка"}
           </span>
-          <span className="text-sm font-medium text-slate-900">{counterparty ?? "—"}</span>
+          {counterparty && <span>{counterparty}</span>}
+          {p.type === "ORDER" && p.order && (
+            <span className="font-mono text-[10px]">{p.order.orderNumber}</span>
+          )}
+          {p.type === "PACKAGING" && p.packagingOrder && (
+            <span className="font-mono text-[10px]">{p.packagingOrder.orderNumber}</span>
+          )}
         </div>
-        {p.type === "ORDER" && p.order && (
-          <Link href={`/orders/${p.order.id}`} className="mt-1 block text-xs text-slate-600 hover:underline">
-            {p.order.orderNumber} · {p.order.productModel.name}
-            {p.order.lines.length > 0 && " · " + p.order.lines.map((l) => l.productVariant.colorName).join(", ")}
-          </Link>
-        )}
-        {p.type === "PACKAGING" && p.packagingOrder && (
-          <Link
-            href={`/packaging-orders/${p.packagingOrder.id}`}
-            className="mt-1 block text-xs text-slate-600 hover:underline"
-          >
-            {p.packagingOrder.orderNumber}
-            {p.packagingItem && ` · ${p.packagingItem.name}`}
-          </Link>
-        )}
-        {p.type === "PACKAGING" && !p.packagingOrder && p.packagingItem && (
-          <div className="mt-1 text-xs text-slate-500">{p.packagingItem.name}</div>
-        )}
       </div>
 
       {/* Действия */}
