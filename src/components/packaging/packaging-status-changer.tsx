@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { PackagingItemStatus } from "@prisma/client";
 import {
   PACKAGING_STATUS_LABELS,
@@ -40,9 +41,12 @@ export function PackagingStatusChanger({
     setSavingStatus(null);
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      setError(j?.error?.message ?? "Ошибка");
+      const msg = j?.error?.message ?? "Ошибка";
+      setError(msg);
+      toast.error(`Статус: ${msg}`);
       return;
     }
+    toast.success(`Статус → ${PACKAGING_STATUS_LABELS[toStatus]}`);
     closeSheet();
     setComment("");
     startTransition(() => router.refresh());

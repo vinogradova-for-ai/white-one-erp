@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export function InlineDateField({
   label,
@@ -29,9 +30,10 @@ export function InlineDateField({
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        alert(j?.error?.message ?? "Не удалось сохранить");
+        toast.error(`${label}: ${j?.error?.message ?? "Не удалось сохранить"}`);
         return;
       }
+      toast.success(`${label} сохранено`);
       router.refresh();
     } finally {
       setSaving(false);

@@ -114,7 +114,10 @@ export function OrderTimeline({
   onChange: (t: Timeline) => void;
   deliveryMethod?: DeliveryMethod | null;
 }) {
-  const [touched, setTouched] = useState(false);
+  // Если в БД уже сохранены даты — считаем таймлайн "ручным" и НЕ пересчитываем дефолты,
+  // иначе при каждом mount авто-рассчёт перетрёт сохранённые значения пользователя.
+  const hasSavedDates = !!(initial.readyAtFactoryDate || initial.qcDate || initial.arrivalPlannedDate);
+  const [touched, setTouched] = useState(hasSavedDates);
   const [productionStart, setProductionStart] = useState(() => toISO(new Date()));
   const railRef = useRef<HTMLDivElement>(null);
   const [dragInfo, setDragInfo] = useState<{ left: number; label: string } | null>(null);
@@ -372,6 +375,9 @@ export function OrderTimeline({
 
                     <div className="pointer-events-none absolute -top-5 left-0 rounded bg-slate-900/90 px-1 py-0.5 text-[10px] font-semibold text-white shadow-sm">
                       {formatDM(startIso)}
+                    </div>
+                    <div className="pointer-events-none absolute -top-5 left-1/2 -translate-x-1/2 rounded bg-white px-1 py-0.5 text-[10px] font-semibold text-slate-700 ring-1 ring-slate-300 shadow-sm">
+                      {days} дн
                     </div>
                     <div className="pointer-events-none absolute -top-5 right-0 rounded bg-slate-900/90 px-1 py-0.5 text-[10px] font-semibold text-white shadow-sm">
                       {formatDM(endIso)}

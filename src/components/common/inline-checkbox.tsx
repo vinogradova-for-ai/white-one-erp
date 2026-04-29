@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 /**
  * Чекбокс, который сразу сохраняет изменение на сервер.
@@ -39,9 +40,10 @@ export function InlineCheckbox({
       if (!res.ok) {
         setValue(!newValue); // откат
         const j = await res.json().catch(() => ({}));
-        alert(j?.error?.message ?? "Не удалось сохранить");
+        toast.error(`${label}: ${j?.error?.message ?? "Не удалось сохранить"}`);
         return;
       }
+      toast.success(`${label} сохранено`);
       startTransition(() => router.refresh());
     } finally {
       setSaving(false);

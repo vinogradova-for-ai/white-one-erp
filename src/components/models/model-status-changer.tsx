@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { PRODUCT_MODEL_STATUS_LABELS, PRODUCT_MODEL_STATUS_COLORS, PRODUCT_MODEL_STATUS_ORDER } from "@/lib/constants";
 import { MODEL_TRANSITIONS } from "@/lib/status-machine/product-statuses";
 import { ProductModelStatus } from "@prisma/client";
@@ -34,9 +35,12 @@ export function ModelStatusChanger({
     setSavingStatus(null);
     if (!res.ok) {
       const j = await res.json();
-      setError(j?.error?.message ?? "Ошибка");
+      const msg = j?.error?.message ?? "Ошибка";
+      setError(msg);
+      toast.error(`Статус: ${msg}`);
       return;
     }
+    toast.success(`Статус → ${PRODUCT_MODEL_STATUS_LABELS[toStatus]}`);
     closeSheet();
     setComment("");
     startTransition(() => router.refresh());

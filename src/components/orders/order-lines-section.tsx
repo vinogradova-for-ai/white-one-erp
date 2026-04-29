@@ -5,6 +5,19 @@ import { useRouter } from "next/navigation";
 import { VariantVisual } from "@/components/common/variant-visual";
 import { VariantPicker } from "@/components/common/variant-picker";
 import { formatCurrency, formatNumber } from "@/lib/format";
+import { colorHexFromName, isLightColor } from "@/lib/color-map";
+
+function ColorChip({ name }: { name: string }) {
+  const hex = colorHexFromName(name);
+  const ring = isLightColor(hex) ? "ring-1 ring-slate-300" : "";
+  return (
+    <span
+      aria-hidden
+      className={`inline-block h-3 w-3 shrink-0 rounded-full ${ring}`}
+      style={{ backgroundColor: hex }}
+    />
+  );
+}
 
 type Variant = {
   id: string;
@@ -157,89 +170,77 @@ function LineCard({
   }
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <div className="flex items-start gap-3">
+    <div className="group relative rounded-xl border border-slate-200 bg-white p-2.5">
+      {canDelete && (
+        <button
+          type="button"
+          onClick={remove}
+          disabled={saving}
+          aria-label="Удалить позицию"
+          title="Удалить позицию"
+          className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md text-slate-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 focus:opacity-100 disabled:opacity-30"
+        >
+          ✕
+        </button>
+      )}
+      <div className="flex items-center gap-3">
         <VariantVisual
           variantPhotoUrl={line.photoUrl}
           modelPhotoUrl={modelPhotoUrl}
           colorName={line.colorName}
-          size={56}
+          size={44}
+          hideBadge
         />
-        <div className="flex-1">
-          <div className="flex items-baseline justify-between gap-2">
-            <div>
-              <div className="font-semibold text-slate-900">{line.colorName}</div>
-              <div className="text-xs text-slate-500">{line.sku}</div>
-            </div>
-            <div className="text-right text-sm">
-              <div className="flex items-baseline justify-end gap-1">
-                <span className="text-xs text-slate-500">Количество:</span>
-                <span className="text-base font-semibold text-slate-900">{qty}</span>
-                <span className="text-xs text-slate-500">шт</span>
-              </div>
-              <div className="mt-0.5 text-xs text-slate-500">
-                {formatCurrency(line.batchCost)}
-              </div>
-            </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+            <ColorChip name={line.colorName} />
+            <span className="truncate">{line.colorName}</span>
+            <span className="truncate text-[11px] font-normal text-slate-400">{line.sku}</span>
           </div>
-
           {sizes.length > 0 && (
-            <div className="mt-3 space-y-2">
-              <SizeRow
-                label="Размеры"
-                sizes={sizes}
-                dist={plan}
-                onChange={setPlan}
-              />
+            <div className="mt-1.5">
+              <SizeRow sizes={sizes} dist={plan} onChange={setPlan} />
             </div>
           )}
-
-          {error && <div className="mt-2 text-xs text-red-600">{error}</div>}
-
-          <div className="mt-3 flex items-center justify-end gap-2">
-            {canDelete && (
-              <button
-                type="button"
-                onClick={remove}
-                disabled={saving}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
-              >
-                Удалить
-              </button>
-            )}
+        </div>
+        <div className="ml-auto flex shrink-0 flex-col items-end gap-0.5 pl-2 pr-6">
+          <div className="text-sm font-semibold text-slate-900">{qty} <span className="text-[11px] font-normal text-slate-500">шт</span></div>
+          <div className="text-[11px] text-slate-500">{formatCurrency(line.batchCost)}</div>
+          {dirty && (
             <button
               type="button"
               onClick={save}
-              disabled={!dirty || saving}
-              className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+              disabled={saving}
+              className="mt-1 rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
             >
-              {saving ? "Сохранение…" : "Сохранить"}
+              {saving ? "…" : "Сохранить"}
             </button>
-          </div>
+          )}
         </div>
       </div>
+      {error && <div className="mt-2 text-xs text-red-600">{error}</div>}
     </div>
   );
 }
 
 function SizeRow({
-  label,
   sizes,
   dist,
   onChange,
 }: {
-  label: string;
   sizes: string[];
   dist: Record<string, number>;
   onChange: (v: Record<string, number>) => void;
 }) {
   return (
     <div>
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-1 grid grid-cols-4 gap-1 sm:grid-cols-6 md:grid-cols-8">
+      <div
+        className="grid gap-1"
+        style={{ gridTemplateColumns: `repeat(${sizes.length}, minmax(0, 1fr))` }}
+      >
         {sizes.map((s) => (
-          <label key={s} className="block">
-            <div className="text-center text-[10px] font-medium text-slate-600">{s}</div>
+          <label key={s} className="block min-w-0">
+            <div className="text-center text-[10px] leading-none text-slate-500">{s}</div>
             <input
               type="text"
               inputMode="numeric"
@@ -250,7 +251,7 @@ function SizeRow({
                 const n = digits === "" ? 0 : Number(digits);
                 onChange({ ...dist, [s]: n });
               }}
-              className="mt-0.5 w-full rounded border border-slate-300 bg-white px-1 py-1 text-center text-xs"
+              className="mt-0.5 h-9 w-full rounded border border-slate-200 bg-white px-1 text-center text-sm font-medium tabular-nums text-slate-900 sm:h-7 sm:text-[11px]"
             />
           </label>
         ))}

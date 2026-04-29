@@ -71,7 +71,38 @@ export default async function VariantsPage({
         </button>
       </form>
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+      {/* Мобильная версия — карточки */}
+      <div className="md:hidden space-y-2">
+        {variants.map((v) => (
+          <Link
+            key={v.id}
+            href={`/variants/${v.id}`}
+            className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 active:bg-slate-50"
+          >
+            <VariantVisual
+              variantPhotoUrl={v.photoUrls[0] ?? null}
+              modelPhotoUrl={v.productModel.photoUrls[0] ?? null}
+              colorName={v.colorName}
+              size={56}
+              hideBadge
+            />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-medium text-slate-900">{v.productModel.name}</div>
+              <div className="mt-0.5 flex items-center gap-1.5 text-xs">
+                <ColorChip name={v.colorName} />
+              </div>
+              <div className="mt-1 truncate font-mono text-[11px] text-slate-400">{v.sku}</div>
+            </div>
+            <div className="shrink-0 text-right text-xs text-slate-500">
+              {formatCurrency(v.productModel.fullCost?.toString())}
+            </div>
+          </Link>
+        ))}
+        {variants.length === 0 && <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500">Ничего не найдено</div>}
+      </div>
+
+      {/* Десктопная версия — таблица */}
+      <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white md:block">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>

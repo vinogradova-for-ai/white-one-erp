@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { PRODUCT_VARIANT_STATUS_LABELS, PRODUCT_VARIANT_STATUS_COLORS } from "@/lib/constants";
 import { ProductVariantStatus } from "@prisma/client";
 import { VARIANT_TRANSITIONS } from "@/lib/status-machine/product-statuses";
@@ -37,9 +38,12 @@ export function VariantStatusChanger({
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        setError(j?.error?.message ?? "Не удалось сменить статус");
+        const msg = j?.error?.message ?? "Не удалось сменить статус";
+        setError(msg);
+        toast.error(`Статус: ${msg}`);
         return;
       }
+      toast.success(`Статус → ${PRODUCT_VARIANT_STATUS_LABELS[next]}`);
       setStatus(next);
       setOpen(false);
       startTransition(() => router.refresh());

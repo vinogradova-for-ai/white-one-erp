@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_STATUS_ORDER } from "@/lib/constants";
 import { OrderStatus } from "@prisma/client";
 import { StatusSheet, useSheet } from "@/components/common/status-sheet";
@@ -46,9 +47,12 @@ export function OrderStatusChanger({
     setSavingStatus(null);
     if (!res.ok) {
       const j = await res.json();
-      setError(j?.error?.message ?? "Ошибка");
+      const msg = j?.error?.message ?? "Ошибка";
+      setError(msg);
+      toast.error(`Статус: ${msg}`);
       return;
     }
+    toast.success(`Статус → ${ORDER_STATUS_LABELS[toStatus]}`);
     closeSheet();
     setComment("");
     startTransition(() => router.refresh());

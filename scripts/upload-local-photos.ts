@@ -34,7 +34,8 @@ function parseFile(file: string): Photo | null {
   const ext = path.extname(file).toLowerCase();
   if (![".png", ".jpg", ".jpeg", ".webp"].includes(ext)) return null;
   // macOS отдаёт имена файлов в NFD (decomposed unicode), в БД — NFC. Приводим к одной форме.
-  const base = path.basename(file, ext).normalize("NFC");
+  // macOS отдаёт NFD; в БД — NFC. Также убираем trailing/leading whitespace.
+  const base = path.basename(file, ext).normalize("NFC").trim();
   const m = base.match(/^(.+?)(?:_(\d+))?$/);
   if (!m) return null;
   const tail = m[2] ? Number(m[2]) : 0;
@@ -110,6 +111,21 @@ async function main() {
   }
   const bySkuLower = new Map(variants.map((v) => [v.sku.toLowerCase(), v]));
 
+  // Для несматченных пробуем найти ProductModel по name (это «обложка фасона»).
+  const unmatchedSkus = [...bySku.keys()].filter((s) => !bySkuLower.has(s.toLowerCase()));
+  let modelByName = new Map<string, { id: string; name: string; photoUrls: string[] }>();
+  if (unmatchedSkus.length) {
+    const allModels = await prisma.productModel.findMany({
+      where: { deletedAt: null },
+      select: { id: true, name: true, photoUrls: true },
+    });
+    const byNameLower = new Map(allModels.map((m) => [m.name.normalize("NFC").trim().toLowerCase(), m]));
+    for (const s of unmatchedSkus) {
+      const m = byNameLower.get(s.toLowerCase());
+      if (m) modelByName.set(s.toLowerCase(), m);
+    }
+  }
+
   let matched = 0, uploaded = 0, updated = 0;
   const notMatched: string[] = [];
 
@@ -119,14 +135,16 @@ async function main() {
 
   async function processOne(sku: string) {
     const variant = bySkuLower.get(sku.toLowerCase());
+    const model = !variant ? modelByName.get(sku.toLowerCase()) : null;
     const photoFiles = bySku.get(sku)!;
-    if (!variant) {
+    if (!variant && !model) {
       notMatched.push(sku);
-      console.log(`✗ ${sku}: цветомодель не найдена в БД (файлов: ${photoFiles.length})`);
+      console.log(`✗ ${sku}: ни цветомодель, ни фасон не найдены (файлов: ${photoFiles.length})`);
       return;
     }
     matched++;
     const urls: string[] = [];
+    const target = variant ? `вариант ${variant.sku}` : `фасон ${model!.name}`;
 
     for (const p of photoFiles) {
       const { buf } = await compress(p.file);
@@ -134,7 +152,7 @@ async function main() {
       const key = `local-photos/${sku}${p.suffix ? "_" + p.suffix : ""}.webp`;
 
       if (DRY_RUN) {
-        console.log(`  ✓ ${path.basename(p.file)} → ${key} (${sizeKB} KB)`);
+        console.log(`  ✓ ${path.basename(p.file)} → ${key} (${sizeKB} KB) → ${target}`);
         urls.push(`(blob://${key})`);
         continue;
       }
@@ -142,11 +160,12 @@ async function main() {
         const blob = await put(key, buf, {
           access: "public",
           addRandomSuffix: false,
+          allowOverwrite: true,
           contentType: "image/webp",
         });
         urls.push(blob.url);
         uploaded++;
-        console.log(`  ✓ ${path.basename(p.file)} → ${blob.url.slice(-60)} (${sizeKB} KB)`);
+        console.log(`  ✓ ${path.basename(p.file)} → ${blob.url.slice(-60)} (${sizeKB} KB) → ${target}`);
       } catch (e) {
         console.log(`  ✗ ${path.basename(p.file)}: ${(e as Error).message}`);
       }
@@ -155,12 +174,19 @@ async function main() {
     if (urls.length === 0) return;
 
     if (DRY_RUN) {
-      console.log(`  [dry] ${sku} получит ${urls.length} фото (модель: ${variant.productModel.name})`);
+      console.log(`  [dry] ${target} получит ${urls.length} фото`);
+      return;
+    }
+
+    if (model) {
+      await prisma.productModel.update({ where: { id: model.id }, data: { photoUrls: urls } });
+      updated++;
+      console.log(`  → фасон "${model.name}": записано ${urls.length} URL`);
       return;
     }
 
     await prisma.productVariant.update({
-      where: { id: variant.id },
+      where: { id: variant!.id },
       data: { photoUrls: urls },
     });
     updated++;

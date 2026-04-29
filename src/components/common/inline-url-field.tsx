@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 /**
  * Поле URL с кнопкой «Сохранить». Появляется при клике «Изменить» или при пустом значении.
@@ -38,9 +39,12 @@ export function InlineUrlField({
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        setError(j?.error?.message ?? "Не удалось сохранить");
+        const msg = j?.error?.message ?? "Не удалось сохранить";
+        setError(msg);
+        toast.error(`${label}: ${msg}`);
         return;
       }
+      toast.success(`${label} сохранено`);
       setEditing(false);
       router.refresh();
     } finally {

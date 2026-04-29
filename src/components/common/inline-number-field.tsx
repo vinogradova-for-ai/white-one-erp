@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 /**
  * Числовое поле с инлайн-сохранением — сохраняет на blur/Enter.
@@ -41,10 +42,13 @@ export function InlineNumberField({
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        setError(j?.error?.message ?? "Не удалось сохранить");
+        const msg = j?.error?.message ?? "Не удалось сохранить";
+        setError(msg);
         setVal(value);
+        toast.error(`${label}: ${msg}`);
         return;
       }
+      toast.success(`${label} сохранено`);
       router.refresh();
     } finally {
       setSaving(false);

@@ -203,7 +203,78 @@ export default async function GanttPage({
         </div>
       )}
 
-      <GanttPageClient rows={rows} />
+      {/* Десктоп: полноценный Гант */}
+      <div className="hidden md:block">
+        <GanttPageClient rows={rows} />
+      </div>
+
+      {/* Мобильный: список заказов с фазами */}
+      <div className="md:hidden">
+        <MobileGanttList rows={rows} todayIso={todayIso} />
+      </div>
+    </div>
+  );
+}
+
+function MobileGanttList({ rows, todayIso }: { rows: GanttRow[]; todayIso: string }) {
+  if (rows.length === 0) {
+    return <div className="rounded-xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500">Заказов в работе нет</div>;
+  }
+  function fmt(iso: string) {
+    const [, m, d] = iso.split("-");
+    return `${d}.${m}`;
+  }
+  function daysLeft(iso: string) {
+    const ms = new Date(iso).getTime() - new Date(todayIso).getTime();
+    return Math.round(ms / 86400000);
+  }
+  return (
+    <div className="space-y-2">
+      {rows.map((r) => {
+        const lastBar = r.bars[r.bars.length - 1];
+        const finalEnd = lastBar?.end;
+        const overallOverdue = r.bars.some((b) => b.overdue);
+        const dl = finalEnd ? daysLeft(finalEnd) : null;
+        const photoUrl = r.thumbnails?.find((t) => t.photoUrl)?.photoUrl ?? null;
+        return (
+          <Link
+            key={r.id}
+            href={r.href}
+            className="block rounded-xl border border-slate-200 bg-white p-3 active:bg-slate-50"
+          >
+            <div className="flex items-center gap-3">
+              {photoUrl && (
+                <img src={photoUrl} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium text-slate-900">{r.title}</div>
+                <div className="truncate text-[11px] text-slate-500">{r.subtitle}</div>
+              </div>
+              {finalEnd && (
+                <div className={`shrink-0 text-right text-xs ${overallOverdue ? "text-red-600 font-semibold" : "text-slate-600"}`}>
+                  <div>{fmt(finalEnd)}</div>
+                  {dl !== null && (
+                    <div className="text-[10px] text-slate-400">{dl >= 0 ? `через ${dl} дн` : `просроч. ${-dl} дн`}</div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {r.bars.map((b) => (
+                <span
+                  key={b.key}
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                    b.overdue ? "bg-red-100 text-red-700" : b.done ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  <span className={`inline-block h-1.5 w-1.5 rounded-full ${b.color}`} />
+                  {b.title} · {fmt(b.end)}
+                </span>
+              ))}
+            </div>
+          </Link>
+        );
+      })}
     </div>
   );
 }

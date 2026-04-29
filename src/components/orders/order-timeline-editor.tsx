@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { OrderTimeline } from "@/components/orders/order-timeline";
 
 type Timeline = {
@@ -45,14 +46,18 @@ export function OrderTimelineEditor({
         });
         if (!res.ok) {
           const j = await res.json().catch(() => ({}));
-          setError(j?.error?.message ?? "Не удалось сохранить");
+          const msg = j?.error?.message ?? "Не удалось сохранить таймлайн";
+          setError(msg);
+          toast.error(msg);
           return;
         }
         lastSent.current = cur;
         setError(null);
         setSavedAt(new Date().toLocaleTimeString("ru-RU"));
+        toast.success("Таймлайн сохранён");
       } catch {
         setError("Не удалось сохранить");
+        toast.error("Не удалось сохранить таймлайн");
       }
     }, 800);
     return () => {
