@@ -70,7 +70,63 @@ export default async function OrdersPage({
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+      {/* Мобильная версия — карточки */}
+      <div className="space-y-2 md:hidden">
+        {orders.map((o) => {
+          const totalQty = o.lines.reduce((a, l) => a + l.quantity, 0);
+          const colorNames = o.lines.map((l) => l.productVariant.colorName);
+          const firstLine = o.lines[0];
+          return (
+            <Link
+              key={o.id}
+              href={`/orders/${o.id}`}
+              className={`block rounded-xl border bg-white p-3 active:bg-slate-50 ${o.isDelayed ? "border-red-200 bg-red-50/40" : "border-slate-200"}`}
+            >
+              <div className="flex items-center gap-3">
+                <VariantVisual
+                  variantPhotoUrl={firstLine?.productVariant.photoUrls[0] ?? null}
+                  modelPhotoUrl={o.productModel.photoUrls[0] ?? null}
+                  colorName={firstLine?.productVariant.colorName ?? null}
+                  size={44}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium text-slate-900">{o.productModel.name}</div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
+                    <span className="font-mono text-[11px]">{o.orderNumber}</span>
+                    {colorNames.slice(0, 4).map((c, i) => <ColorChip key={i} name={c} size={10} />)}
+                  </div>
+                </div>
+                <span className={`shrink-0 rounded px-2 py-0.5 text-[11px] ${ORDER_STATUS_COLORS[o.status]}`}>
+                  {ORDER_STATUS_LABELS[o.status]}
+                </span>
+              </div>
+              <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                <div>
+                  <div className="text-slate-400">Кол-во</div>
+                  <div className="font-semibold text-slate-900">{formatNumber(totalQty)}</div>
+                </div>
+                <div>
+                  <div className="text-slate-400">Прибытие</div>
+                  <div className="font-medium text-slate-900">{formatDate(o.arrivalPlannedDate)}</div>
+                </div>
+                <div>
+                  <div className="text-slate-400">Старт продаж</div>
+                  <div className="font-medium capitalize text-slate-900">{salesStartMonth(o.arrivalPlannedDate)}</div>
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+        {orders.length === 0 && (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">
+            Заказов не найдено.{" "}
+            <Link href="/orders/new" className="text-slate-900 underline">Создать первый?</Link>
+          </div>
+        )}
+      </div>
+
+      {/* Десктопная версия — таблица */}
+      <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white md:block">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
@@ -128,7 +184,12 @@ export default async function OrdersPage({
             })}
           </tbody>
         </table>
-        {orders.length === 0 && <div className="p-12 text-center text-sm text-slate-500">Заказов не найдено</div>}
+        {orders.length === 0 && (
+          <div className="p-12 text-center text-sm text-slate-500">
+            Заказов не найдено.{" "}
+            <Link href="/orders/new" className="text-slate-900 underline">Создать первый?</Link>
+          </div>
+        )}
       </div>
     </div>
   );
