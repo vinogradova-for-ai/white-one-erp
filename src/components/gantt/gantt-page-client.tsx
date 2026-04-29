@@ -4,9 +4,13 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { GanttChart, type GanttRow } from "./gantt-chart";
 
+type GanttGroup = GanttRow["group"];
+
 export function GanttPageClient({ rows }: { rows: GanttRow[] }) {
   const router = useRouter();
-  // Буфер изменений: ключ `${orderId}:${endField}` → ISO дата
+  // Буфер изменений: ключ `${group}:${orderId}:${endField}` → ISO дата.
+  // group нужен чтобы отправить PATCH на правильный endpoint
+  // (orders → /api/orders/, packaging → /api/packaging-orders/).
   const [pending, setPending] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -14,8 +18,8 @@ export function GanttPageClient({ rows }: { rows: GanttRow[] }) {
 
   const count = Object.keys(pending).length;
 
-  function handleBarEndChange(orderId: string, endField: string, newEnd: string) {
-    setPending((p) => ({ ...p, [`${orderId}:${endField}`]: newEnd }));
+  function handleBarEndChange(orderId: string, endField: string, newEnd: string, group: GanttGroup) {
+    setPending((p) => ({ ...p, [`${group}:${orderId}:${endField}`]: newEnd }));
   }
 
   function discard() {
@@ -27,16 +31,18 @@ export function GanttPageClient({ rows }: { rows: GanttRow[] }) {
     setSaving(true);
     setError(null);
     try {
-      // Группируем по orderId, чтобы один PATCH на заказ
-      const byOrder: Record<string, Record<string, string>> = {};
+      // Группируем по (group, orderId), чтобы один PATCH на заказ
+      const byOrder: Record<string, { group: GanttGroup; orderId: string; fields: Record<string, string> }> = {};
       for (const [k, v] of Object.entries(pending)) {
-        const [orderId, field] = k.split(":");
-        if (!byOrder[orderId]) byOrder[orderId] = {};
-        byOrder[orderId][field] = v;
+        const [group, orderId, field] = k.split(":") as [GanttGroup, string, string];
+        const key = `${group}:${orderId}`;
+        if (!byOrder[key]) byOrder[key] = { group, orderId, fields: {} };
+        byOrder[key].fields[field] = v;
       }
       const errors: string[] = [];
-      for (const [orderId, fields] of Object.entries(byOrder)) {
-        const res = await fetch(`/api/orders/${orderId}`, {
+      for (const { group, orderId, fields } of Object.values(byOrder)) {
+        const base = group === "packaging" ? "/api/packaging-orders" : "/api/orders";
+        const res = await fetch(`${base}/${orderId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(fields),

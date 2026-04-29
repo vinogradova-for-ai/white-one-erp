@@ -54,6 +54,8 @@ export default async function GanttPage({
           select: { quantity: true, packagingItem: { select: { name: true, photoUrl: true } } },
         },
       },
+      // orderedDate, productionEndDate, expectedDate, supplierName подтягиваются
+      // дефолтным include всех скалярных полей.
     }),
     prisma.user.findMany({
       where: {
@@ -116,17 +118,52 @@ export default async function GanttPage({
     });
   }
 
-  // Заказы упаковки: одна полоса от createdAt до expectedDate (если есть)
+  // Заказы упаковки: две фазы — Производство (orderedDate → productionEndDate)
+  // и Доставка (productionEndDate → expectedDate). Каждая со своим title и end.
   for (const po of packagingOrders) {
     if (!po.expectedDate) continue;
-    const startIso = iso(po.createdAt) ?? todayIso;
-    const endIso = iso(po.expectedDate)!;
-    const overdue = po.status !== "IN_TRANSIT" && endIso < todayIso;
+    const orderedIso = iso(po.orderedDate) ?? todayIso;
+    const expectedIso = iso(po.expectedDate)!;
+    const productionEndIso = iso(po.productionEndDate) ?? expectedIso;
     const totalQty = po.lines.reduce((a, l) => a + l.quantity, 0);
     const names = po.lines.map((l) => l.packagingItem.name).join(", ");
     const thumbs = po.lines
       .map((l) => ({ photoUrl: l.packagingItem.photoUrl, colorName: null }))
       .slice(0, 3);
+    const factoryOwner = po.factory?.name ?? po.supplierName ?? po.owner?.name;
+
+    const productionDone = ["IN_TRANSIT", "ARRIVED"].includes(po.status);
+    const deliveryDone = po.status === "ARRIVED";
+    const productionOverdue = !productionDone && productionEndIso < todayIso;
+    const deliveryOverdue = !deliveryDone && expectedIso < todayIso;
+
+    const bars: GanttRow["bars"] = [
+      {
+        key: "production",
+        title: "Производство",
+        color: "bg-blue-500",
+        start: orderedIso,
+        end: productionEndIso,
+        owner: factoryOwner,
+        overdue: productionOverdue,
+        done: productionDone,
+        orderId: po.id,
+        endField: "productionEndDate",
+      },
+      {
+        key: "delivery",
+        title: "Доставка",
+        color: "bg-indigo-500",
+        start: productionEndIso,
+        end: expectedIso,
+        owner: factoryOwner,
+        overdue: deliveryOverdue,
+        done: deliveryDone,
+        orderId: po.id,
+        endField: "expectedDate",
+      },
+    ];
+
     rows.push({
       group: "packaging",
       id: po.id,
@@ -136,19 +173,17 @@ export default async function GanttPage({
       statusLabel: po.status === "ORDERED" ? "Заказано" : po.status === "IN_PRODUCTION" ? "В пошиве" : "В пути",
       owner: po.owner?.name,
       thumbnails: thumbs,
-      bars: [{
-        key: "packaging",
-        title: "Упаковка",
-        color: "bg-violet-500",
-        start: startIso,
-        end: endIso,
-        owner: po.factory?.name ?? po.supplierName ?? po.owner?.name,
-        overdue,
-        orderId: po.id,
-        endField: "expectedDate",
-      }],
+      bars,
     });
   }
+
+  // Сортировка: ближайшие к закрытию цикла — наверху. Берём максимальный
+  // end по всем барам (последний дедлайн заказа).
+  rows.sort((a, b) => {
+    const aEnd = a.bars.reduce((m, x) => (x.end > m ? x.end : m), a.bars[0]?.end ?? "");
+    const bEnd = b.bars.reduce((m, x) => (x.end > m ? x.end : m), b.bars[0]?.end ?? "");
+    return aEnd.localeCompare(bEnd);
+  });
 
   const baseQuery = (overrides: { phase?: string | null; owner?: string | null }) => {
     const nextPhase = overrides.phase === undefined ? phaseFilter : overrides.phase;

@@ -79,7 +79,7 @@ export function GanttChart({
   pendingChanges,
 }: {
   rows: GanttRow[];
-  onBarEndChange?: (orderId: string, endField: string, newEnd: string) => void;
+  onBarEndChange?: (orderId: string, endField: string, newEnd: string, group: GanttGroup) => void;
   pendingChanges?: Record<string, string>; // ключ: `${orderId}:${endField}` → ISO дата
 }) {
   const [rangeKey, setRangeKey] = useState("3m");
@@ -248,7 +248,7 @@ function RowView({
   posPct: (iso: string) => number;
   chartStart: string;
   chartEnd: string;
-  onBarEndChange?: (orderId: string, endField: string, newEnd: string) => void;
+  onBarEndChange?: (orderId: string, endField: string, newEnd: string, group: GanttGroup) => void;
   pendingChanges?: Record<string, string>;
 }) {
   return (
@@ -288,8 +288,10 @@ function RowView({
         )}
         {/* Полосы */}
         {row.bars.map((b, i) => {
-          // Если есть pending-изменение в буфере — отображаем его, не оригинальный end
-          const pendKey = b.orderId && b.endField ? `${b.orderId}:${b.endField}` : null;
+          // Если есть pending-изменение в буфере — отображаем его, не оригинальный end.
+          // Ключ включает group, чтобы заказы одежды и упаковки с одинаковыми id (теоретически)
+          // не пересекались между собой.
+          const pendKey = b.orderId && b.endField ? `${row.group}:${b.orderId}:${b.endField}` : null;
           const effEnd = (pendKey && pendingChanges?.[pendKey]) ? pendingChanges[pendKey] : b.end;
           const dirty = !!(pendKey && pendingChanges?.[pendKey]);
           // Клип к видимому диапазону
@@ -326,15 +328,15 @@ function RowView({
                   const oldEndIso = pendingChanges?.[pendKey ?? ""] ?? b.end;
                   const deltaMs = parseISO(newEndIso).getTime() - parseISO(oldEndIso).getTime();
                   const deltaDays = Math.round(deltaMs / 86400000);
-                  onBarEndChange(b.orderId, b.endField, newEndIso);
+                  onBarEndChange(b.orderId, b.endField, newEndIso, row.group);
                   if (deltaDays !== 0) {
                     for (let j = i + 1; j < row.bars.length; j++) {
                       const nb = row.bars[j];
                       if (!nb.orderId || !nb.endField) continue;
-                      const nbKey = `${nb.orderId}:${nb.endField}`;
+                      const nbKey = `${row.group}:${nb.orderId}:${nb.endField}`;
                       const nbCur = pendingChanges?.[nbKey] ?? nb.end;
                       const shifted = toISO(addDays(parseISO(nbCur), deltaDays));
-                      onBarEndChange(nb.orderId, nb.endField, shifted);
+                      onBarEndChange(nb.orderId, nb.endField, shifted, row.group);
                     }
                   }
                 }
@@ -379,22 +381,21 @@ function DraggableBar({
   const ref = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<"end" | "start" | null>(null);
   const [hoverIso, setHoverIso] = useState<string | null>(null);
+  // Drag через дельту от стартовой точки — позволяет тащить дату ЗА пределы
+  // видимой шкалы (в прошлое раньше chartStart или в будущее позже chartEnd).
+  const dragRef = useRef<{ startX: number; pxPerDay: number; origIso: string } | null>(null);
 
   useEffect(() => {
     if (!dragging) return;
     function onMove(e: MouseEvent) {
-      const track = ref.current?.parentElement;
-      if (!track) return;
-      const rect = track.getBoundingClientRect();
-      const ratio = Math.min(Math.max((e.clientX - rect.left) / rect.width, 0), 1);
-      const startMs = parseISO(chartStart).getTime();
-      const endMs = parseISO(chartEnd).getTime();
-      const newMs = startMs + (endMs - startMs) * ratio;
-      const iso = toISO(new Date(newMs));
+      const s = dragRef.current;
+      if (!s) return;
+      const deltaDays = Math.round((e.clientX - s.startX) / s.pxPerDay);
+      const iso = toISO(addDays(parseISO(s.origIso), deltaDays));
+      // Единственное ограничение — start <= end, иначе фаза вывернется.
       if (dragging === "end") {
         setHoverIso(iso < startIso ? startIso : iso);
       } else {
-        // start: не даём перетащить старт правее текущего конца
         setHoverIso(iso > endIso ? endIso : iso);
       }
     }
@@ -405,6 +406,7 @@ function DraggableBar({
       }
       setDragging(null);
       setHoverIso(null);
+      dragRef.current = null;
     }
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -412,7 +414,22 @@ function DraggableBar({
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [dragging, hoverIso, onCommit, onCommitStart, chartStart, chartEnd, startIso, endIso]);
+  }, [dragging, hoverIso, onCommit, onCommitStart, startIso, endIso]);
+
+  function beginDrag(e: React.MouseEvent, mode: "start" | "end") {
+    e.preventDefault();
+    e.stopPropagation();
+    const track = ref.current?.parentElement;
+    if (!track) return;
+    const rect = track.getBoundingClientRect();
+    const totalDays = Math.max(1, dayDiff(chartStart, chartEnd));
+    dragRef.current = {
+      startX: e.clientX,
+      pxPerDay: rect.width / totalDays,
+      origIso: mode === "end" ? endIso : startIso,
+    };
+    setDragging(mode);
+  }
 
   return (
     <div
@@ -426,22 +443,14 @@ function DraggableBar({
       </div>
       {editable && onCommitStart && (
         <span
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setDragging("start");
-          }}
+          onMouseDown={(e) => beginDrag(e, "start")}
           className="absolute left-0 top-0 h-full w-1.5 cursor-ew-resize rounded-l bg-slate-900/40 hover:bg-slate-900/70"
           title="Перетащить старт фазы"
         />
       )}
       {editable && (
         <span
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            setDragging("end");
-          }}
+          onMouseDown={(e) => beginDrag(e, "end")}
           className="absolute right-0 top-0 h-full w-1.5 cursor-ew-resize rounded-r bg-slate-900/40 hover:bg-slate-900/70"
           title="Перетащить дедлайн"
         />
