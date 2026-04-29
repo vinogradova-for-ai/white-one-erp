@@ -49,13 +49,10 @@ export function OrderEditForm({
   const router = useRouter();
   const [common, setCommon] = useState({
     orderType: order.orderType,
-    season: order.season,
-    launchMonth: order.launchMonth,
     factoryId: order.factoryId,
     ownerId: order.ownerId,
     deliveryMethod: order.deliveryMethod,
     paymentTerms: order.paymentTerms,
-    packagingType: order.packagingType,
     notes: order.notes,
   });
   const [timeline, setTimeline] = useState<Timeline>(order.timeline);
@@ -132,13 +129,10 @@ export function OrderEditForm({
     try {
       const payload: Record<string, unknown> = {
         orderType: common.orderType,
-        season: common.season || null,
-        launchMonth: Number(common.launchMonth.replace("-", "")),
         factoryId: common.factoryId || null,
         ownerId: common.ownerId,
         deliveryMethod: common.deliveryMethod || null,
         paymentTerms: common.paymentTerms || null,
-        packagingType: common.packagingType || null,
         notes: common.notes || null,
         readyAtFactoryDate: timeline.readyAtFactoryDate || null,
         qcDate: timeline.qcDate || null,
@@ -175,17 +169,6 @@ export function OrderEditForm({
             {Object.entries(ORDER_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Field>
-        <Field label="Сезон">
-          <input value={common.season} onChange={(e) => setCommon({ ...common, season: e.target.value })} className={inputCls} />
-        </Field>
-        <Field label="Месяц продаж">
-          <input
-            type="month"
-            value={common.launchMonth}
-            onChange={(e) => setCommon({ ...common, launchMonth: e.target.value })}
-            className={inputCls}
-          />
-        </Field>
       </Section>
       <p className="text-xs text-slate-500">
         Количество по позициям и размерные матрицы правятся на странице заказа в блоке «Позиции».
@@ -209,13 +192,10 @@ export function OrderEditForm({
             {Object.entries(DELIVERY_METHOD_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Field>
-        <Field label="Тип упаковки">
-          <input value={common.packagingType} onChange={(e) => setCommon({ ...common, packagingType: e.target.value })} className={inputCls} />
-        </Field>
       </Section>
 
       <OrderTimeline
-        launchMonth={common.launchMonth}
+        launchMonth={order.launchMonth}
         initial={timeline}
         onChange={setTimeline}
         deliveryMethod={(common.deliveryMethod || null) as DeliveryMethod | null}
