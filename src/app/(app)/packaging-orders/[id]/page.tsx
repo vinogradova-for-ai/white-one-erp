@@ -139,6 +139,37 @@ export default async function PackagingOrderPage({ params }: { params: Promise<{
         </Card>
       </div>
 
+      {/* График платежей */}
+      <Card title="График платежей">
+        {order.payments.length === 0 ? (
+          <div className="space-y-2">
+            <p className="text-sm text-slate-500">График ещё не задан.</p>
+            <Link
+              href={`/packaging-orders/${order.id}/edit`}
+              className="inline-flex items-center rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+            >
+              Заполнить график платежей
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {order.payments.map((pp) => (
+              <div key={pp.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className={`inline-block h-2 w-2 rounded-full ${pp.status === "PAID" ? "bg-emerald-500" : "bg-amber-400"}`} />
+                  <span className="text-slate-900">{pp.label}</span>
+                  <span className="text-xs text-slate-500">· {formatDate(pp.plannedDate)}</span>
+                </div>
+                <div className="text-sm font-medium text-slate-900">{formatCurrency(Number(pp.amount))}</div>
+              </div>
+            ))}
+            <div className="pt-1 text-right text-xs text-slate-500">
+              Сумма: {formatCurrency(order.payments.reduce((a, p) => a + Number(p.amount), 0))}
+            </div>
+          </div>
+        )}
+      </Card>
+
       {order.notes && (
         <Card title="Заметки">
           <p className="text-sm text-slate-700 whitespace-pre-wrap">{order.notes}</p>

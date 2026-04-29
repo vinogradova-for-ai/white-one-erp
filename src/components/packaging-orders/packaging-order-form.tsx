@@ -360,6 +360,42 @@ export function PackagingOrderForm({
       {totalRub > 0 && (
         <Section title="График платежей">
           <div className="md:col-span-2 space-y-2">
+            <div className="flex flex-wrap gap-1.5">
+              <span className="text-xs uppercase tracking-wide text-slate-400 mr-1 self-center">Шаблон:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentsTouched(true);
+                  const today = new Date().toISOString().slice(0, 10);
+                  const arrival = form.expectedDate || today;
+                  setPayments([
+                    { id: `pre-${Date.now()}-1`, plannedDate: today, amount: Math.round(totalRub * 0.3), label: "Предоплата 30%", paid: false },
+                    { id: `pre-${Date.now()}-2`, plannedDate: arrival, amount: totalRub - Math.round(totalRub * 0.3), label: "Постоплата 70%", paid: false },
+                  ]);
+                }}
+                className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs hover:bg-slate-50"
+              >Предоплата 30/70</button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentsTouched(true);
+                  setPayments([{ id: `pre-${Date.now()}`, plannedDate: new Date().toISOString().slice(0, 10), amount: totalRub, label: "Предоплата 100%", paid: false }]);
+                }}
+                className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs hover:bg-slate-50"
+              >Предоплата 100%</button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaymentsTouched(true);
+                  const arrival = form.expectedDate || new Date().toISOString().slice(0, 10);
+                  setPayments([{ id: `pre-${Date.now()}`, plannedDate: arrival, amount: totalRub, label: "Постоплата 100% (после производства)", paid: false }]);
+                }}
+                className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs hover:bg-slate-50"
+              >Постоплата 100%</button>
+            </div>
+            {payments.length === 0 && (
+              <p className="text-sm text-slate-500">График пуст. Выберите шаблон выше или добавьте платежи вручную.</p>
+            )}
             {payments.map((p, idx) => (
               <div key={p.id} className="grid grid-cols-[140px_1fr_140px_auto_auto] gap-2 items-center">
                 <input

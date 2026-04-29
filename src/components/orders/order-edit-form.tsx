@@ -102,6 +102,26 @@ export function OrderEditForm({
   function removePayment(idx: number) {
     setPayments(payments.filter((_, i) => i !== idx));
   }
+  function applyPreset(kind: "30/70" | "100-pre" | "100-post") {
+    const total = order.totalAmount && order.totalAmount > 0 ? order.totalAmount : paymentsTotal;
+    const today = new Date().toISOString().slice(0, 10);
+    const ready = order.readyAtFactoryDate || order.arrivalPlannedDate || today;
+    const arrival = order.arrivalPlannedDate || ready;
+    if (kind === "30/70") {
+      setPayments([
+        { id: `pre-${Date.now()}-1`, plannedDate: today, amount: Math.round(total * 0.3), label: "Предоплата 30%", paid: false },
+        { id: `pre-${Date.now()}-2`, plannedDate: arrival, amount: total - Math.round(total * 0.3), label: "Постоплата 70%", paid: false },
+      ]);
+    } else if (kind === "100-pre") {
+      setPayments([
+        { id: `pre-${Date.now()}-1`, plannedDate: today, amount: total, label: "Предоплата 100%", paid: false },
+      ]);
+    } else if (kind === "100-post") {
+      setPayments([
+        { id: `pre-${Date.now()}-1`, plannedDate: ready, amount: total, label: "Постоплата 100% (после производства)", paid: false },
+      ]);
+    }
+  }
 
   const paymentsTotal = payments.reduce((a, p) => a + (Number(p.amount) || 0), 0);
 
@@ -206,8 +226,14 @@ export function OrderEditForm({
           <input value={common.paymentTerms} onChange={(e) => setCommon({ ...common, paymentTerms: e.target.value })} className={inputCls} />
         </Field>
         <div className="md:col-span-2 space-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            <span className="text-xs uppercase tracking-wide text-slate-400 mr-1 self-center">Шаблон:</span>
+            <button type="button" onClick={() => applyPreset("30/70")} className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs hover:bg-slate-50">Предоплата 30/70</button>
+            <button type="button" onClick={() => applyPreset("100-pre")} className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs hover:bg-slate-50">Предоплата 100%</button>
+            <button type="button" onClick={() => applyPreset("100-post")} className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs hover:bg-slate-50">Постоплата 100%</button>
+          </div>
           {payments.length === 0 && (
-            <p className="text-sm text-slate-500">Платежей пока нет.</p>
+            <p className="text-sm text-slate-500">График пуст. Выберите шаблон выше или добавьте платежи вручную.</p>
           )}
           {payments.map((p, idx) => (
             <div key={p.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2">

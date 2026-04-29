@@ -44,6 +44,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         },
         orderBy: { createdAt: "asc" },
       },
+      payments: {
+        where: { type: "ORDER" },
+        orderBy: { plannedDate: "asc" },
+      },
     },
   });
 
@@ -187,6 +191,40 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               inProductionQty: a.packagingOrderLines.reduce((sum, l) => sum + l.quantity, 0),
             }))}
           />
+        </div>
+      </section>
+
+      {/* График платежей */}
+      <section>
+        <h2 className="mb-3 text-base font-semibold text-slate-900">График платежей</h2>
+        <div className="rounded-2xl bg-white p-5">
+          {order.payments.length === 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm text-slate-500">График ещё не задан.</p>
+              <Link
+                href={`/orders/${order.id}/edit`}
+                className="inline-flex items-center rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+              >
+                Заполнить график платежей
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {order.payments.map((pp) => (
+                <div key={pp.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-block h-2 w-2 rounded-full ${pp.status === "PAID" ? "bg-emerald-500" : "bg-amber-400"}`} />
+                    <span className="text-slate-900">{pp.label}</span>
+                    <span className="text-xs text-slate-500">· {formatDate(pp.plannedDate)}</span>
+                  </div>
+                  <div className="text-sm font-medium text-slate-900">{formatCurrency(Number(pp.amount))}</div>
+                </div>
+              ))}
+              <div className="pt-1 text-right text-xs text-slate-500">
+                Сумма: {formatCurrency(order.payments.reduce((a, p) => a + Number(p.amount), 0))}
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
