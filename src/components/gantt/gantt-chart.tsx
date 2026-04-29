@@ -382,6 +382,9 @@ function DraggableBar({
   const ref = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState<"end" | "start" | null>(null);
   const [hoverIso, setHoverIso] = useState<string | null>(null);
+  // Визуальный «флеш» после успешного commit — белый-через-зелёный обвод
+  // на ~600мс, чтобы пользователь видел: «всё, дёрнул и сохранил».
+  const [flash, setFlash] = useState(false);
   // Drag через дельту от стартовой точки — позволяет тащить дату ЗА пределы
   // видимой шкалы (в прошлое раньше chartStart или в будущее позже chartEnd).
   const dragRef = useRef<{ startX: number; pxPerDay: number; origIso: string } | null>(null);
@@ -401,13 +404,18 @@ function DraggableBar({
       }
     }
     function onUp() {
+      let committed = false;
       if (hoverIso) {
-        if (dragging === "end") onCommit(hoverIso);
-        else if (onCommitStart) onCommitStart(hoverIso);
+        if (dragging === "end") { onCommit(hoverIso); committed = true; }
+        else if (onCommitStart) { onCommitStart(hoverIso); committed = true; }
       }
       setDragging(null);
       setHoverIso(null);
       dragRef.current = null;
+      if (committed) {
+        setFlash(true);
+        setTimeout(() => setFlash(false), 600);
+      }
     }
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -435,7 +443,7 @@ function DraggableBar({
   return (
     <div
       ref={ref}
-      className={`group absolute h-4 rounded ${barColor} ${done ? "opacity-60" : ""} shadow-sm`}
+      className={`group absolute h-4 rounded ${barColor} ${done ? "opacity-60" : ""} shadow-sm transition-all duration-300 ${flash ? "ring-2 ring-emerald-400 ring-offset-1" : ""}`}
       style={{ left: `${left}%`, width: `${width}%`, top }}
       title={tooltip}
     >

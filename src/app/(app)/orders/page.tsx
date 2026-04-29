@@ -51,7 +51,7 @@ export default async function OrdersPage({
         </Link>
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="sticky top-0 z-20 -mx-2 flex flex-wrap items-center gap-1.5 bg-white/90 px-2 py-2 backdrop-blur sm:-mx-0 sm:px-0">
         <span className="text-xs uppercase tracking-wide text-slate-400 mr-1">Статус:</span>
         <Link
           href="/orders"

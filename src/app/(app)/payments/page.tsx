@@ -275,7 +275,7 @@ async function ListView({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+      <div className="sticky top-0 z-20 -mx-2 grid grid-cols-2 gap-3 bg-white/90 px-2 py-2 backdrop-blur sm:-mx-0 sm:px-0 md:grid-cols-3">
         <Summary title="Всего предстоит" value={formatCurrency(total)} />
         <Summary title="Просрочено" value={formatCurrency(overdue)} danger={overdue > 0} />
         <Summary title="Платежей" value={String(payments.length)} muted />
