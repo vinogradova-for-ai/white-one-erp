@@ -28,6 +28,7 @@ export function InlineNumberField({
   const [val, setVal] = useState(value);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [flash, setFlash] = useState(false);
 
   async function save() {
     if (val === value) return;
@@ -49,30 +50,41 @@ export function InlineNumberField({
         return;
       }
       toast.success(`${label} сохранено`);
+      setFlash(true);
+      setTimeout(() => setFlash(false), 700);
       router.refresh();
     } finally {
       setSaving(false);
     }
   }
 
+  // Цвет рамки: ошибка > flash > обычная
+  const borderCls = error
+    ? "border-red-400 ring-1 ring-red-300"
+    : flash
+    ? "border-emerald-400 ring-1 ring-emerald-300"
+    : "border-slate-300";
+
   return (
-    <div className="flex items-center justify-between gap-2 text-sm">
-      <span className="text-slate-600">{label}:</span>
-      <div className="flex items-center gap-2">
-        <input
-          type="number"
-          step={step}
-          value={val}
-          onChange={(e) => setVal(e.target.value)}
-          onBlur={save}
-          onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
-          placeholder={placeholder}
-          disabled={saving}
-          className="w-28 rounded border border-slate-300 bg-white px-2 py-1 text-right text-sm"
-        />
-        {suffix && <span className="text-xs text-slate-500">{suffix}</span>}
-        {saving && <span className="text-xs text-slate-400">…</span>}
-        {error && <span className="text-xs text-red-600" title={error}>✗</span>}
+    <div className="flex items-start justify-between gap-2 text-sm">
+      <span className="pt-1 text-slate-600">{label}:</span>
+      <div className="flex flex-col items-end gap-1">
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            step={step}
+            value={val}
+            onChange={(e) => { setVal(e.target.value); if (error) setError(null); }}
+            onBlur={save}
+            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+            placeholder={placeholder}
+            disabled={saving}
+            className={`w-28 rounded border bg-white px-2 py-1 text-right text-sm transition-colors ${borderCls}`}
+          />
+          {suffix && <span className="text-xs text-slate-500">{suffix}</span>}
+          {saving && <span className="text-xs text-slate-400">…</span>}
+        </div>
+        {error && <div className="max-w-[200px] text-right text-[11px] leading-tight text-red-600">{error}</div>}
       </div>
     </div>
   );
