@@ -41,6 +41,7 @@ type Initial = {
   lines: LineInput[];
   factoryId: string;
   supplierName: string;
+  productionEndDate: string;
   expectedDate: string;
   ownerId: string;
   notes: string;
@@ -84,6 +85,7 @@ export function PackagingOrderForm({
       lines: [makeEmptyLine()],
       factoryId: "",
       supplierName: "",
+      productionEndDate: "",
       expectedDate: "",
       ownerId: defaultOwnerId,
       notes: "",
@@ -193,6 +195,7 @@ export function PackagingOrderForm({
       const payload: Record<string, unknown> = {
         factoryId: form.factoryId || null,
         supplierName: form.supplierName.trim() || null,
+        productionEndDate: form.productionEndDate || null,
         expectedDate: form.expectedDate || null,
         ownerId: form.ownerId,
         notes: form.notes.trim() || null,
@@ -533,15 +536,11 @@ export function PackagingOrderForm({
       <Section title="График заказа упаковки">
         <div className="md:col-span-2">
           <PackagingOrderTimeline
-            orderedDate={(() => {
-              const t = new Date();
-              const y = t.getFullYear();
-              const m = String(t.getMonth() + 1).padStart(2, "0");
-              const d = String(t.getDate()).padStart(2, "0");
-              return `${y}-${m}-${d}`;
-            })()}
-            expectedDate={form.expectedDate}
-            onChangeExpected={(value) => setForm({ ...form, expectedDate: value })}
+            initial={{
+              productionEndDate: form.productionEndDate,
+              expectedDate: form.expectedDate,
+            }}
+            onChange={(t) => setForm((f) => ({ ...f, productionEndDate: t.productionEndDate, expectedDate: t.expectedDate }))}
             deliveryMethod={form.deliveryMethod || null}
           />
         </div>

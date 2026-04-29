@@ -97,6 +97,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         data: {
           ...(data.factoryId !== undefined && { factoryId: data.factoryId || null }),
           ...(data.supplierName !== undefined && { supplierName: data.supplierName || null }),
+          ...(data.productionEndDate !== undefined && { productionEndDate: data.productionEndDate ? new Date(data.productionEndDate) : null }),
           ...(data.expectedDate !== undefined && { expectedDate: data.expectedDate ? new Date(data.expectedDate) : null }),
           ...(data.deliveryMethod !== undefined && { deliveryMethod: data.deliveryMethod || null }),
           ...(data.ownerId !== undefined && { ownerId: data.ownerId }),

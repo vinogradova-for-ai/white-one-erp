@@ -801,9 +801,10 @@ model PackagingOrder {
 
   status          PackagingOrderStatus @default(ORDERED)
 
-  orderedDate     DateTime      @default(now())
-  expectedDate    DateTime?
-  arrivedDate     DateTime?
+  orderedDate         DateTime      @default(now())
+  productionEndDate   DateTime?
+  expectedDate        DateTime?
+  arrivedDate         DateTime?
 
   deliveryMethod  DeliveryMethod?
 

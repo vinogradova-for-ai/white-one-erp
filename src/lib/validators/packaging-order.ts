@@ -34,6 +34,7 @@ const paymentInput = z.object({
 export const packagingOrderCreateSchema = z.object({
   factoryId: z.string().optional().nullable(),
   supplierName: z.string().max(200).optional().nullable(),
+  productionEndDate: z.string().optional().nullable(),
   expectedDate: z.string().optional().nullable(),
   ownerId: z.string().min(1),
   notes: z.string().max(2000).optional().nullable(),
@@ -45,6 +46,7 @@ export const packagingOrderCreateSchema = z.object({
 export const packagingOrderUpdateSchema = z.object({
   factoryId: z.string().optional().nullable(),
   supplierName: z.string().max(200).optional().nullable(),
+  productionEndDate: z.string().optional().nullable(),
   expectedDate: z.string().optional().nullable(),
   ownerId: z.string().optional(),
   notes: z.string().max(2000).optional().nullable(),

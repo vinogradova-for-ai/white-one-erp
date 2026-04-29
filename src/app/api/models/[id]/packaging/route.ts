@@ -56,10 +56,10 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         deletedAt: null,
         status: { not: "ON_SALE" },
       },
-      select: { id: true, packaging: { select: { packagingItemId: true } } },
+      select: { id: true, packagingItems: { select: { packagingItemId: true } } },
     });
     const toCreate = openOrders
-      .filter((o) => !o.packaging.some((p) => p.packagingItemId === data.packagingItemId))
+      .filter((o) => !o.packagingItems.some((p) => p.packagingItemId === data.packagingItemId))
       .map((o) => ({
         orderId: o.id,
         packagingItemId: data.packagingItemId,

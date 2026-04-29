@@ -318,6 +318,7 @@ function RowView({
               chartStart={chartStart}
               chartEnd={chartEnd}
               startIso={b.start}
+              endIso={effEnd}
               onCommit={(newEndIso) => {
                 if (b.orderId && b.endField && onBarEndChange) {
                   // Каскадный сдвиг: при изменении end этой фазы все последующие

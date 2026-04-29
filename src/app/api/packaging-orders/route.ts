@@ -75,6 +75,7 @@ export async function POST(req: NextRequest) {
           orderNumber: await nextPackagingOrderNumber(),
           factoryId: data.factoryId || null,
           supplierName: data.supplierName || null,
+          productionEndDate: data.productionEndDate ? new Date(data.productionEndDate) : null,
           expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
           deliveryMethod: data.deliveryMethod || null,
           ownerId: data.ownerId,

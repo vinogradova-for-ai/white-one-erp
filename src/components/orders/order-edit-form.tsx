@@ -105,7 +105,7 @@ export function OrderEditForm({
   function applyPreset(kind: "30/70" | "100-pre" | "100-post") {
     const total = order.totalAmount && order.totalAmount > 0 ? order.totalAmount : paymentsTotal;
     const today = new Date().toISOString().slice(0, 10);
-    const ready = order.readyAtFactoryDate || order.arrivalPlannedDate || today;
+    const ready = order.timeline.readyAtFactoryDate || order.arrivalPlannedDate || today;
     const arrival = order.arrivalPlannedDate || ready;
     if (kind === "30/70") {
       setPayments([

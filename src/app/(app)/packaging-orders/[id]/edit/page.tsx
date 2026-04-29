@@ -59,6 +59,7 @@ export default async function EditPackagingOrderPage({ params }: { params: Promi
           })),
           factoryId: order.factoryId ?? "",
           supplierName: order.supplierName ?? "",
+          productionEndDate: order.productionEndDate ? order.productionEndDate.toISOString().slice(0, 10) : "",
           expectedDate: order.expectedDate ? order.expectedDate.toISOString().slice(0, 10) : "",
           ownerId: order.ownerId,
           notes: order.notes ?? "",
