@@ -161,11 +161,12 @@ export function GanttChart({
         </div>
       </div>
 
-      {/* График */}
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      {/* График — собственный вертикальный скролл, чтобы sticky-шкала
+          и заголовки групп прилипали относительно него, а не window. */}
+      <div className="max-h-[calc(100vh-220px)] overflow-auto rounded-xl border border-slate-200 bg-white">
         <div className="min-w-[900px]">
           {/* Шкала сверху */}
-          <div className="sticky top-0 z-10 grid grid-cols-[260px_1fr] border-b border-slate-200 bg-white">
+          <div className="sticky top-0 z-20 grid grid-cols-[260px_1fr] border-b border-slate-200 bg-white">
             <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Работа</div>
             <div className="relative h-8">
               {weekMarks.map((m) => (
@@ -189,7 +190,7 @@ export function GanttChart({
             if (list.length === 0) return null;
             return (
               <div key={g}>
-                <div className="sticky-top grid grid-cols-[260px_1fr] border-b border-slate-200 bg-slate-50">
+                <div className="sticky top-12 z-10 grid grid-cols-[260px_1fr] border-b border-slate-200 bg-slate-50">
                   <div className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
                     {GROUP_LABELS[g]} ({list.length})
                   </div>

@@ -128,7 +128,7 @@ export default async function OrdersPage({
       {/* Десктопная версия — таблица */}
       <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white md:block">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50">
+          <thead className="sticky top-0 z-10 bg-slate-50 shadow-[inset_0_-1px_0_rgb(226_232_240)]">
             <tr>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Фото</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">№</th>
