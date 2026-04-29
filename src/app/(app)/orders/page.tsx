@@ -9,16 +9,14 @@ import { OrderStatus } from "@prisma/client";
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; delayed?: string }>;
+  searchParams: Promise<{ status?: string }>;
 }) {
   const sp = await searchParams;
   const where: {
     deletedAt: null;
     status?: OrderStatus;
-    isDelayed?: boolean;
   } = { deletedAt: null };
   if (sp.status && sp.status in ORDER_STATUS_LABELS) where.status = sp.status as OrderStatus;
-  if (sp.delayed === "true") where.isDelayed = true;
 
   const orders = await prisma.order.findMany({
     where,
@@ -52,21 +50,24 @@ export default async function OrdersPage({
         </Link>
       </div>
 
-      <form method="get" className="flex flex-wrap gap-2">
-        <select name="status" defaultValue={sp.status ?? ""} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
-          <option value="">Все статусы</option>
-          {Object.entries(ORDER_STATUS_LABELS).map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
-          ))}
-        </select>
-        <label className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
-          <input type="checkbox" name="delayed" value="true" defaultChecked={sp.delayed === "true"} />
-          С задержкой
-        </label>
-        <button type="submit" className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
-          Применить
-        </button>
-      </form>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-xs uppercase tracking-wide text-slate-400 mr-1">Статус:</span>
+        <Link
+          href="/orders"
+          className={`rounded-full px-3 py-1 text-xs font-medium ${!sp.status ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+        >
+          Все
+        </Link>
+        {Object.entries(ORDER_STATUS_LABELS).map(([k, v]) => (
+          <Link
+            key={k}
+            href={`/orders?status=${k}`}
+            className={`rounded-full px-3 py-1 text-xs font-medium ${sp.status === k ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+          >
+            {v}
+          </Link>
+        ))}
+      </div>
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
