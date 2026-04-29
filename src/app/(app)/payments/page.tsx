@@ -194,7 +194,7 @@ async function CalendarView({
                 {c.day != null && (
                   <>
                     <div className={`mb-1 flex items-baseline justify-between gap-1 ${isPast ? "text-slate-400" : "text-slate-700"}`}>
-                      <span className={`text-sm font-semibold ${isToday ? "rounded-full bg-red-500 px-1.5 py-0.5 text-white" : ""}`}>
+                      <span className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full text-sm font-semibold ${isToday ? "bg-blue-600 px-2 text-white shadow ring-2 ring-blue-300" : ""}`}>
                         {c.day}
                       </span>
                       {sum > 0 && (

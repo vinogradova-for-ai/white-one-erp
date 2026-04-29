@@ -119,7 +119,7 @@ export function VariantForm({ modelId, modelName }: { modelId: string; modelName
 
       <FormErrorBanner error={apiErr} ignoreFields={["sku", "colorName"]} />
 
-      <div className="sticky bottom-0 flex justify-end gap-2 border-t border-slate-200 bg-white pt-4">
+      <div className="sticky bottom-0 z-30 flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white pt-4 pb-4 -mx-2 px-2 sm:mx-0 sm:px-0">
         <button
           type="button"
           onClick={() => router.back()}

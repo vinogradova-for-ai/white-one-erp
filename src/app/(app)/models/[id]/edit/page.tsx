@@ -3,9 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { ModelEditForm } from "@/components/models/model-edit-form";
 import { ModelEditFooter } from "@/components/models/model-edit-footer";
 import { ModelPackagingKit } from "@/components/models/model-packaging-kit";
+import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
 
 export default async function EditModelPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // Авто-синк: упаковка фасона должна автоматически «протекать» во все
+  // открытые заказы. Запускаем при каждом открытии страницы редактирования —
+  // идемпотентно, в норме создаёт 0 строк.
+  await syncModelPackagingToOrders(id);
 
   const [model, users, factories, sizeGrids, packagingItems] = await Promise.all([
     prisma.productModel.findFirst({ where: { id, deletedAt: null } }),
