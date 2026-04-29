@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { formatCurrency, formatDate, formatNumber, yearMonthToLabel } from "@/lib/format";
+import { formatDate, formatNumber } from "@/lib/format";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_TYPE_LABELS } from "@/lib/constants";
 import { VariantVisual } from "@/components/common/variant-visual";
 import { ColorChip } from "@/components/common/color-chip";
@@ -76,11 +76,11 @@ export default async function OrdersPage({
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">№</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Изделие</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Тип</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Месяц</th>
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Кол-во</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Статус</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Фабрика</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Прибытие</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Старт продаж</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Ответ.</th>
             </tr>
           </thead>
@@ -107,7 +107,6 @@ export default async function OrdersPage({
                     </div>
                   </td>
                   <td className="px-3 py-2 text-xs text-slate-600">{ORDER_TYPE_LABELS[o.orderType]}</td>
-                  <td className="px-3 py-2 text-xs text-slate-600 capitalize">{yearMonthToLabel(o.launchMonth)}</td>
                   <td className="px-3 py-2 text-right text-xs">{formatNumber(totalQty)}</td>
                   <td className="px-3 py-2">
                     <span className={`inline-block rounded px-2 py-0.5 text-xs ${ORDER_STATUS_COLORS[o.status]}`}>
@@ -118,6 +117,9 @@ export default async function OrdersPage({
                   </td>
                   <td className="px-3 py-2 text-xs text-slate-600">{o.factory?.name ?? "—"}</td>
                   <td className="px-3 py-2 text-xs text-slate-600">{formatDate(o.arrivalPlannedDate)}</td>
+                  <td className="px-3 py-2 text-xs text-slate-600 capitalize">
+                    {salesStartMonth(o.arrivalPlannedDate)}
+                  </td>
                   <td className="px-3 py-2 text-xs text-slate-600">{o.owner.name}</td>
                 </tr>
               );
@@ -128,4 +130,24 @@ export default async function OrdersPage({
       </div>
     </div>
   );
+}
+
+const MONTH_NAMES_RU = [
+  "январь", "февраль", "март", "апрель", "май", "июнь",
+  "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь",
+];
+
+// Старт продаж: если доставка прибывает 20-го числа или раньше — продажи в том же
+// месяце; иначе переносим на следующий. Если даты прибытия нет — прочерк.
+function salesStartMonth(arrival: Date | null | undefined): string {
+  if (!arrival) return "—";
+  const d = new Date(arrival);
+  const day = d.getDate();
+  let month = d.getMonth();
+  let year = d.getFullYear();
+  if (day > 20) {
+    month += 1;
+    if (month > 11) { month = 0; year += 1; }
+  }
+  return `${MONTH_NAMES_RU[month]} ${year}`;
 }

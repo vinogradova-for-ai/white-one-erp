@@ -263,8 +263,66 @@ function MobileGanttList({ rows, todayIso }: { rows: GanttRow[]; todayIso: strin
     const ms = new Date(iso).getTime() - new Date(todayIso).getTime();
     return Math.round(ms / 86400000);
   }
+  function addDays(iso: string, n: number): string {
+    const d = new Date(iso);
+    d.setDate(d.getDate() + n);
+    return d.toISOString().slice(0, 10);
+  }
+  function dayDiff(a: string, b: string): number {
+    return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
+  }
+
+  // Шкала: от today-14 до самого позднего end (мин today+30, макс today+150)
+  const allEnds = rows.flatMap((r) => r.bars.map((b) => b.end));
+  const allStarts = rows.flatMap((r) => r.bars.map((b) => b.start));
+  const maxEndIso = allEnds.length > 0 ? allEnds.reduce((m, x) => (x > m ? x : m), todayIso) : addDays(todayIso, 30);
+  const minStartIso = allStarts.length > 0 ? allStarts.reduce((m, x) => (x < m ? x : m), todayIso) : todayIso;
+  const chartStart = dayDiff(minStartIso, todayIso) > 14 ? addDays(todayIso, -14) : minStartIso;
+  const chartEnd = dayDiff(todayIso, maxEndIso) > 150 ? addDays(todayIso, 150) : (dayDiff(todayIso, maxEndIso) < 30 ? addDays(todayIso, 30) : maxEndIso);
+  const totalDays = Math.max(1, dayDiff(chartStart, chartEnd));
+
+  function pct(iso: string): number {
+    const d = dayDiff(chartStart, iso);
+    return Math.max(0, Math.min(100, (d / totalDays) * 100));
+  }
+
+  // Метки месяцев на шкале
+  const monthMarks: Array<{ iso: string; pct: number; label: string }> = [];
+  const MONTH_SHORT = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+  const cur = new Date(chartStart);
+  cur.setDate(1);
+  while (cur.toISOString().slice(0, 10) <= chartEnd) {
+    const iso = cur.toISOString().slice(0, 10);
+    if (iso >= chartStart) {
+      monthMarks.push({ iso, pct: pct(iso), label: MONTH_SHORT[cur.getMonth()] });
+    }
+    cur.setMonth(cur.getMonth() + 1);
+  }
+  const todayPct = pct(todayIso);
+
   return (
     <div className="space-y-2">
+      {/* Шкала сверху, sticky чтобы не уезжала при скролле */}
+      <div className="sticky top-0 z-10 -mx-3 bg-slate-50 px-3 py-1.5 backdrop-blur">
+        <div className="relative h-4">
+          {monthMarks.map((m) => (
+            <div
+              key={m.iso}
+              className="absolute -translate-x-1/2 text-[10px] font-semibold uppercase text-slate-500"
+              style={{ left: `${m.pct}%` }}
+            >
+              {m.label}
+            </div>
+          ))}
+          {todayPct > 0 && todayPct < 100 && (
+            <div
+              className="absolute -top-0.5 h-5 w-px bg-red-500"
+              style={{ left: `${todayPct}%` }}
+            />
+          )}
+        </div>
+      </div>
+
       {rows.map((r) => {
         const lastBar = r.bars[r.bars.length - 1];
         const finalEnd = lastBar?.end;
@@ -277,28 +335,64 @@ function MobileGanttList({ rows, todayIso }: { rows: GanttRow[]; todayIso: strin
             href={r.href}
             className="block rounded-xl border border-slate-200 bg-white p-3 active:bg-slate-50"
           >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {photoUrl && (
-                <img src={photoUrl} alt="" className="h-12 w-12 shrink-0 rounded object-cover" />
+                <img src={photoUrl} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
               )}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-slate-900">{r.title}</div>
                 <div className="truncate text-[11px] text-slate-500">{r.subtitle}</div>
               </div>
               {finalEnd && (
-                <div className={`shrink-0 text-right text-xs ${overallOverdue ? "text-red-600 font-semibold" : "text-slate-600"}`}>
+                <div className={`shrink-0 text-right text-[11px] ${overallOverdue ? "text-red-600 font-semibold" : "text-slate-600"}`}>
                   <div>{fmt(finalEnd)}</div>
                   {dl !== null && (
-                    <div className="text-[10px] text-slate-400">{dl >= 0 ? `через ${dl} дн` : `просроч. ${-dl} дн`}</div>
+                    <div className="text-[10px] text-slate-400">{dl >= 0 ? `через ${dl} дн` : `просроч. ${-dl}`}</div>
                   )}
                 </div>
               )}
             </div>
-            <div className="mt-2 flex flex-wrap gap-1.5">
+
+            {/* Мини-Гант полоска */}
+            <div className="relative mt-2 h-5 rounded bg-slate-100">
+              {/* Сетка по месяцам */}
+              {monthMarks.map((m) => (
+                <div
+                  key={m.iso}
+                  className="absolute top-0 bottom-0 w-px bg-slate-200"
+                  style={{ left: `${m.pct}%` }}
+                />
+              ))}
+              {/* Маркер сегодня */}
+              {todayPct > 0 && todayPct < 100 && (
+                <div
+                  className="absolute top-0 bottom-0 z-10 w-px bg-red-500"
+                  style={{ left: `${todayPct}%` }}
+                />
+              )}
+              {/* Полосы фаз */}
+              {r.bars.map((b) => {
+                const left = pct(b.start);
+                const width = Math.max(1.5, pct(b.end) - left);
+                const colorClass = b.overdue ? "bg-red-500" : b.color;
+                const opacity = b.done ? "opacity-60" : "";
+                return (
+                  <div
+                    key={b.key}
+                    className={`absolute top-1 h-3 rounded ${colorClass} ${opacity}`}
+                    style={{ left: `${left}%`, width: `${width}%` }}
+                    title={`${b.title}: ${fmt(b.start)} → ${fmt(b.end)}`}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Подписи фаз: маленькие пилюли с датами */}
+            <div className="mt-1.5 flex flex-wrap gap-1">
               {r.bars.map((b) => (
                 <span
                   key={b.key}
-                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                  className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
                     b.overdue ? "bg-red-100 text-red-700" : b.done ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-700"
                   }`}
                 >
