@@ -24,6 +24,8 @@ export function ModelPackagingKit({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [newPick, setNewPick] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,6 +62,30 @@ export function ModelPackagingKit({
       setNewPick("");
     } finally {
       setBusyId(null);
+    }
+  }
+
+  async function syncToOrders() {
+    setSyncing(true);
+    setSyncMsg(null);
+    setError(null);
+    try {
+      const res = await fetch(`/api/models/${modelId}/packaging/sync`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const j = await res.json();
+      if (!res.ok) {
+        setError(j?.error?.message ?? "Не удалось пересинхронизировать");
+        return;
+      }
+      setSyncMsg(
+        j.propagated > 0
+          ? `Добавлено в ${j.propagated} строк заказов (${j.orders} открытых заказов)`
+          : `Уже всё на месте (${j.orders ?? 0} открытых заказов)`,
+      );
+    } finally {
+      setSyncing(false);
     }
   }
 
@@ -136,6 +162,25 @@ export function ModelPackagingKit({
         </div>
       </div>
 
+      {/* Кнопка ручного пересинка — лечит исторические заказы, в которые
+          упаковка не «протекла» автоматически (баг был до фикса каскада). */}
+      {(links?.length ?? 0) > 0 && (
+        <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-3">
+          <div className="text-xs text-slate-500">
+            Нажми, если упаковка не подтянулась в существующие заказы этого фасона:
+          </div>
+          <button
+            type="button"
+            onClick={syncToOrders}
+            disabled={syncing}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {syncing ? "Синхронизация…" : "Пересинхронизировать с заказами"}
+          </button>
+        </div>
+      )}
+
+      {syncMsg && <div className="text-xs text-emerald-700">{syncMsg}</div>}
       {error && <div className="text-xs text-red-600">{error}</div>}
     </fieldset>
   );
