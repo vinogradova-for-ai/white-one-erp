@@ -13,6 +13,7 @@ import { OrderPackagingSection } from "@/components/orders/order-packaging-secti
 import { OrderLinesSection } from "@/components/orders/order-lines-section";
 import { OrderTimelineEditor } from "@/components/orders/order-timeline-editor";
 import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
+import { backfillOrderEconomicsFromModel } from "@/server/backfill-order-economics";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -26,6 +27,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   if (orderHead && orderHead.status !== "ON_SALE") {
     await syncModelPackagingToOrders(orderHead.productModelId);
   }
+  // Авто-бэкфилл себестоимости: если у линий нет snapshotFullCost, но у
+  // фасона есть fullCost — проставим. Видим колонку «Себестоимость шт» и
+  // «Себестоимость партии» сразу, без ручного ввода. Идемпотентно.
+  await backfillOrderEconomicsFromModel(id);
 
   const order = await prisma.order.findFirst({
     where: { id, deletedAt: null },
@@ -86,7 +91,21 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   const sizes = order.productModel.sizeGrid?.sizes ?? [];
   const totalQty = order.lines.reduce((a, l) => a + l.quantity, 0);
-  const totalBatchCost = order.lines.reduce((a, l) => a + Number(l.batchCost ?? 0), 0);
+  // Fallback на лету: если у линии не сохранён batchCost, но у фасона
+  // есть fullCost / purchasePriceRub / purchasePriceCny×rate — пересчитаем.
+  // Иначе показывали бы прочерк, даже когда данные у фасона есть.
+  const modelFullCost = order.productModel.fullCost != null
+    ? Number(order.productModel.fullCost)
+    : (order.productModel.purchasePriceRub != null
+        ? Number(order.productModel.purchasePriceRub)
+        : (order.productModel.purchasePriceCny != null && order.productModel.cnyRubRate != null
+            ? Number(order.productModel.purchasePriceCny) * Number(order.productModel.cnyRubRate)
+            : 0));
+  const totalBatchCost = order.lines.reduce((a, l) => {
+    const lc = Number(l.batchCost ?? 0);
+    if (lc > 0) return a + lc;
+    return a + modelFullCost * l.quantity;
+  }, 0);
   const unitCost = totalQty > 0 ? totalBatchCost / totalQty : 0;
   const modelPhoto = order.productModel.photoUrls[0] ?? null;
   const endpoint = `/api/orders/${order.id}`;
