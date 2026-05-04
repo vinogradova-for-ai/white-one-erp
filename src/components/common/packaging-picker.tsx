@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { PhotoThumb } from "./photo-thumb";
 import { PACKAGING_TYPE_LABELS } from "@/lib/constants";
 import { PackagingType } from "@prisma/client";
@@ -22,13 +23,39 @@ type Props = {
 
 export function PackagingPicker({ value, options, onChange, placeholder = "— выбрать —", className = "" }: Props) {
   const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const current = options.find((o) => o.id === value) ?? null;
+
+  // Позиционируем дропдаун под кнопкой через viewport-координаты, чтобы рендерить
+  // его в document.body (Portal) — так он гарантированно над любыми sticky-барами
+  // и не зажимается родительским overflow/transform.
+  useLayoutEffect(() => {
+    if (!open) return;
+    function update() {
+      const el = btnRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      setRect({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+    update();
+    window.addEventListener("scroll", update, true);
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update, true);
+      window.removeEventListener("resize", update);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     function onDoc(e: MouseEvent) {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (wrapRef.current?.contains(t)) return;
+      if (popRef.current?.contains(t)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
@@ -37,6 +64,7 @@ export function PackagingPicker({ value, options, onChange, placeholder = "— �
   return (
     <div ref={wrapRef} className={`relative ${className}`}>
       <button
+        ref={btnRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-sm hover:border-slate-400"
@@ -49,8 +77,12 @@ export function PackagingPicker({ value, options, onChange, placeholder = "— �
         <span className="ml-auto text-xs text-slate-400">▼</span>
       </button>
 
-      {open && (
-        <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-72 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+      {open && rect && typeof document !== "undefined" && createPortal(
+        <div
+          ref={popRef}
+          style={{ position: "fixed", top: rect.top, left: rect.left, width: rect.width, zIndex: 9999 }}
+          className="max-h-72 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg"
+        >
           {options.length === 0 && (
             <div className="px-3 py-2 text-sm text-slate-400">Нет доступных вариантов</div>
           )}
@@ -69,7 +101,8 @@ export function PackagingPicker({ value, options, onChange, placeholder = "— �
               <PackagingRow option={o} />
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
