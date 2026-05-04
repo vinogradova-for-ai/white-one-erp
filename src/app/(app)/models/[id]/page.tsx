@@ -156,9 +156,21 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
       </div>
 
       {/* Комплект упаковки — что прикреплено к фасону */}
-      {model.packagingItems.length > 0 && (
-        <section>
-          <h2 className="mb-3 text-base font-semibold text-slate-900">Комплект упаковки</h2>
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-slate-900">Комплект упаковки</h2>
+          <Link
+            href={`/models/${model.id}/edit`}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            {model.packagingItems.length > 0 ? "Изменить" : "+ Прикрепить"}
+          </Link>
+        </div>
+        {model.packagingItems.length === 0 ? (
+          <div className="rounded-2xl bg-white p-8 text-center text-sm text-slate-400">
+            Упаковка ещё не прикреплена
+          </div>
+        ) : (
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {model.packagingItems.map((mp) => (
               <Link
@@ -182,8 +194,8 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
               </Link>
             ))}
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
       {/* Цветомодели */}
       <section>
