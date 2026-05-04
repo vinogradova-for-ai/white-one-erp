@@ -50,7 +50,7 @@ export function PackagingPicker({ value, options, onChange, placeholder = "— �
       </button>
 
       {open && (
-        <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+        <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-72 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg">
           {options.length === 0 && (
             <div className="px-3 py-2 text-sm text-slate-400">Нет доступных вариантов</div>
           )}
