@@ -29,6 +29,10 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
         orderBy: { createdAt: "asc" },
         include: { _count: { select: { orderLines: true } } },
       },
+      packagingItems: {
+        include: { packagingItem: { select: { id: true, name: true, type: true, photoUrl: true } } },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 
@@ -150,6 +154,36 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
           </div>
         </div>
       </div>
+
+      {/* Комплект упаковки — что прикреплено к фасону */}
+      {model.packagingItems.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-base font-semibold text-slate-900">Комплект упаковки</h2>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {model.packagingItems.map((mp) => (
+              <Link
+                key={mp.id}
+                href={`/packaging/${mp.packagingItem.id}`}
+                className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 hover:bg-slate-50"
+              >
+                {mp.packagingItem.photoUrl ? (
+                  <img src={mp.packagingItem.photoUrl} alt="" className="h-10 w-10 shrink-0 rounded object-cover" />
+                ) : (
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded bg-slate-100 text-[10px] text-slate-400">
+                    нет фото
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium text-slate-900">{mp.packagingItem.name}</div>
+                  <div className="text-xs text-slate-500">
+                    {Number(mp.quantityPerUnit) === 1 ? "1 шт на изделие" : `${mp.quantityPerUnit} шт на изделие`}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Цветомодели */}
       <section>
