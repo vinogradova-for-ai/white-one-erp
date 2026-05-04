@@ -21,24 +21,47 @@ type Props = {
   className?: string;
 };
 
+type Placement = { top: number; left: number; width: number; maxHeight: number; openUp: boolean };
+
 export function PackagingPicker({ value, options, onChange, placeholder = "— выбрать —", className = "" }: Props) {
   const [open, setOpen] = useState(false);
-  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [place, setPlace] = useState<Placement | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
   const current = options.find((o) => o.id === value) ?? null;
 
-  // Позиционируем дропдаун под кнопкой через viewport-координаты, чтобы рендерить
-  // его в document.body (Portal) — так он гарантированно над любыми sticky-барами
-  // и не зажимается родительским overflow/transform.
+  // Позиционируем дропдаун через Portal в document.body. Сверху или снизу
+  // от кнопки — смотря где больше места до края экрана. Высота ограничена
+  // доступным пространством минус буфер на sticky save-бар.
   useLayoutEffect(() => {
     if (!open) return;
     function update() {
       const el = btnRef.current;
       if (!el) return;
       const r = el.getBoundingClientRect();
-      setRect({ top: r.bottom + 4, left: r.left, width: r.width });
+      const vh = window.innerHeight;
+      const STICKY_BUFFER = 96;     // место под плавающую панель «Сохранить»
+      const GAP = 4;                // отступ между кнопкой и дропдауном
+      const MIN_HEIGHT = 160;       // если ниже — пробуем открыть вверх
+      const PREFERRED = 320;
+
+      const spaceBelow = vh - r.bottom - GAP - STICKY_BUFFER;
+      const spaceAbove = r.top - GAP - 8;
+      const openUp = spaceBelow < MIN_HEIGHT && spaceAbove > spaceBelow;
+
+      const maxHeight = Math.max(
+        120,
+        Math.min(PREFERRED, openUp ? spaceAbove : spaceBelow),
+      );
+
+      setPlace({
+        top: openUp ? r.top - GAP - maxHeight : r.bottom + GAP,
+        left: r.left,
+        width: r.width,
+        maxHeight,
+        openUp,
+      });
     }
     update();
     window.addEventListener("scroll", update, true);
@@ -77,11 +100,18 @@ export function PackagingPicker({ value, options, onChange, placeholder = "— �
         <span className="ml-auto text-xs text-slate-400">▼</span>
       </button>
 
-      {open && rect && typeof document !== "undefined" && createPortal(
+      {open && place && typeof document !== "undefined" && createPortal(
         <div
           ref={popRef}
-          style={{ position: "fixed", top: rect.top, left: rect.left, width: rect.width, zIndex: 9999 }}
-          className="max-h-72 overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg"
+          style={{
+            position: "fixed",
+            top: place.top,
+            left: place.left,
+            width: place.width,
+            maxHeight: place.maxHeight,
+            zIndex: 9999,
+          }}
+          className="overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg"
         >
           {options.length === 0 && (
             <div className="px-3 py-2 text-sm text-slate-400">Нет доступных вариантов</div>
