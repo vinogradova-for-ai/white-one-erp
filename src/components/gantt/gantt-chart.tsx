@@ -18,7 +18,7 @@ export type GanttBar = {
   endField?: string;   // имя поля на Order, в которое сохранится новая end-дата
 };
 
-export type GanttGroup = "orders" | "models" | "packaging";
+export type GanttGroup = "development" | "orders" | "packaging";
 
 export type GanttThumbnail = {
   photoUrl: string | null;
@@ -39,8 +39,8 @@ export type GanttRow = {
 
 const GROUP_LABELS: Record<GanttGroup | "all", string> = {
   all: "Всё",
+  development: "Разработка",
   orders: "Заказы",
-  models: "Фасоны",
   packaging: "Упаковка",
 };
 
@@ -101,7 +101,7 @@ export function GanttChart({
 
   // Разбивка по группам для подзаголовков
   const grouped = useMemo(() => {
-    const byGroup: Record<GanttGroup, GanttRow[]> = { orders: [], models: [], packaging: [] };
+    const byGroup: Record<GanttGroup, GanttRow[]> = { development: [], orders: [], packaging: [] };
     for (const r of visibleRows) byGroup[r.group].push(r);
     return byGroup;
   }, [visibleRows]);
@@ -222,11 +222,16 @@ export function GanttChart({
       </div>
 
       {/* Легенда */}
-      <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
         <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-blue-500 align-middle" />Производство</span>
         <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-amber-500 align-middle" />ОТК</span>
-        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-indigo-500 align-middle" />Доставка</span>
-        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-emerald-500 align-middle" />Готово / утверждено</span>
+        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-fuchsia-500 align-middle" />Доставка</span>
+        <span className="hidden sm:inline">·</span>
+        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-rose-400 align-middle" />Лекала</span>
+        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-purple-500 align-middle" />Образец</span>
+        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-teal-500 align-middle" />Утверждение</span>
+        <span className="hidden sm:inline">·</span>
+        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-emerald-500 align-middle" />Готово</span>
         <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-red-500 align-middle" />Просрочено</span>
       </div>
     </div>

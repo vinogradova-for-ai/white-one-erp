@@ -5,10 +5,27 @@ import { GanttPageClient } from "@/components/gantt/gantt-page-client";
 import { ORDER_STATUS_LABELS } from "@/lib/constants";
 
 const PHASES = [
-  { key: "production", title: "Производство", color: "bg-blue-500",   startKey: "handedToFactoryDate", endKey: "readyAtFactoryDate", doneAt: ["QC", "READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
-  { key: "qc",         title: "ОТК",          color: "bg-amber-500",  startKey: "readyAtFactoryDate",  endKey: "qcDate",             doneAt: ["READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
-  { key: "shipping",   title: "Доставка",     color: "bg-indigo-500", startKey: "qcDate",              endKey: "arrivalPlannedDate", doneAt: ["WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
+  { key: "production", title: "Производство", color: "bg-blue-500",    startKey: "handedToFactoryDate", endKey: "readyAtFactoryDate", doneAt: ["QC", "READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
+  { key: "qc",         title: "ОТК",          color: "bg-amber-500",   startKey: "readyAtFactoryDate",  endKey: "qcDate",             doneAt: ["READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
+  { key: "shipping",   title: "Доставка",     color: "bg-fuchsia-500", startKey: "qcDate",              endKey: "arrivalPlannedDate", doneAt: ["WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
 ] as const;
+
+// Этапы разработки фасона. Бары рисуются между соседними датами;
+// «активная» (последняя) фаза тянется до plannedLaunchMonth-01 либо до сегодня+30 дн.
+const DEV_PHASES = [
+  { key: "patterns",  title: "Лекала",       color: "bg-rose-400",   fromKey: "createdAt",         toKey: "patternsDate",        doneAt: ["PATTERNS", "SAMPLE", "APPROVED", "IN_PRODUCTION"] },
+  { key: "sample",    title: "Образец",      color: "bg-purple-500", fromKey: "patternsDate",      toKey: "sampleDate",          doneAt: ["SAMPLE", "APPROVED", "IN_PRODUCTION"] },
+  { key: "approval",  title: "Утверждение",  color: "bg-teal-500",   fromKey: "sampleDate",        toKey: "approvedDate",        doneAt: ["APPROVED", "IN_PRODUCTION"] },
+  { key: "prelaunch", title: "Подготовка",   color: "bg-emerald-500",fromKey: "approvedDate",      toKey: "productionStartDate", doneAt: ["IN_PRODUCTION"] },
+] as const;
+
+const MODEL_STATUS_LABELS: Record<string, string> = {
+  IDEA: "Идея",
+  PATTERNS: "Лекала",
+  SAMPLE: "Образец",
+  APPROVED: "Утверждён",
+  IN_PRODUCTION: "В производстве",
+};
 
 function iso(d: Date | null | undefined): string | null {
   return d ? d.toISOString().slice(0, 10) : null;
@@ -23,7 +40,7 @@ export default async function GanttPage({
   const phaseFilter = sp.phase && PHASES.some((p) => p.key === sp.phase) ? sp.phase : null;
   const ownerFilter = sp.owner || null;
 
-  const [orders, packagingOrders, owners] = await Promise.all([
+  const [orders, packagingOrders, devModels, owners] = await Promise.all([
     prisma.order.findMany({
       where: {
         deletedAt: null,
@@ -56,6 +73,22 @@ export default async function GanttPage({
       },
       // orderedDate, productionEndDate, expectedDate, supplierName подтягиваются
       // дефолтным include всех скалярных полей.
+    }),
+    // Фасоны в разработке (не IN_PRODUCTION). Они показываются отдельной группой
+    // «Разработка» — там видно, как новинка движется от идеи до запуска производства.
+    prisma.productModel.findMany({
+      where: {
+        deletedAt: null,
+        activated: true,
+        status: { in: ["IDEA", "PATTERNS", "SAMPLE", "APPROVED"] },
+        ...(ownerFilter ? { ownerId: ownerFilter } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+      include: {
+        owner: { select: { id: true, name: true } },
+        preferredFactory: { select: { name: true } },
+      },
     }),
     prisma.user.findMany({
       where: {
@@ -109,7 +142,7 @@ export default async function GanttPage({
       group: "orders",
       id: o.id,
       href: `/orders/${o.id}`,
-      title: `#${o.orderNumber} · ${o.productModel.name}`,
+      title: `${o.productModel.name} · #${o.orderNumber}`,
       subtitle: `${colors} · ${totalQty} шт`,
       statusLabel: ORDER_STATUS_LABELS[o.status as keyof typeof ORDER_STATUS_LABELS],
       owner: o.owner?.name,
@@ -153,7 +186,7 @@ export default async function GanttPage({
       {
         key: "delivery",
         title: "Доставка",
-        color: "bg-indigo-500",
+        color: "bg-fuchsia-500",
         start: productionEndIso,
         end: expectedIso,
         owner: factoryOwner,
@@ -168,11 +201,77 @@ export default async function GanttPage({
       group: "packaging",
       id: po.id,
       href: `/packaging-orders/${po.id}`,
-      title: `${po.orderNumber} · упаковка`,
+      title: `Упаковка · ${po.orderNumber}`,
       subtitle: `${names} · ${totalQty} шт`,
       statusLabel: po.status === "ORDERED" ? "Заказано" : po.status === "IN_PRODUCTION" ? "В пошиве" : "В пути",
       owner: po.owner?.name,
       thumbnails: thumbs,
+      bars,
+    });
+  }
+
+  // Разработка: для каждого фасона в IDEA/PATTERNS/SAMPLE/APPROVED рисуем
+  // последовательность фаз между датами (createdAt → patternsDate → sampleDate → approvedDate → productionStartDate).
+  // Активная (последняя ещё не наступившая) фаза тянется до plannedLaunchMonth-01,
+  // либо до сегодня+30 дней если месяц не задан.
+  for (const m of devModels) {
+    const launchEnd = m.plannedLaunchMonth
+      ? `${String(m.plannedLaunchMonth).slice(0, 4)}-${String(m.plannedLaunchMonth).slice(4, 6)}-01`
+      : iso(new Date(today.getTime() + 30 * 86400000))!;
+
+    const bars: GanttRow["bars"] = [];
+    let prevDate = iso(m.createdAt) ?? todayIso;
+
+    for (const ph of DEV_PHASES) {
+      const fromRaw = ph.fromKey === "createdAt"
+        ? m.createdAt
+        : (m as Record<string, unknown>)[ph.fromKey] as Date | null | undefined;
+      const toRaw = (m as Record<string, unknown>)[ph.toKey] as Date | null | undefined;
+
+      const fromIso = iso(fromRaw) ?? prevDate;
+      const done = (ph.doneAt as readonly string[]).includes(m.status);
+      let endIso: string;
+
+      if (toRaw) {
+        endIso = iso(toRaw)!;
+      } else if (!done) {
+        // Активная фаза — тянем до plannedLaunch / сегодня+30
+        endIso = launchEnd > fromIso ? launchEnd : iso(new Date(today.getTime() + 14 * 86400000))!;
+      } else {
+        // Этап считается пройденным, но даты нет — пропускаем (не рисуем).
+        continue;
+      }
+
+      const overdue = !done && endIso < todayIso;
+      bars.push({
+        key: ph.key,
+        title: ph.title,
+        color: ph.color,
+        start: fromIso,
+        end: endIso,
+        owner: m.preferredFactory?.name ?? m.owner?.name,
+        overdue,
+        done,
+      });
+
+      prevDate = endIso;
+      // Если эта фаза активная — дальше не идём.
+      if (!done) break;
+    }
+
+    if (bars.length === 0) continue;
+
+    rows.push({
+      group: "development",
+      id: m.id,
+      href: `/models/${m.id}`,
+      title: m.name,
+      subtitle: m.category + (m.subcategory ? ` · ${m.subcategory}` : ""),
+      statusLabel: MODEL_STATUS_LABELS[m.status] ?? m.status,
+      owner: m.owner?.name,
+      thumbnails: m.photoUrls?.[0]
+        ? [{ photoUrl: m.photoUrls[0], colorName: null }]
+        : [],
       bars,
     });
   }
