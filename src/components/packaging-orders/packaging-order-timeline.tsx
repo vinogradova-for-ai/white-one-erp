@@ -145,52 +145,52 @@ export function PackagingOrderTimeline({
       const deltaDays = Math.round((ev.clientX - s.startX) / s.pxPerDay);
       if (deltaDays === 0) return;
 
+      // Никаких clamp'ов — Алёна должна тащить даты куда угодно, в т.ч. в прошлое.
+      // Длительность Доставки = expectedDate - productionEndDate (для каскада).
+      const deliveryDuration = daysBetween(s.origProductionEnd, s.origExpectedDate);
+
       if (s.phase.key === "production") {
         if (s.mode === "resize-left") {
+          // Drag ◀ Производства (первая плашка) = меняем стартовую дату.
+          // Все фазы сдвигаются на ту же дельту — длительности сохраняются.
           const newStart = addDays(s.origProductionStart, deltaDays);
-          if (daysBetween(newStart, s.origEnd) < 1) return;
+          const newProdEnd = addDays(s.origProductionEnd, deltaDays);
+          const newExpected = addDays(s.origExpectedDate, deltaDays);
           setProductionStart(newStart);
+          commitChange({ productionEndDate: newProdEnd, expectedDate: newExpected });
           setDragInfo({ left: posPct(newStart), label: formatDM(newStart) });
           return;
         }
         if (s.mode === "resize-right") {
+          // Drag ▶ Производства = меняем длительность Производства.
+          // Доставка сдвигается на ту же дельту, её длительность сохраняется.
           const newEnd = addDays(s.origEnd, deltaDays);
-          if (daysBetween(s.origStart, newEnd) < 1) return;
-          if (daysBetween(newEnd, s.origExpectedDate) < 0) return;
-          commitChange({ productionEndDate: newEnd, expectedDate: s.origExpectedDate });
+          const newExpected = addDays(s.origExpectedDate, deltaDays);
+          commitChange({ productionEndDate: newEnd, expectedDate: newExpected });
           setDragInfo({ left: posPct(newEnd), label: formatDM(newEnd) });
           return;
         }
-        // move — shift both production start and production end
-        const newStart = addDays(s.origProductionStart, deltaDays);
-        const newEnd = addDays(s.origEnd, deltaDays);
-        if (daysBetween(newEnd, s.origExpectedDate) < 0) return;
-        setProductionStart(newStart);
-        commitChange({ productionEndDate: newEnd, expectedDate: s.origExpectedDate });
-        setDragInfo({ left: posPct(newEnd), label: `${formatDM(newStart)} → ${formatDM(newEnd)}` });
+        // move (drag за середину) — оставлен dead, не вызывается из UI.
+        return;
       } else {
         // delivery phase
         if (s.mode === "resize-left") {
+          // Drag ◀ Доставки = drag ▶ Производства: меняем длительность
+          // Производства. Доставка едет на дельту, её длительность сохраняется.
           const newProdEnd = addDays(s.origProductionEnd, deltaDays);
-          if (daysBetween(s.origProductionStart, newProdEnd) < 1) return;
-          if (daysBetween(newProdEnd, s.origExpectedDate) < 0) return;
-          commitChange({ productionEndDate: newProdEnd, expectedDate: s.origExpectedDate });
+          const newExpected = addDays(newProdEnd, deliveryDuration);
+          commitChange({ productionEndDate: newProdEnd, expectedDate: newExpected });
           setDragInfo({ left: posPct(newProdEnd), label: formatDM(newProdEnd) });
           return;
         }
         if (s.mode === "resize-right") {
+          // Drag ▶ Доставки = меняем длительность Доставки. Никого после неё.
           const newExpected = addDays(s.origExpectedDate, deltaDays);
-          if (daysBetween(s.origProductionEnd, newExpected) < 0) return;
           commitChange({ productionEndDate: s.origProductionEnd, expectedDate: newExpected });
           setDragInfo({ left: posPct(newExpected), label: formatDM(newExpected) });
           return;
         }
-        // move delivery — shift both ends
-        const newProdEnd = addDays(s.origProductionEnd, deltaDays);
-        const newExpected = addDays(s.origExpectedDate, deltaDays);
-        if (daysBetween(s.origProductionStart, newProdEnd) < 1) return;
-        commitChange({ productionEndDate: newProdEnd, expectedDate: newExpected });
-        setDragInfo({ left: posPct(newExpected), label: `${formatDM(newProdEnd)} → ${formatDM(newExpected)}` });
+        return;
       }
     }
 
@@ -319,17 +319,11 @@ export function PackagingOrderTimeline({
               return (
                 <div key={ph.key} className="relative h-9">
                   <div
-                    onPointerDown={(e) => onPointerDown(e, ph, "move")}
-                    className="absolute top-1 flex h-7 cursor-grab items-center rounded-md text-white shadow-sm active:cursor-grabbing"
+                    className="absolute top-1 flex h-7 items-center rounded-md text-white shadow-sm"
                     style={{ left: `${left}%`, width: `${width}%`, backgroundColor: ph.color }}
-                    title={`${ph.title}: ${formatDM(startIso)} → ${formatDM(endIso)} (${days} дн). Тащите, чтобы сдвинуть.`}
+                    title={`${ph.title}: ${formatDM(startIso)} → ${formatDM(endIso)} (${days} дн). Тащите за ◀ или ▶ — соседняя фаза поедет за ней с её длительностью.`}
                   >
-                    <div
-                      onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-left"); }}
-                      className="absolute -left-0.5 top-0 bottom-0 w-2 cursor-ew-resize rounded-l-md hover:bg-white/30"
-                    />
-
-                    <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-2 text-[11px] font-medium whitespace-nowrap">
+                    <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-3 text-[11px] font-medium whitespace-nowrap">
                       <span>{ph.icon}</span>
                       <span>{ph.title}</span>
                       <span className="opacity-80">· {days} дн</span>
@@ -339,10 +333,23 @@ export function PackagingOrderTimeline({
                       {formatDM(startIso)} → {formatDM(endIso)} · {days} дн
                     </div>
 
+                    {/* Левая стрелочка-ручка */}
+                    <div
+                      onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-left"); }}
+                      className="absolute left-0.5 top-1/2 z-20 flex h-5 w-5 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white/90 text-[10px] font-bold leading-none text-slate-700 shadow-sm hover:scale-125 hover:bg-white"
+                      title="Тащить — изменить старт фазы"
+                    >
+                      ◀
+                    </div>
+
+                    {/* Правая стрелочка-ручка */}
                     <div
                       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-right"); }}
-                      className="absolute -right-0.5 top-0 bottom-0 w-2 cursor-ew-resize rounded-r-md hover:bg-white/30"
-                    />
+                      className="absolute right-0.5 top-1/2 z-20 flex h-5 w-5 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white/90 text-[10px] font-bold leading-none text-slate-700 shadow-sm hover:scale-125 hover:bg-white"
+                      title="Тащить — изменить дедлайн фазы"
+                    >
+                      ▶
+                    </div>
                   </div>
                 </div>
               );
@@ -352,7 +359,7 @@ export function PackagingOrderTimeline({
       </div>
 
       <p className="text-xs text-slate-500">
-        Тащите полосу, чтобы сдвинуть фазу, или за края — чтобы поменять старт/дедлайн.
+        Тащите за ◀ или ▶ на краю фазы. Соседняя фаза поедет за ней с её длительностью.
       </p>
     </fieldset>
   );

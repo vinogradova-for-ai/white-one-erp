@@ -5,9 +5,12 @@ import { GanttPageClient } from "@/components/gantt/gantt-page-client";
 import { ORDER_STATUS_LABELS } from "@/lib/constants";
 
 const PHASES = [
-  { key: "production", title: "Производство", color: "bg-blue-500",    startKey: "handedToFactoryDate", endKey: "readyAtFactoryDate", doneAt: ["QC", "READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
-  { key: "qc",         title: "ОТК",          color: "bg-amber-500",   startKey: "readyAtFactoryDate",  endKey: "qcDate",             doneAt: ["READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
-  { key: "shipping",   title: "Доставка",     color: "bg-fuchsia-500", startKey: "qcDate",              endKey: "arrivalPlannedDate", doneAt: ["WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
+  // Разработка заказа: от принятия решения о партии до передачи в фабрику.
+  // Сюда уходит оформление, подготовка тех-пакета, согласование цен и т.п.
+  { key: "preparation", title: "Разработка",   color: "bg-rose-300",    startKey: "decisionDate",        endKey: "handedToFactoryDate", doneAt: ["IN_PRODUCTION", "QC", "READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
+  { key: "production",  title: "Производство", color: "bg-blue-500",    startKey: "handedToFactoryDate", endKey: "readyAtFactoryDate",  doneAt: ["QC", "READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
+  { key: "qc",          title: "ОТК",          color: "bg-amber-500",   startKey: "readyAtFactoryDate",  endKey: "qcDate",              doneAt: ["READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
+  { key: "shipping",    title: "Доставка",     color: "bg-fuchsia-500", startKey: "qcDate",              endKey: "arrivalPlannedDate",  doneAt: ["WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
 ] as const;
 
 // Этапы разработки фасона. Бары рисуются между соседними датами;
@@ -121,6 +124,10 @@ export default async function GanttPage({
       const endIso = iso(endRaw)!;
       const done = ph.doneAt.includes(o.status as never);
       const overdue = !done && endIso < todayIso;
+      // Первая фаза цепочки получает startField — даёт возможность тянуть
+      // её левый край (старт всей цепочки). Остальные фазы start = end предыдущей,
+      // редактируется через handle предыдущей.
+      const isFirst = bars.length === 0;
       bars.push({
         key: ph.key,
         title: ph.title,
@@ -129,9 +136,9 @@ export default async function GanttPage({
         end: endIso,
         owner: getPhaseOwner(ph.key, o.owner?.name, o.factory?.name),
         overdue,
-        // Разрешаем drag для перетаскивания дедлайнов фаз
         orderId: o.id,
         endField: ph.endKey,
+        ...(isFirst ? { startField: ph.startKey } : {}),
       });
     }
     if (phaseFilter && bars.length === 0) continue;
@@ -184,6 +191,7 @@ export default async function GanttPage({
         done: productionDone,
         orderId: po.id,
         endField: "productionEndDate",
+        startField: "orderedDate",
       },
       {
         key: "delivery",

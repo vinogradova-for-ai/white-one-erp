@@ -196,51 +196,65 @@ export function OrderTimeline({
       pxPerDay,
     };
 
+    // Сохраняем оригинальные end-ы ВСЕХ фаз — чтобы каскад сдвигал
+    // их относительно момента начала drag, а не накопительно.
+    const origAllEnds: Record<string, string> = {};
+    for (const ph of PHASES) origAllEnds[ph.endField] = getEndIso(ph);
+
     function handleMove(ev: PointerEvent) {
       const s = dragRef.current;
       if (!s) return;
       const deltaPx = ev.clientX - s.startX;
       const deltaDays = Math.round(deltaPx / s.pxPerDay);
+      if (deltaDays === 0) return;
 
       const next: Timeline = { ...initial };
       const idx = PHASES.indexOf(s.phase);
 
+      // Никаких clamp'ов / валидаций — даты должны двигаться куда угодно,
+      // в том числе в прошлое. Если пользователь сделает фазу с
+      // отрицательной длительностью — увидит сам и поправит.
+
       if (s.mode === "resize-right") {
-        if (deltaDays === 0) return;
+        // Drag ▶ фазы N: меняем длительность фазы N (её end двигается).
+        // Соседи СПРАВА сдвигаются на ту же дельту — их длительности сохраняются.
         const newEnd = addDays(s.origEnd, deltaDays);
-        if (daysBetween(s.origStart, newEnd) < 0) return;
         next[s.phase.endField] = newEnd;
+        for (let j = idx + 1; j < PHASES.length; j++) {
+          const nextPh = PHASES[j];
+          next[nextPh.endField] = addDays(origAllEnds[nextPh.endField], deltaDays);
+        }
         setDragInfo({ left: posPct(newEnd), label: formatDM(newEnd) });
       } else if (s.mode === "resize-left") {
-        if (deltaDays === 0) return;
         if (idx === 0) {
+          // Drag ◀ самой первой плашки = меняем стартовую дату всей цепочки.
+          // ВСЕ фазы сдвигаются на ту же дельту — длительности всех сохраняются.
           const newStart = addDays(s.origProductionStart, deltaDays);
-          if (daysBetween(newStart, s.origEnd) < 0) return;
+          for (const ph of PHASES) {
+            next[ph.endField] = addDays(origAllEnds[ph.endField], deltaDays);
+          }
           setProductionStart(newStart);
           setTouched(true);
           setDragInfo({ left: posPct(newStart), label: formatDM(newStart) });
+          commitChange(next);
           return;
         }
+        // Drag ◀ не первой фазы = drag ▶ предыдущей: меняем длительность
+        // предыдущей фазы. Текущая и далее едут на ту же дельту, их
+        // длительности сохраняются.
         if (!s.origPrevEnd) return;
         const newPrevEnd = addDays(s.origPrevEnd, deltaDays);
-        if (daysBetween(newPrevEnd, s.origEnd) < 0) return;
         const prev = PHASES[idx - 1];
         next[prev.endField] = newPrevEnd;
+        for (let j = idx; j < PHASES.length; j++) {
+          const nextPh = PHASES[j];
+          next[nextPh.endField] = addDays(origAllEnds[nextPh.endField], deltaDays);
+        }
         setDragInfo({ left: posPct(newPrevEnd), label: formatDM(newPrevEnd) });
       } else {
-        if (deltaDays === 0) return;
-        const newEnd = addDays(s.origEnd, deltaDays);
-        next[s.phase.endField] = newEnd;
-        if (s.origPrevEnd) {
-          const prev = PHASES[idx - 1];
-          next[prev.endField] = addDays(s.origPrevEnd, deltaDays);
-        } else {
-          const newStart = addDays(s.origProductionStart, deltaDays);
-          setProductionStart(newStart);
-        }
-        setDragInfo({ left: posPct(newEnd), label: `${formatDM(addDays(s.origStart, deltaDays))} → ${formatDM(newEnd)}` });
+        return;
       }
-      if (s.mode !== "resize-left" || idx !== 0) commitChange(next);
+      commitChange(next);
     }
 
     function handleUp() {
@@ -371,18 +385,11 @@ export function OrderTimeline({
               return (
                 <div key={ph.key} className="relative h-9">
                   <div
-                    onPointerDown={(e) => onPointerDown(e, ph, "move")}
-                    className="absolute top-1 flex h-7 cursor-grab items-center rounded-md text-white shadow-sm active:cursor-grabbing"
+                    className="absolute top-1 flex h-7 items-center rounded-md text-white shadow-sm"
                     style={{ left: `${left}%`, width: `${width}%`, backgroundColor: ph.color }}
-                    title={`${ph.title}: ${formatDM(startIso)} → ${formatDM(endIso)} (${days} дн). Тащите, чтобы сдвинуть.`}
+                    title={`${ph.title}: ${formatDM(startIso)} → ${formatDM(endIso)} (${days} дн). Тащите за ◀ или ▶ — соседние фазы поедут за ним с теми же длительностями.`}
                   >
-                    <div
-                      onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-left"); }}
-                      className="absolute -left-0.5 top-0 bottom-0 w-2 cursor-ew-resize rounded-l-md hover:bg-white/30"
-                      title={PHASES.indexOf(ph) === 0 ? "Сдвиньте, чтобы изменить старт производства" : "Сдвиньте, чтобы изменить старт фазы"}
-                    />
-
-                    <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-2 text-[11px] font-medium whitespace-nowrap">
+                    <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-3 text-[11px] font-medium whitespace-nowrap">
                       <span>{ph.icon}</span>
                       <span>{ph.title}</span>
                       <span className="opacity-80">· {days} дн</span>
@@ -392,11 +399,23 @@ export function OrderTimeline({
                       {formatDM(startIso)} → {formatDM(endIso)} · {days} дн
                     </div>
 
+                    {/* Левая стрелочка-ручка — внутри плашки, чтобы фазы оставались встык */}
+                    <div
+                      onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-left"); }}
+                      className="absolute left-0.5 top-1/2 z-20 flex h-5 w-5 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white/90 text-[10px] font-bold leading-none text-slate-700 shadow-sm hover:scale-125 hover:bg-white"
+                      title={PHASES.indexOf(ph) === 0 ? "Тащить — сдвинуть старт производства (все фазы поедут вместе)" : "Тащить — изменить старт фазы (предыдущая фаза станет короче/длиннее, текущая и следующие поедут с длительностями)"}
+                    >
+                      ◀
+                    </div>
+
+                    {/* Правая стрелочка-ручка */}
                     <div
                       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-right"); }}
-                      className="absolute -right-0.5 top-0 bottom-0 w-2 cursor-ew-resize rounded-r-md hover:bg-white/30"
-                      title="Сдвиньте, чтобы изменить дедлайн"
-                    />
+                      className="absolute right-0.5 top-1/2 z-20 flex h-5 w-5 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white/90 text-[10px] font-bold leading-none text-slate-700 shadow-sm hover:scale-125 hover:bg-white"
+                      title="Тащить — изменить дедлайн фазы (следующие фазы поедут с теми же длительностями)"
+                    >
+                      ▶
+                    </div>
                   </div>
                 </div>
               );
@@ -406,7 +425,7 @@ export function OrderTimeline({
       </div>
 
       <p className="text-xs text-slate-500">
-        Тащите полосу, чтобы сдвинуть фазу, или за края — чтобы поменять старт/дедлайн.
+        Тащите за ◀ или ▶ на краю фазы. Соседние фазы поедут за ней с теми же длительностями.
       </p>
     </fieldset>
   );
