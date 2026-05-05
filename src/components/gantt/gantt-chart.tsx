@@ -299,18 +299,34 @@ function RowView({
           // не пересекались между собой.
           const pendKey = b.orderId && b.endField ? `${row.group}:${b.orderId}:${b.endField}` : null;
           const effEnd = (pendKey && pendingChanges?.[pendKey]) ? pendingChanges[pendKey] : b.end;
-          const dirty = !!(pendKey && pendingChanges?.[pendKey]);
+          // Start фазы N+1 = end фазы N (хранится одним полем в БД, например
+          // readyAtFactoryDate = end Производства = start ОТК). Поэтому если
+          // на предыдущей фазе есть несохранённый drag — он же и есть новый
+          // start этой фазы. Без этого ОТК визуально «растягивается», когда
+          // двигаем дедлайн производства, хотя в БД на сохранение уйдёт
+          // правильная пара чисел.
+          const prev = i > 0 ? row.bars[i - 1] : null;
+          const prevPendKey = prev?.orderId && prev?.endField
+            ? `${row.group}:${prev.orderId}:${prev.endField}`
+            : null;
+          const effStart = (prevPendKey && pendingChanges?.[prevPendKey])
+            ? pendingChanges[prevPendKey]
+            : b.start;
+          const dirty = !!(
+            (pendKey && pendingChanges?.[pendKey]) ||
+            (prevPendKey && pendingChanges?.[prevPendKey])
+          );
           // Клип к видимому диапазону
-          const s = b.start < chartStart ? chartStart : b.start;
+          const s = effStart < chartStart ? chartStart : effStart;
           const e = effEnd > chartEnd ? chartEnd : effEnd;
           if (e < chartStart || s > chartEnd) return null;
           const left = posPct(s);
           const width = Math.max(0.3, posPct(e) - left);
-          const days = Math.round((parseISO(effEnd).getTime() - parseISO(b.start).getTime()) / 86400000);
+          const days = Math.round((parseISO(effEnd).getTime() - parseISO(effStart).getTime()) / 86400000);
           // Цвет фазы фиксирован (производство/ОТК/доставка). Просрочка показывается красным,
           // но "грязное" состояние (несохранённый drag) НЕ меняет цвет — оставляем родной цвет фазы.
           const barColor = b.overdue ? "bg-red-500" : b.color;
-          const tooltip = `${b.title} · ${formatDM(b.start)} → ${formatDM(effEnd)} · ${days} дн${b.owner ? ` · ${b.owner}` : ""}${b.overdue ? " · ПРОСРОЧЕНО" : ""}${dirty ? " · ИЗМЕНЕНО" : ""}`;
+          const tooltip = `${b.title} · ${formatDM(effStart)} → ${formatDM(effEnd)} · ${days} дн${b.owner ? ` · ${b.owner}` : ""}${b.overdue ? " · ПРОСРОЧЕНО" : ""}${dirty ? " · ИЗМЕНЕНО" : ""}`;
           // Все фазы одного заказа в одну строку — они идут последовательно по времени.
           const editable = !!(b.orderId && b.endField && onBarEndChange);
           return (
@@ -325,7 +341,7 @@ function RowView({
               editable={editable}
               chartStart={chartStart}
               chartEnd={chartEnd}
-              startIso={b.start}
+              startIso={effStart}
               endIso={effEnd}
               onCommit={(newEndIso) => {
                 if (b.orderId && b.endField && onBarEndChange) {
