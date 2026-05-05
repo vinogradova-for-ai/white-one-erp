@@ -49,6 +49,11 @@ export function ModelEditForm({
     targetCostCny: string;
     targetCostRub: string;
     targetCostNote: string;
+    patternsDate: string;
+    sampleDate: string;
+    approvedDate: string;
+    productionStartDate: string;
+    plannedLaunchMonth: number | null;
   };
   users: Option[];
   factories: Option[];
@@ -101,6 +106,11 @@ export function ModelEditForm({
         targetCostCny: form.targetCostCny ? Number(form.targetCostCny) : null,
         targetCostRub: form.targetCostRub ? Number(form.targetCostRub) : null,
         targetCostNote: form.targetCostNote || null,
+        patternsDate: form.patternsDate || null,
+        sampleDate: form.sampleDate || null,
+        approvedDate: form.approvedDate || null,
+        productionStartDate: form.productionStartDate || null,
+        plannedLaunchMonth: form.plannedLaunchMonth ?? null,
       };
       const res = await fetch(`/api/models/${model.id}`, {
         method: "PATCH",
@@ -237,6 +247,55 @@ export function ModelEditForm({
           />
           <span className="mt-1 block text-xs text-slate-500">
             Одна общая ссылка на папку, где лежат лекала, тех. пакет, фото образцов и всё остальное.
+          </span>
+        </Field>
+      </Section>
+
+      <Section title="Этапы разработки">
+        <Field label="Лекала готовы">
+          <input
+            type="date"
+            value={form.patternsDate}
+            onChange={(e) => setForm({ ...form, patternsDate: e.target.value })}
+            className={inputCls}
+          />
+        </Field>
+        <Field label="Образец получен">
+          <input
+            type="date"
+            value={form.sampleDate}
+            onChange={(e) => setForm({ ...form, sampleDate: e.target.value })}
+            className={inputCls}
+          />
+        </Field>
+        <Field label="Утверждён">
+          <input
+            type="date"
+            value={form.approvedDate}
+            onChange={(e) => setForm({ ...form, approvedDate: e.target.value })}
+            className={inputCls}
+          />
+        </Field>
+        <Field label="Запуск производства">
+          <input
+            type="date"
+            value={form.productionStartDate}
+            onChange={(e) => setForm({ ...form, productionStartDate: e.target.value })}
+            className={inputCls}
+          />
+        </Field>
+        <Field label="Плановый месяц запуска (YYYYMM)" full>
+          <input
+            type="number"
+            min={202501}
+            max={203012}
+            value={form.plannedLaunchMonth ?? ""}
+            onChange={(e) => setForm({ ...form, plannedLaunchMonth: e.target.value ? Number(e.target.value) : null })}
+            className={inputCls}
+            placeholder="например, 202608"
+          />
+          <span className="mt-1 block text-xs text-slate-500">
+            До этой даты тянется активная фаза в Ганте, если конкретные даты этапов ещё не заполнены.
           </span>
         </Field>
       </Section>

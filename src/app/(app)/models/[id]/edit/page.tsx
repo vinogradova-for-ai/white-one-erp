@@ -72,6 +72,11 @@ export default async function EditModelPage({ params }: { params: Promise<{ id: 
             targetCostCny: model.targetCostCny?.toString() ?? "",
             targetCostRub: model.targetCostRub?.toString() ?? "",
             targetCostNote: model.targetCostNote ?? "",
+            patternsDate: model.patternsDate ? model.patternsDate.toISOString().slice(0, 10) : "",
+            sampleDate: model.sampleDate ? model.sampleDate.toISOString().slice(0, 10) : "",
+            approvedDate: model.approvedDate ? model.approvedDate.toISOString().slice(0, 10) : "",
+            productionStartDate: model.productionStartDate ? model.productionStartDate.toISOString().slice(0, 10) : "",
+            plannedLaunchMonth: model.plannedLaunchMonth ?? null,
           }}
           users={users}
           factories={factories}

@@ -41,7 +41,10 @@ export function GanttPageClient({ rows }: { rows: GanttRow[] }) {
       }
       const errors: string[] = [];
       for (const { group, orderId, fields } of Object.values(byOrder)) {
-        const base = group === "packaging" ? "/api/packaging-orders" : "/api/orders";
+        const base =
+          group === "packaging" ? "/api/packaging-orders" :
+          group === "development" ? "/api/models" :
+          "/api/orders";
         const res = await fetch(`${base}/${orderId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },

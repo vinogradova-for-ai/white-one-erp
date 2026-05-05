@@ -50,6 +50,12 @@ export const modelCreateSchema = z.object({
   ownerId: z.string().min(1, "Ответственный обязателен"),
   plannedLaunchMonth: z.number().int().min(202501).max(203012).optional().nullable(),
 
+  // Даты этапов разработки (ISO YYYY-MM-DD или null)
+  patternsDate: z.string().nullable().optional(),
+  sampleDate: z.string().nullable().optional(),
+  approvedDate: z.string().nullable().optional(),
+  productionStartDate: z.string().nullable().optional(),
+
   correctionsNeeded: z.boolean().optional(),
   sizeChartReady: z.boolean().optional(),
 
