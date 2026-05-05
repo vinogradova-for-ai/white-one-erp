@@ -30,6 +30,23 @@ async function main() {
   });
   console.log(`✓ OWNER: ${owner.email}`);
 
+  // Команда продуктового отдела — нужна для фильтра «Ответственный» в Ганте,
+  // селекторов owner в формах и т.п. Пароль у всех тот же.
+  const team = [
+    { email: "vera@whiteone.ru",  name: "Вера",  role: "PRODUCT_MANAGER" as const },
+    { email: "olya.pm@whiteone.ru", name: "Оля",  role: "PRODUCT_MANAGER" as const },
+    { email: "nastya@whiteone.ru",  name: "Настя", role: "ASSISTANT" as const },
+    { email: "katya@whiteone.ru",   name: "Катя",  role: "CONTENT_MANAGER" as const },
+  ];
+  for (const u of team) {
+    await prisma.user.upsert({
+      where: { email: u.email },
+      update: { name: u.name, role: u.role, isActive: true },
+      create: { ...u, passwordHash, isActive: true },
+    });
+    console.log(`✓ ${u.role}: ${u.email}`);
+  }
+
   // Размерные сетки (примеры — можно править / добавлять)
   await prisma.sizeGrid.upsert({
     where: { name: "Одежда 42-52" },
