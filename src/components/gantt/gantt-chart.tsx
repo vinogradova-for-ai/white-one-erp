@@ -13,9 +13,14 @@ export type GanttBar = {
   owner?: string;
   overdue?: boolean;
   done?: boolean;
-  // Опционально: для редактирования дедлайнов через drag
+  // Опционально: для редактирования дат через drag.
+  // endField — имя поля на Order/PackagingOrder/ProductModel, куда уходит
+  // новый end. Для не-первой фазы этого хватает (start фазы N+1 = end фазы N
+  // = одно поле в БД), для первой фазы дополнительно указывается startField,
+  // чтобы можно было тянуть и её левый край.
   orderId?: string;
-  endField?: string;   // имя поля на Order, в которое сохранится новая end-дата
+  endField?: string;
+  startField?: string;
 };
 
 export type GanttGroup = "development" | "orders" | "packaging";
@@ -300,21 +305,26 @@ function RowView({
           const pendKey = b.orderId && b.endField ? `${row.group}:${b.orderId}:${b.endField}` : null;
           const effEnd = (pendKey && pendingChanges?.[pendKey]) ? pendingChanges[pendKey] : b.end;
           // Start фазы N+1 = end фазы N (хранится одним полем в БД, например
-          // readyAtFactoryDate = end Производства = start ОТК). Поэтому если
-          // на предыдущей фазе есть несохранённый drag — он же и есть новый
-          // start этой фазы. Без этого ОТК визуально «растягивается», когда
-          // двигаем дедлайн производства, хотя в БД на сохранение уйдёт
-          // правильная пара чисел.
+          // readyAtFactoryDate = end Производства = start ОТК). Если на предыдущей
+          // фазе есть несохранённый drag — он же и есть новый start этой фазы.
+          // Для первой фазы у неё может быть собственный startField (например,
+          // handedToFactoryDate у заказа), и тогда pending для него — её новый start.
           const prev = i > 0 ? row.bars[i - 1] : null;
           const prevPendKey = prev?.orderId && prev?.endField
             ? `${row.group}:${prev.orderId}:${prev.endField}`
             : null;
+          const startPendKey = i === 0 && b.orderId && b.startField
+            ? `${row.group}:${b.orderId}:${b.startField}`
+            : null;
           const effStart = (prevPendKey && pendingChanges?.[prevPendKey])
             ? pendingChanges[prevPendKey]
-            : b.start;
+            : (startPendKey && pendingChanges?.[startPendKey])
+              ? pendingChanges[startPendKey]
+              : b.start;
           const dirty = !!(
             (pendKey && pendingChanges?.[pendKey]) ||
-            (prevPendKey && pendingChanges?.[prevPendKey])
+            (prevPendKey && pendingChanges?.[prevPendKey]) ||
+            (startPendKey && pendingChanges?.[startPendKey])
           );
           // Клип к видимому диапазону
           const s = effStart < chartStart ? chartStart : effStart;
@@ -363,6 +373,36 @@ function RowView({
                   }
                 }
               }}
+              onCommitStart={
+                // Drag за левый край: меняем start этой фазы.
+                // Для не-первой фазы start = end предыдущей фазы (одно поле в БД),
+                // поэтому пишем в prev.endField. Для первой фазы — в собственный startField.
+                ((prev && prev.orderId && prev.endField) || (i === 0 && b.startField))
+                  ? (newStartIso) => {
+                      if (!b.orderId || !onBarEndChange) return;
+                      const oldStartIso = effStart;
+                      const deltaMs = parseISO(newStartIso).getTime() - parseISO(oldStartIso).getTime();
+                      const deltaDays = Math.round(deltaMs / 86400000);
+                      if (deltaDays === 0) return;
+                      // Сохраняем новый start
+                      if (prev && prev.orderId && prev.endField) {
+                        onBarEndChange(prev.orderId, prev.endField, newStartIso, row.group);
+                      } else if (b.startField) {
+                        onBarEndChange(b.orderId, b.startField, newStartIso, row.group);
+                      }
+                      // Каскадный сдвиг вправо: end текущей фазы и всех последующих
+                      // двигаются на ту же дельту — длительности сохраняются.
+                      for (let j = i; j < row.bars.length; j++) {
+                        const nb = row.bars[j];
+                        if (!nb.orderId || !nb.endField) continue;
+                        const nbKey = `${row.group}:${nb.orderId}:${nb.endField}`;
+                        const nbCur = pendingChanges?.[nbKey] ?? nb.end;
+                        const shifted = toISO(addDays(parseISO(nbCur), deltaDays));
+                        onBarEndChange(nb.orderId, nb.endField, shifted, row.group);
+                      }
+                    }
+                  : undefined
+              }
             />
           );
         })}
