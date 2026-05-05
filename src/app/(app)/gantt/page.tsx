@@ -252,6 +252,9 @@ export default async function GanttPage({
         owner: m.preferredFactory?.name ?? m.owner?.name,
         overdue,
         done,
+        // Перетаскивание дедлайна сохраняет дату на ProductModel.
+        orderId: m.id,
+        endField: ph.toKey,
       });
 
       prevDate = endIso;

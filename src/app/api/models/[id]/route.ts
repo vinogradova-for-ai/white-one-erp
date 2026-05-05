@@ -42,10 +42,20 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const merged = { ...existing, ...data };
     const eco = calculateModelEconomics(merged);
 
+    // Даты этапов разработки приходят строкой YYYY-MM-DD; конвертим в Date.
+    const dateFields = ["patternsDate", "sampleDate", "approvedDate", "productionStartDate"] as const;
+    const dateUpdates: Record<string, Date | null | undefined> = {};
+    for (const f of dateFields) {
+      const v = (data as Record<string, unknown>)[f];
+      if (v === undefined) continue;
+      dateUpdates[f] = v == null || v === "" ? null : new Date(String(v));
+    }
+
     const updated = await prisma.productModel.update({
       where: { id },
       data: {
         ...data,
+        ...dateUpdates,
         patternsUrl: data.patternsUrl === undefined ? undefined : data.patternsUrl || null,
         fullCost: eco.fullCost ?? null,
         marginBeforeDrr: eco.marginBeforeDrr ?? null,
