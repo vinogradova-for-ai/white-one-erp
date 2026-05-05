@@ -511,23 +511,30 @@ function DraggableBar({
       <div className="pointer-events-none absolute left-1/2 top-full z-20 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] text-white shadow-lg group-hover:block">
         {tooltip}
       </div>
+      {/* Левая ручка — видимая стрелка ◀ внутри плашки. Не вылазит наружу,
+          чтобы соседние фазы визуально оставались встык. */}
       {editable && onCommitStart && (
         <span
           onMouseDown={(e) => beginDrag(e, "start")}
-          className="absolute left-0 top-0 h-full w-1.5 cursor-ew-resize rounded-l bg-slate-900/40 hover:bg-slate-900/70"
-          title="Перетащить старт фазы"
-        />
+          className="absolute left-0 top-1/2 z-20 flex h-4 w-4 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white/90 text-[9px] font-bold leading-none text-slate-700 shadow-sm hover:scale-125 hover:bg-white"
+          title="Тащить — изменить старт фазы"
+        >
+          ◀
+        </span>
       )}
+      {/* Правая ручка — видимая стрелка ▶ внутри плашки */}
       {editable && (
         <span
           onMouseDown={(e) => beginDrag(e, "end")}
-          className="absolute right-0 top-0 h-full w-1.5 cursor-ew-resize rounded-r bg-slate-900/40 hover:bg-slate-900/70"
-          title="Перетащить дедлайн"
-        />
+          className="absolute right-0 top-1/2 z-20 flex h-4 w-4 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white/90 text-[9px] font-bold leading-none text-slate-700 shadow-sm hover:scale-125 hover:bg-white"
+          title="Тащить — изменить дедлайн фазы"
+        >
+          ▶
+        </span>
       )}
       {dragging && hoverIso && (
         <div
-          className={`pointer-events-none absolute -top-5 whitespace-nowrap rounded-md bg-slate-900 px-1.5 py-0.5 text-[10px] text-white shadow ${dragging === "end" ? "right-0" : "left-0"}`}
+          className={`pointer-events-none absolute -top-5 z-30 whitespace-nowrap rounded-md bg-slate-900 px-1.5 py-0.5 text-[10px] text-white shadow ${dragging === "end" ? "right-0" : "left-0"}`}
         >
           {dragging === "end" ? "→" : "←"} {formatDM(hoverIso)}
         </div>
