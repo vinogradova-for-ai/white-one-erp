@@ -77,6 +77,7 @@ export function PackagingOrderTimeline({
   const [productionStart, setProductionStart] = useState(() => toISO(new Date()));
   const railRef = useRef<HTMLDivElement>(null);
   const [dragInfo, setDragInfo] = useState<{ left: number; label: string } | null>(null);
+  const [zoom, setZoom] = useState<"auto" | "1w" | "1m" | "3m">("auto");
 
   // If no dates saved yet, initialize from defaults
   const value: Timeline = hasSavedDates
@@ -84,7 +85,10 @@ export function PackagingOrderTimeline({
     : calcDefaults(deliveryMethod);
 
   const chartStart = productionStart;
-  const chartEnd = value.expectedDate || addDays(chartStart, 60);
+  const zoomDays = zoom === "1w" ? 7 : zoom === "1m" ? 30 : zoom === "3m" ? 90 : null;
+  const chartEnd = zoomDays != null
+    ? addDays(chartStart, zoomDays)
+    : (value.expectedDate || addDays(chartStart, 60));
   const totalDays = Math.max(1, daysBetween(chartStart, chartEnd));
 
   function posPct(iso: string): number {
@@ -230,9 +234,12 @@ export function PackagingOrderTimeline({
 
   return (
     <fieldset className="space-y-3">
-      <legend className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-        Таймлайн заказа упаковки
-      </legend>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <legend className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Таймлайн заказа упаковки
+        </legend>
+        <ZoomSwitch zoom={zoom} setZoom={setZoom} />
+      </div>
 
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 select-none">
         {/* Scale header */}
@@ -348,5 +355,36 @@ export function PackagingOrderTimeline({
         Тащите полосу, чтобы сдвинуть фазу, или за края — чтобы поменять старт/дедлайн.
       </p>
     </fieldset>
+  );
+}
+
+function ZoomSwitch({
+  zoom,
+  setZoom,
+}: {
+  zoom: "auto" | "1w" | "1m" | "3m";
+  setZoom: (z: "auto" | "1w" | "1m" | "3m") => void;
+}) {
+  const opts: Array<{ k: "auto" | "1w" | "1m" | "3m"; label: string }> = [
+    { k: "1w", label: "1 нед" },
+    { k: "1m", label: "1 мес" },
+    { k: "3m", label: "3 мес" },
+    { k: "auto", label: "Авто" },
+  ];
+  return (
+    <div className="flex gap-0.5 rounded-lg bg-slate-100 p-0.5 text-xs">
+      {opts.map((o) => (
+        <button
+          key={o.k}
+          type="button"
+          onClick={() => setZoom(o.k)}
+          className={`rounded-md px-2 py-1 font-medium ${
+            zoom === o.k ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }
