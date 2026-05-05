@@ -347,19 +347,6 @@ function RowView({
                   }
                 }
               }}
-              onMove={(deltaDays) => {
-                // Move-drag за середину плашки: сдвигает ВСЕ бары строки на ту же
-                // дельту — и предыдущие, и последующие, сохраняя их длительности
-                // (чтобы стартом текущей фазы оставался end предыдущей).
-                if (deltaDays === 0 || !onBarEndChange) return;
-                for (const nb of row.bars) {
-                  if (!nb.orderId || !nb.endField) continue;
-                  const nbKey = `${row.group}:${nb.orderId}:${nb.endField}`;
-                  const nbCur = pendingChanges?.[nbKey] ?? nb.end;
-                  const shifted = toISO(addDays(parseISO(nbCur), deltaDays));
-                  onBarEndChange(nb.orderId, nb.endField, shifted, row.group);
-                }
-              }}
             />
           );
         })}
@@ -382,7 +369,6 @@ function DraggableBar({
   endIso,
   onCommit,
   onCommitStart,
-  onMove,
 }: {
   left: number;
   width: number;
@@ -397,18 +383,16 @@ function DraggableBar({
   endIso: string;
   onCommit: (newEndIso: string) => void;
   onCommitStart?: (newStartIso: string) => void;
-  onMove?: (deltaDays: number) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [dragging, setDragging] = useState<"end" | "start" | "move" | null>(null);
+  const [dragging, setDragging] = useState<"end" | "start" | null>(null);
   const [hoverIso, setHoverIso] = useState<string | null>(null);
-  const [moveDelta, setMoveDelta] = useState<number>(0);
   // Визуальный «флеш» после успешного commit — белый-через-зелёный обвод
   // на ~600мс, чтобы пользователь видел: «всё, дёрнул и сохранил».
   const [flash, setFlash] = useState(false);
   // Drag через дельту от стартовой точки — позволяет тащить дату ЗА пределы
   // видимой шкалы (в прошлое раньше chartStart или в будущее позже chartEnd).
-  const dragRef = useRef<{ startX: number; pxPerDay: number; origStart: string; origEnd: string } | null>(null);
+  const dragRef = useRef<{ startX: number; pxPerDay: number; origIso: string } | null>(null);
 
   useEffect(() => {
     if (!dragging) return;
@@ -416,12 +400,7 @@ function DraggableBar({
       const s = dragRef.current;
       if (!s) return;
       const deltaDays = Math.round((e.clientX - s.startX) / s.pxPerDay);
-      if (dragging === "move") {
-        setMoveDelta(deltaDays);
-        return;
-      }
-      const orig = dragging === "end" ? s.origEnd : s.origStart;
-      const iso = toISO(addDays(parseISO(orig), deltaDays));
+      const iso = toISO(addDays(parseISO(s.origIso), deltaDays));
       // Единственное ограничение — start <= end, иначе фаза вывернется.
       if (dragging === "end") {
         setHoverIso(iso < startIso ? startIso : iso);
@@ -431,15 +410,12 @@ function DraggableBar({
     }
     function onUp() {
       let committed = false;
-      if (dragging === "move") {
-        if (moveDelta !== 0 && onMove) { onMove(moveDelta); committed = true; }
-      } else if (hoverIso) {
+      if (hoverIso) {
         if (dragging === "end") { onCommit(hoverIso); committed = true; }
         else if (onCommitStart) { onCommitStart(hoverIso); committed = true; }
       }
       setDragging(null);
       setHoverIso(null);
-      setMoveDelta(0);
       dragRef.current = null;
       if (committed) {
         setFlash(true);
@@ -452,9 +428,9 @@ function DraggableBar({
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [dragging, hoverIso, moveDelta, onCommit, onCommitStart, onMove, startIso, endIso]);
+  }, [dragging, hoverIso, onCommit, onCommitStart, startIso, endIso]);
 
-  function beginDrag(e: React.MouseEvent, mode: "start" | "end" | "move") {
+  function beginDrag(e: React.MouseEvent, mode: "start" | "end") {
     e.preventDefault();
     e.stopPropagation();
     const track = ref.current?.parentElement;
@@ -464,22 +440,15 @@ function DraggableBar({
     dragRef.current = {
       startX: e.clientX,
       pxPerDay: rect.width / totalDays,
-      origStart: startIso,
-      origEnd: endIso,
+      origIso: mode === "end" ? endIso : startIso,
     };
     setDragging(mode);
   }
 
-  // Превью смещения при move-drag: показываем в углу плашки, насколько дней сдвиг.
-  const moveLabel = dragging === "move" && moveDelta !== 0
-    ? `${moveDelta > 0 ? "+" : ""}${moveDelta} дн`
-    : null;
-
   return (
     <div
       ref={ref}
-      onMouseDown={editable && onMove ? (e) => beginDrag(e, "move") : undefined}
-      className={`group absolute h-4 rounded ${barColor} ${done ? "opacity-60" : ""} shadow-sm transition-all duration-300 ${flash ? "ring-2 ring-emerald-400 ring-offset-1" : ""} ${editable && onMove ? (dragging === "move" ? "cursor-grabbing ring-2 ring-slate-900/40" : "cursor-grab") : ""}`}
+      className={`group absolute h-4 rounded ${barColor} ${done ? "opacity-60" : ""} shadow-sm transition-all duration-300 ${flash ? "ring-2 ring-emerald-400 ring-offset-1" : ""}`}
       style={{ left: `${left}%`, width: `${width}%`, top }}
       title={tooltip}
     >
@@ -500,16 +469,11 @@ function DraggableBar({
           title="Перетащить дедлайн"
         />
       )}
-      {dragging && hoverIso && dragging !== "move" && (
+      {dragging && hoverIso && (
         <div
           className={`pointer-events-none absolute -top-5 whitespace-nowrap rounded-md bg-slate-900 px-1.5 py-0.5 text-[10px] text-white shadow ${dragging === "end" ? "right-0" : "left-0"}`}
         >
           {dragging === "end" ? "→" : "←"} {formatDM(hoverIso)}
-        </div>
-      )}
-      {moveLabel && (
-        <div className="pointer-events-none absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white shadow">
-          {moveLabel}
         </div>
       )}
     </div>
