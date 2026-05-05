@@ -90,10 +90,12 @@ export default async function GanttPage({
         preferredFactory: { select: { name: true } },
       },
     }),
+    // Команда продуктового отдела — показываем всех 5, даже если у них пока
+    // нет активных заказов (Алёна, Вера, Оля, Настя, Катя).
     prisma.user.findMany({
       where: {
         isActive: true,
-        ownedOrders: { some: { deletedAt: null, status: { not: "ON_SALE" } } },
+        role: { in: ["OWNER", "PRODUCT_MANAGER", "ASSISTANT", "CONTENT_MANAGER"] },
       },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
