@@ -145,16 +145,15 @@ export function PackagingOrderTimeline({
       const deltaDays = Math.round((ev.clientX - s.startX) / s.pxPerDay);
       if (deltaDays === 0) return;
 
-      // Длительность Доставки в днях (от origProductionEnd до origExpectedDate)
+      // Никаких clamp'ов — Алёна должна тащить даты куда угодно, в т.ч. в прошлое.
+      // Длительность Доставки = expectedDate - productionEndDate (для каскада).
       const deliveryDuration = daysBetween(s.origProductionEnd, s.origExpectedDate);
 
       if (s.phase.key === "production") {
         if (s.mode === "resize-left") {
-          // Тянем левый край Производства — сдвигаем productionStart (UI-only)
-          // и каскадно — productionEndDate и expectedDate, чтобы все фазы поехали
-          // вместе с теми же длительностями.
+          // Drag ◀ Производства (первая плашка) = меняем стартовую дату.
+          // Все фазы сдвигаются на ту же дельту — длительности сохраняются.
           const newStart = addDays(s.origProductionStart, deltaDays);
-          if (daysBetween(newStart, s.origProductionEnd) < 1) return;
           const newProdEnd = addDays(s.origProductionEnd, deltaDays);
           const newExpected = addDays(s.origExpectedDate, deltaDays);
           setProductionStart(newStart);
@@ -163,48 +162,35 @@ export function PackagingOrderTimeline({
           return;
         }
         if (s.mode === "resize-right") {
-          // Тянем правый край Производства = меняем productionEndDate.
-          // Каскад: expectedDate сдвигается на ту же дельту, длительность Доставки сохраняется.
+          // Drag ▶ Производства = меняем длительность Производства.
+          // Доставка сдвигается на ту же дельту, её длительность сохраняется.
           const newEnd = addDays(s.origEnd, deltaDays);
-          if (daysBetween(s.origStart, newEnd) < 1) return;
-          const newExpected = addDays(newEnd, deliveryDuration);
+          const newExpected = addDays(s.origExpectedDate, deltaDays);
           commitChange({ productionEndDate: newEnd, expectedDate: newExpected });
           setDragInfo({ left: posPct(newEnd), label: formatDM(newEnd) });
           return;
         }
-        // move — для Production двигаем productionStart, productionEnd, expectedDate
-        const newStart = addDays(s.origProductionStart, deltaDays);
-        const newEnd = addDays(s.origEnd, deltaDays);
-        const newExpected = addDays(s.origExpectedDate, deltaDays);
-        setProductionStart(newStart);
-        commitChange({ productionEndDate: newEnd, expectedDate: newExpected });
-        setDragInfo({ left: posPct(newEnd), label: `${formatDM(newStart)} → ${formatDM(newEnd)}` });
+        // move (drag за середину) — оставлен dead, не вызывается из UI.
+        return;
       } else {
         // delivery phase
         if (s.mode === "resize-left") {
-          // Тянем левый край Доставки = меняем productionEndDate.
-          // Каскад: expectedDate сдвигается на ту же дельту, длительность Доставки сохраняется.
+          // Drag ◀ Доставки = drag ▶ Производства: меняем длительность
+          // Производства. Доставка едет на дельту, её длительность сохраняется.
           const newProdEnd = addDays(s.origProductionEnd, deltaDays);
-          if (daysBetween(s.origProductionStart, newProdEnd) < 1) return;
           const newExpected = addDays(newProdEnd, deliveryDuration);
           commitChange({ productionEndDate: newProdEnd, expectedDate: newExpected });
           setDragInfo({ left: posPct(newProdEnd), label: formatDM(newProdEnd) });
           return;
         }
         if (s.mode === "resize-right") {
-          // Тянем правый край Доставки — последняя фаза, без каскада.
+          // Drag ▶ Доставки = меняем длительность Доставки. Никого после неё.
           const newExpected = addDays(s.origExpectedDate, deltaDays);
-          if (daysBetween(s.origProductionEnd, newExpected) < 0) return;
           commitChange({ productionEndDate: s.origProductionEnd, expectedDate: newExpected });
           setDragInfo({ left: posPct(newExpected), label: formatDM(newExpected) });
           return;
         }
-        // move delivery — shift both ends
-        const newProdEnd = addDays(s.origProductionEnd, deltaDays);
-        const newExpected = addDays(s.origExpectedDate, deltaDays);
-        if (daysBetween(s.origProductionStart, newProdEnd) < 1) return;
-        commitChange({ productionEndDate: newProdEnd, expectedDate: newExpected });
-        setDragInfo({ left: posPct(newExpected), label: `${formatDM(newProdEnd)} → ${formatDM(newExpected)}` });
+        return;
       }
     }
 

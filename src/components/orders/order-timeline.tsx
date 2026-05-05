@@ -206,17 +206,19 @@ export function OrderTimeline({
       if (!s) return;
       const deltaPx = ev.clientX - s.startX;
       const deltaDays = Math.round(deltaPx / s.pxPerDay);
+      if (deltaDays === 0) return;
 
       const next: Timeline = { ...initial };
       const idx = PHASES.indexOf(s.phase);
 
+      // Никаких clamp'ов / валидаций — даты должны двигаться куда угодно,
+      // в том числе в прошлое. Если пользователь сделает фазу с
+      // отрицательной длительностью — увидит сам и поправит.
+
       if (s.mode === "resize-right") {
-        // Тащим правый край фазы N: сдвигаем end текущей и end всех
-        // последующих фаз на ту же дельту дней. Длительности
-        // последующих фаз сохраняются — они едут за дедлайном.
-        if (deltaDays === 0) return;
+        // Drag ▶ фазы N: меняем длительность фазы N (её end двигается).
+        // Соседи СПРАВА сдвигаются на ту же дельту — их длительности сохраняются.
         const newEnd = addDays(s.origEnd, deltaDays);
-        if (daysBetween(s.origStart, newEnd) < 0) return;
         next[s.phase.endField] = newEnd;
         for (let j = idx + 1; j < PHASES.length; j++) {
           const nextPh = PHASES[j];
@@ -224,14 +226,10 @@ export function OrderTimeline({
         }
         setDragInfo({ left: posPct(newEnd), label: formatDM(newEnd) });
       } else if (s.mode === "resize-left") {
-        // Тащим левый край фазы N. Для первой фазы сдвигаем productionStart
-        // (UI-only, не сохраняется). Для остальных — сдвигаем end предыдущей
-        // фазы (= start текущей) и каскадно end текущей и всех последующих.
-        if (deltaDays === 0) return;
         if (idx === 0) {
+          // Drag ◀ самой первой плашки = меняем стартовую дату всей цепочки.
+          // ВСЕ фазы сдвигаются на ту же дельту — длительности всех сохраняются.
           const newStart = addDays(s.origProductionStart, deltaDays);
-          if (daysBetween(newStart, s.origEnd) < 0) return;
-          // Каскад вправо: сохраняем длительности всех фаз — двигаем их end-ы.
           for (const ph of PHASES) {
             next[ph.endField] = addDays(origAllEnds[ph.endField], deltaDays);
           }
@@ -241,20 +239,19 @@ export function OrderTimeline({
           commitChange(next);
           return;
         }
+        // Drag ◀ не первой фазы = drag ▶ предыдущей: меняем длительность
+        // предыдущей фазы. Текущая и далее едут на ту же дельту, их
+        // длительности сохраняются.
         if (!s.origPrevEnd) return;
         const newPrevEnd = addDays(s.origPrevEnd, deltaDays);
-        if (daysBetween(newPrevEnd, addDays(s.origEnd, deltaDays)) < 0) return;
         const prev = PHASES[idx - 1];
         next[prev.endField] = newPrevEnd;
-        // Каскад: end текущей и далее тоже на ту же дельту
         for (let j = idx; j < PHASES.length; j++) {
           const nextPh = PHASES[j];
           next[nextPh.endField] = addDays(origAllEnds[nextPh.endField], deltaDays);
         }
         setDragInfo({ left: posPct(newPrevEnd), label: formatDM(newPrevEnd) });
       } else {
-        // move (drag за середину) — не используется в UI с тех пор как
-        // Алёна попросила drag только за края, оставлен для совместимости.
         return;
       }
       commitChange(next);

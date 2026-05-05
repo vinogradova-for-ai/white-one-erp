@@ -354,29 +354,26 @@ function RowView({
               startIso={effStart}
               endIso={effEnd}
               onCommit={(newEndIso) => {
-                if (b.orderId && b.endField && onBarEndChange) {
-                  // Каскадный сдвиг: при изменении end этой фазы все последующие
-                  // фазы того же заказа двигаются на ту же дельту, сохраняя длительности.
-                  const oldEndIso = pendingChanges?.[pendKey ?? ""] ?? b.end;
-                  const deltaMs = parseISO(newEndIso).getTime() - parseISO(oldEndIso).getTime();
-                  const deltaDays = Math.round(deltaMs / 86400000);
-                  onBarEndChange(b.orderId, b.endField, newEndIso, row.group);
-                  if (deltaDays !== 0) {
-                    for (let j = i + 1; j < row.bars.length; j++) {
-                      const nb = row.bars[j];
-                      if (!nb.orderId || !nb.endField) continue;
-                      const nbKey = `${row.group}:${nb.orderId}:${nb.endField}`;
-                      const nbCur = pendingChanges?.[nbKey] ?? nb.end;
-                      const shifted = toISO(addDays(parseISO(nbCur), deltaDays));
-                      onBarEndChange(nb.orderId, nb.endField, shifted, row.group);
-                    }
-                  }
+                // Drag ▶ фазы N → меняем длительность фазы N (её end двигается,
+                // start не двигается). Соседи справа едут на ту же дельту,
+                // их длительности сохраняются. Если N — последняя фаза,
+                // двигается только она.
+                if (!b.orderId || !b.endField || !onBarEndChange) return;
+                const oldEndIso = pendingChanges?.[pendKey ?? ""] ?? b.end;
+                const deltaMs = parseISO(newEndIso).getTime() - parseISO(oldEndIso).getTime();
+                const deltaDays = Math.round(deltaMs / 86400000);
+                if (deltaDays === 0) return;
+                onBarEndChange(b.orderId, b.endField, newEndIso, row.group);
+                for (let j = i + 1; j < row.bars.length; j++) {
+                  const nb = row.bars[j];
+                  if (!nb.orderId || !nb.endField) continue;
+                  const nbKey = `${row.group}:${nb.orderId}:${nb.endField}`;
+                  const nbCur = pendingChanges?.[nbKey] ?? nb.end;
+                  const shifted = toISO(addDays(parseISO(nbCur), deltaDays));
+                  onBarEndChange(nb.orderId, nb.endField, shifted, row.group);
                 }
               }}
               onCommitStart={
-                // Drag за левый край: меняем start этой фазы.
-                // Для не-первой фазы start = end предыдущей фазы (одно поле в БД),
-                // поэтому пишем в prev.endField. Для первой фазы — в собственный startField.
                 ((prev && prev.orderId && prev.endField) || (i === 0 && b.startField))
                   ? (newStartIso) => {
                       if (!b.orderId || !onBarEndChange) return;
@@ -384,21 +381,31 @@ function RowView({
                       const deltaMs = parseISO(newStartIso).getTime() - parseISO(oldStartIso).getTime();
                       const deltaDays = Math.round(deltaMs / 86400000);
                       if (deltaDays === 0) return;
-                      // Сохраняем новый start
                       if (prev && prev.orderId && prev.endField) {
+                        // Drag ◀ не первой фазы = drag ▶ предыдущей фазы:
+                        // меняем длительность предыдущей. Текущая и далее едут
+                        // на дельту, длительности сохраняются.
                         onBarEndChange(prev.orderId, prev.endField, newStartIso, row.group);
+                        for (let j = i; j < row.bars.length; j++) {
+                          const nb = row.bars[j];
+                          if (!nb.orderId || !nb.endField) continue;
+                          const nbKey = `${row.group}:${nb.orderId}:${nb.endField}`;
+                          const nbCur = pendingChanges?.[nbKey] ?? nb.end;
+                          const shifted = toISO(addDays(parseISO(nbCur), deltaDays));
+                          onBarEndChange(nb.orderId, nb.endField, shifted, row.group);
+                        }
                       } else if (b.startField) {
+                        // Drag ◀ самой первой плашки = меняем стартовую дату
+                        // всей цепочки. Все фазы сдвигаются на ту же дельту,
+                        // длительности всех сохраняются.
                         onBarEndChange(b.orderId, b.startField, newStartIso, row.group);
-                      }
-                      // Каскадный сдвиг вправо: end текущей фазы и всех последующих
-                      // двигаются на ту же дельту — длительности сохраняются.
-                      for (let j = i; j < row.bars.length; j++) {
-                        const nb = row.bars[j];
-                        if (!nb.orderId || !nb.endField) continue;
-                        const nbKey = `${row.group}:${nb.orderId}:${nb.endField}`;
-                        const nbCur = pendingChanges?.[nbKey] ?? nb.end;
-                        const shifted = toISO(addDays(parseISO(nbCur), deltaDays));
-                        onBarEndChange(nb.orderId, nb.endField, shifted, row.group);
+                        for (const nb of row.bars) {
+                          if (!nb.orderId || !nb.endField) continue;
+                          const nbKey = `${row.group}:${nb.orderId}:${nb.endField}`;
+                          const nbCur = pendingChanges?.[nbKey] ?? nb.end;
+                          const shifted = toISO(addDays(parseISO(nbCur), deltaDays));
+                          onBarEndChange(nb.orderId, nb.endField, shifted, row.group);
+                        }
                       }
                     }
                   : undefined
@@ -456,13 +463,11 @@ function DraggableBar({
       const s = dragRef.current;
       if (!s) return;
       const deltaDays = Math.round((e.clientX - s.startX) / s.pxPerDay);
-      const iso = toISO(addDays(parseISO(s.origIso), deltaDays));
-      // Единственное ограничение — start <= end, иначе фаза вывернется.
-      if (dragging === "end") {
-        setHoverIso(iso < startIso ? startIso : iso);
-      } else {
-        setHoverIso(iso > endIso ? endIso : iso);
-      }
+      // Никаких clamp'ов — даты должны двигаться куда угодно, в т.ч. в прошлое.
+      // Если пользователь сдвинет так, что фаза перевернётся (end < start),
+      // он сам это увидит и поправит, а блокировка через clamp мешает свободно
+      // тянуть вперёд/назад на длительные дистанции.
+      setHoverIso(toISO(addDays(parseISO(s.origIso), deltaDays)));
     }
     function onUp() {
       let committed = false;
