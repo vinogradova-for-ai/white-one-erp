@@ -87,7 +87,9 @@ export function GanttChart({
   onBarEndChange?: (orderId: string, endField: string, newEnd: string, group: GanttGroup) => void;
   pendingChanges?: Record<string, string>; // ключ: `${orderId}:${endField}` → ISO дата
 }) {
-  const [rangeKey, setRangeKey] = useState("3m");
+  // Дефолт 6 мес — у заказов производство пальто бывает по 80+ дней,
+  // и в 3-мес окне ОТК + Доставка просто не помещаются справа.
+  const [rangeKey, setRangeKey] = useState("6m");
 
   const range = RANGE_OPTIONS.find((r) => r.key === rangeKey) ?? RANGE_OPTIONS[1];
 
@@ -326,12 +328,20 @@ function RowView({
             (prevPendKey && pendingChanges?.[prevPendKey]) ||
             (startPendKey && pendingChanges?.[startPendKey])
           );
-          // Клип к видимому диапазону
-          const s = effStart < chartStart ? chartStart : effStart;
-          const e = effEnd > chartEnd ? chartEnd : effEnd;
-          if (e < chartStart || s > chartEnd) return null;
+          // Клип к видимому диапазону. Если ВСЯ фаза правее chartEnd
+          // (например ОТК уехала за границу 6-мес окна) — оставляем
+          // visible-stub у правого края, чтобы плашка с её ◀ ▶ всё же
+          // была доступна и Алёна могла её таскать. То же зеркально слева.
+          let s = effStart;
+          let e = effEnd;
+          if (s > chartEnd) s = chartEnd;
+          if (e < chartStart) e = chartStart;
+          if (s < chartStart) s = chartStart;
+          if (e > chartEnd) e = chartEnd;
           const left = posPct(s);
-          const width = Math.max(0.3, posPct(e) - left);
+          // Минимум 1.2% (~10px на 900-px-шкале) чтобы плашка с нулевой
+          // длительностью была видна и её можно было ухватить за ◀ ▶.
+          const width = Math.max(1.2, posPct(e) - left);
           const days = Math.round((parseISO(effEnd).getTime() - parseISO(effStart).getTime()) / 86400000);
           // Цвет фазы фиксирован (производство/ОТК/доставка). Просрочка показывается красным,
           // но "грязное" состояние (несохранённый drag) НЕ меняет цвет — оставляем родной цвет фазы.
@@ -344,7 +354,7 @@ function RowView({
               key={b.key + i}
               left={left}
               width={width}
-              top={8}
+              top={11}
               barColor={barColor}
               done={b.done}
               tooltip={tooltip}
@@ -509,7 +519,7 @@ function DraggableBar({
   return (
     <div
       ref={ref}
-      className={`group absolute h-4 rounded ${barColor} ${done ? "opacity-60" : ""} shadow-sm transition-all duration-300 ${flash ? "ring-2 ring-emerald-400 ring-offset-1" : ""}`}
+      className={`group absolute h-6 rounded ${barColor} ${done ? "opacity-60" : ""} shadow-sm transition-all duration-300 ${flash ? "ring-2 ring-emerald-400 ring-offset-1" : ""}`}
       style={{ left: `${left}%`, width: `${width}%`, top }}
       title={tooltip}
     >
