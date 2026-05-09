@@ -92,19 +92,22 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         ? (data.arrivedDate ? new Date(data.arrivedDate) : null)
         : old.arrivedDate;
 
+      const writeData: Record<string, unknown> = {
+        arrivedDate: willBeArrived && !arrivedDateRaw ? new Date() : arrivedDateRaw,
+      };
+      if (data.factoryId !== undefined) writeData.factoryId = data.factoryId || null;
+      if (data.supplierName !== undefined) writeData.supplierName = data.supplierName || null;
+      if (data.orderedDate !== undefined) writeData.orderedDate = data.orderedDate ? new Date(data.orderedDate) : null;
+      if (data.productionEndDate !== undefined) writeData.productionEndDate = data.productionEndDate ? new Date(data.productionEndDate) : null;
+      if (data.expectedDate !== undefined) writeData.expectedDate = data.expectedDate ? new Date(data.expectedDate) : null;
+      if (data.deliveryMethod !== undefined) writeData.deliveryMethod = data.deliveryMethod || null;
+      if (data.ownerId !== undefined) writeData.ownerId = data.ownerId;
+      if (data.notes !== undefined) writeData.notes = data.notes || null;
+      if (data.status !== undefined) writeData.status = newStatus;
+
       const updatedOrder = await tx.packagingOrder.update({
         where: { id },
-        data: {
-          ...(data.factoryId !== undefined && { factoryId: data.factoryId || null }),
-          ...(data.supplierName !== undefined && { supplierName: data.supplierName || null }),
-          ...(data.productionEndDate !== undefined && { productionEndDate: data.productionEndDate ? new Date(data.productionEndDate) : null }),
-          ...(data.expectedDate !== undefined && { expectedDate: data.expectedDate ? new Date(data.expectedDate) : null }),
-          ...(data.deliveryMethod !== undefined && { deliveryMethod: data.deliveryMethod || null }),
-          ...(data.ownerId !== undefined && { ownerId: data.ownerId }),
-          ...(data.notes !== undefined && { notes: data.notes || null }),
-          ...(data.status !== undefined && { status: newStatus }),
-          arrivedDate: willBeArrived && !arrivedDateRaw ? new Date() : arrivedDateRaw,
-        },
+        data: writeData,
       });
 
       // Если пришёл график платежей — заменяем существующие

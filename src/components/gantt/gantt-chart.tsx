@@ -13,9 +13,14 @@ export type GanttBar = {
   owner?: string;
   overdue?: boolean;
   done?: boolean;
-  // Опционально: для редактирования дедлайнов через drag
+  // Опционально: для редактирования дат через drag.
+  // endField — имя поля на Order/PackagingOrder/ProductModel, куда уходит
+  // новый end. Для не-первой фазы этого хватает (start фазы N+1 = end фазы N
+  // = одно поле в БД), для первой фазы дополнительно указывается startField,
+  // чтобы можно было тянуть и её левый край.
   orderId?: string;
-  endField?: string;   // имя поля на Order, в которое сохранится новая end-дата
+  endField?: string;
+  startField?: string;
 };
 
 export type GanttGroup = "development" | "orders" | "packaging";
@@ -299,18 +304,39 @@ function RowView({
           // не пересекались между собой.
           const pendKey = b.orderId && b.endField ? `${row.group}:${b.orderId}:${b.endField}` : null;
           const effEnd = (pendKey && pendingChanges?.[pendKey]) ? pendingChanges[pendKey] : b.end;
-          const dirty = !!(pendKey && pendingChanges?.[pendKey]);
+          // Start фазы N+1 = end фазы N (хранится одним полем в БД, например
+          // readyAtFactoryDate = end Производства = start ОТК). Если на предыдущей
+          // фазе есть несохранённый drag — он же и есть новый start этой фазы.
+          // Для первой фазы у неё может быть собственный startField (например,
+          // handedToFactoryDate у заказа), и тогда pending для него — её новый start.
+          const prev = i > 0 ? row.bars[i - 1] : null;
+          const prevPendKey = prev?.orderId && prev?.endField
+            ? `${row.group}:${prev.orderId}:${prev.endField}`
+            : null;
+          const startPendKey = i === 0 && b.orderId && b.startField
+            ? `${row.group}:${b.orderId}:${b.startField}`
+            : null;
+          const effStart = (prevPendKey && pendingChanges?.[prevPendKey])
+            ? pendingChanges[prevPendKey]
+            : (startPendKey && pendingChanges?.[startPendKey])
+              ? pendingChanges[startPendKey]
+              : b.start;
+          const dirty = !!(
+            (pendKey && pendingChanges?.[pendKey]) ||
+            (prevPendKey && pendingChanges?.[prevPendKey]) ||
+            (startPendKey && pendingChanges?.[startPendKey])
+          );
           // Клип к видимому диапазону
-          const s = b.start < chartStart ? chartStart : b.start;
+          const s = effStart < chartStart ? chartStart : effStart;
           const e = effEnd > chartEnd ? chartEnd : effEnd;
           if (e < chartStart || s > chartEnd) return null;
           const left = posPct(s);
           const width = Math.max(0.3, posPct(e) - left);
-          const days = Math.round((parseISO(effEnd).getTime() - parseISO(b.start).getTime()) / 86400000);
+          const days = Math.round((parseISO(effEnd).getTime() - parseISO(effStart).getTime()) / 86400000);
           // Цвет фазы фиксирован (производство/ОТК/доставка). Просрочка показывается красным,
           // но "грязное" состояние (несохранённый drag) НЕ меняет цвет — оставляем родной цвет фазы.
           const barColor = b.overdue ? "bg-red-500" : b.color;
-          const tooltip = `${b.title} · ${formatDM(b.start)} → ${formatDM(effEnd)} · ${days} дн${b.owner ? ` · ${b.owner}` : ""}${b.overdue ? " · ПРОСРОЧЕНО" : ""}${dirty ? " · ИЗМЕНЕНО" : ""}`;
+          const tooltip = `${b.title} · ${formatDM(effStart)} → ${formatDM(effEnd)} · ${days} дн${b.owner ? ` · ${b.owner}` : ""}${b.overdue ? " · ПРОСРОЧЕНО" : ""}${dirty ? " · ИЗМЕНЕНО" : ""}`;
           // Все фазы одного заказа в одну строку — они идут последовательно по времени.
           const editable = !!(b.orderId && b.endField && onBarEndChange);
           return (
@@ -325,34 +351,21 @@ function RowView({
               editable={editable}
               chartStart={chartStart}
               chartEnd={chartEnd}
-              startIso={b.start}
+              startIso={effStart}
               endIso={effEnd}
               onCommit={(newEndIso) => {
-                if (b.orderId && b.endField && onBarEndChange) {
-                  // Каскадный сдвиг: при изменении end этой фазы все последующие
-                  // фазы того же заказа двигаются на ту же дельту, сохраняя длительности.
-                  const oldEndIso = pendingChanges?.[pendKey ?? ""] ?? b.end;
-                  const deltaMs = parseISO(newEndIso).getTime() - parseISO(oldEndIso).getTime();
-                  const deltaDays = Math.round(deltaMs / 86400000);
-                  onBarEndChange(b.orderId, b.endField, newEndIso, row.group);
-                  if (deltaDays !== 0) {
-                    for (let j = i + 1; j < row.bars.length; j++) {
-                      const nb = row.bars[j];
-                      if (!nb.orderId || !nb.endField) continue;
-                      const nbKey = `${row.group}:${nb.orderId}:${nb.endField}`;
-                      const nbCur = pendingChanges?.[nbKey] ?? nb.end;
-                      const shifted = toISO(addDays(parseISO(nbCur), deltaDays));
-                      onBarEndChange(nb.orderId, nb.endField, shifted, row.group);
-                    }
-                  }
-                }
-              }}
-              onMove={(deltaDays) => {
-                // Move-drag за середину плашки: сдвигает ВСЕ бары строки на ту же
-                // дельту — и предыдущие, и последующие, сохраняя их длительности
-                // (чтобы стартом текущей фазы оставался end предыдущей).
-                if (deltaDays === 0 || !onBarEndChange) return;
-                for (const nb of row.bars) {
+                // Drag ▶ фазы N → меняем длительность фазы N (её end двигается,
+                // start не двигается). Соседи справа едут на ту же дельту,
+                // их длительности сохраняются. Если N — последняя фаза,
+                // двигается только она.
+                if (!b.orderId || !b.endField || !onBarEndChange) return;
+                const oldEndIso = pendingChanges?.[pendKey ?? ""] ?? b.end;
+                const deltaMs = parseISO(newEndIso).getTime() - parseISO(oldEndIso).getTime();
+                const deltaDays = Math.round(deltaMs / 86400000);
+                if (deltaDays === 0) return;
+                onBarEndChange(b.orderId, b.endField, newEndIso, row.group);
+                for (let j = i + 1; j < row.bars.length; j++) {
+                  const nb = row.bars[j];
                   if (!nb.orderId || !nb.endField) continue;
                   const nbKey = `${row.group}:${nb.orderId}:${nb.endField}`;
                   const nbCur = pendingChanges?.[nbKey] ?? nb.end;
@@ -360,6 +373,43 @@ function RowView({
                   onBarEndChange(nb.orderId, nb.endField, shifted, row.group);
                 }
               }}
+              onCommitStart={
+                ((prev && prev.orderId && prev.endField) || (i === 0 && b.startField))
+                  ? (newStartIso) => {
+                      if (!b.orderId || !onBarEndChange) return;
+                      const oldStartIso = effStart;
+                      const deltaMs = parseISO(newStartIso).getTime() - parseISO(oldStartIso).getTime();
+                      const deltaDays = Math.round(deltaMs / 86400000);
+                      if (deltaDays === 0) return;
+                      if (prev && prev.orderId && prev.endField) {
+                        // Drag ◀ не первой фазы = drag ▶ предыдущей фазы:
+                        // меняем длительность предыдущей. Текущая и далее едут
+                        // на дельту, длительности сохраняются.
+                        onBarEndChange(prev.orderId, prev.endField, newStartIso, row.group);
+                        for (let j = i; j < row.bars.length; j++) {
+                          const nb = row.bars[j];
+                          if (!nb.orderId || !nb.endField) continue;
+                          const nbKey = `${row.group}:${nb.orderId}:${nb.endField}`;
+                          const nbCur = pendingChanges?.[nbKey] ?? nb.end;
+                          const shifted = toISO(addDays(parseISO(nbCur), deltaDays));
+                          onBarEndChange(nb.orderId, nb.endField, shifted, row.group);
+                        }
+                      } else if (b.startField) {
+                        // Drag ◀ самой первой плашки = меняем стартовую дату
+                        // всей цепочки. Все фазы сдвигаются на ту же дельту,
+                        // длительности всех сохраняются.
+                        onBarEndChange(b.orderId, b.startField, newStartIso, row.group);
+                        for (const nb of row.bars) {
+                          if (!nb.orderId || !nb.endField) continue;
+                          const nbKey = `${row.group}:${nb.orderId}:${nb.endField}`;
+                          const nbCur = pendingChanges?.[nbKey] ?? nb.end;
+                          const shifted = toISO(addDays(parseISO(nbCur), deltaDays));
+                          onBarEndChange(nb.orderId, nb.endField, shifted, row.group);
+                        }
+                      }
+                    }
+                  : undefined
+              }
             />
           );
         })}
@@ -382,7 +432,6 @@ function DraggableBar({
   endIso,
   onCommit,
   onCommitStart,
-  onMove,
 }: {
   left: number;
   width: number;
@@ -397,18 +446,16 @@ function DraggableBar({
   endIso: string;
   onCommit: (newEndIso: string) => void;
   onCommitStart?: (newStartIso: string) => void;
-  onMove?: (deltaDays: number) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [dragging, setDragging] = useState<"end" | "start" | "move" | null>(null);
+  const [dragging, setDragging] = useState<"end" | "start" | null>(null);
   const [hoverIso, setHoverIso] = useState<string | null>(null);
-  const [moveDelta, setMoveDelta] = useState<number>(0);
   // Визуальный «флеш» после успешного commit — белый-через-зелёный обвод
   // на ~600мс, чтобы пользователь видел: «всё, дёрнул и сохранил».
   const [flash, setFlash] = useState(false);
   // Drag через дельту от стартовой точки — позволяет тащить дату ЗА пределы
   // видимой шкалы (в прошлое раньше chartStart или в будущее позже chartEnd).
-  const dragRef = useRef<{ startX: number; pxPerDay: number; origStart: string; origEnd: string } | null>(null);
+  const dragRef = useRef<{ startX: number; pxPerDay: number; origIso: string } | null>(null);
 
   useEffect(() => {
     if (!dragging) return;
@@ -416,30 +463,20 @@ function DraggableBar({
       const s = dragRef.current;
       if (!s) return;
       const deltaDays = Math.round((e.clientX - s.startX) / s.pxPerDay);
-      if (dragging === "move") {
-        setMoveDelta(deltaDays);
-        return;
-      }
-      const orig = dragging === "end" ? s.origEnd : s.origStart;
-      const iso = toISO(addDays(parseISO(orig), deltaDays));
-      // Единственное ограничение — start <= end, иначе фаза вывернется.
-      if (dragging === "end") {
-        setHoverIso(iso < startIso ? startIso : iso);
-      } else {
-        setHoverIso(iso > endIso ? endIso : iso);
-      }
+      // Никаких clamp'ов — даты должны двигаться куда угодно, в т.ч. в прошлое.
+      // Если пользователь сдвинет так, что фаза перевернётся (end < start),
+      // он сам это увидит и поправит, а блокировка через clamp мешает свободно
+      // тянуть вперёд/назад на длительные дистанции.
+      setHoverIso(toISO(addDays(parseISO(s.origIso), deltaDays)));
     }
     function onUp() {
       let committed = false;
-      if (dragging === "move") {
-        if (moveDelta !== 0 && onMove) { onMove(moveDelta); committed = true; }
-      } else if (hoverIso) {
+      if (hoverIso) {
         if (dragging === "end") { onCommit(hoverIso); committed = true; }
         else if (onCommitStart) { onCommitStart(hoverIso); committed = true; }
       }
       setDragging(null);
       setHoverIso(null);
-      setMoveDelta(0);
       dragRef.current = null;
       if (committed) {
         setFlash(true);
@@ -452,9 +489,9 @@ function DraggableBar({
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [dragging, hoverIso, moveDelta, onCommit, onCommitStart, onMove, startIso, endIso]);
+  }, [dragging, hoverIso, onCommit, onCommitStart, startIso, endIso]);
 
-  function beginDrag(e: React.MouseEvent, mode: "start" | "end" | "move") {
+  function beginDrag(e: React.MouseEvent, mode: "start" | "end") {
     e.preventDefault();
     e.stopPropagation();
     const track = ref.current?.parentElement;
@@ -464,52 +501,47 @@ function DraggableBar({
     dragRef.current = {
       startX: e.clientX,
       pxPerDay: rect.width / totalDays,
-      origStart: startIso,
-      origEnd: endIso,
+      origIso: mode === "end" ? endIso : startIso,
     };
     setDragging(mode);
   }
 
-  // Превью смещения при move-drag: показываем в углу плашки, насколько дней сдвиг.
-  const moveLabel = dragging === "move" && moveDelta !== 0
-    ? `${moveDelta > 0 ? "+" : ""}${moveDelta} дн`
-    : null;
-
   return (
     <div
       ref={ref}
-      onMouseDown={editable && onMove ? (e) => beginDrag(e, "move") : undefined}
-      className={`group absolute h-4 rounded ${barColor} ${done ? "opacity-60" : ""} shadow-sm transition-all duration-300 ${flash ? "ring-2 ring-emerald-400 ring-offset-1" : ""} ${editable && onMove ? (dragging === "move" ? "cursor-grabbing ring-2 ring-slate-900/40" : "cursor-grab") : ""}`}
+      className={`group absolute h-4 rounded ${barColor} ${done ? "opacity-60" : ""} shadow-sm transition-all duration-300 ${flash ? "ring-2 ring-emerald-400 ring-offset-1" : ""}`}
       style={{ left: `${left}%`, width: `${width}%`, top }}
       title={tooltip}
     >
       <div className="pointer-events-none absolute left-1/2 top-full z-20 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] text-white shadow-lg group-hover:block">
         {tooltip}
       </div>
+      {/* Левая ручка — видимая стрелка ◀ внутри плашки. Не вылазит наружу,
+          чтобы соседние фазы визуально оставались встык. */}
       {editable && onCommitStart && (
         <span
           onMouseDown={(e) => beginDrag(e, "start")}
-          className="absolute left-0 top-0 h-full w-1.5 cursor-ew-resize rounded-l bg-slate-900/40 hover:bg-slate-900/70"
-          title="Перетащить старт фазы"
-        />
+          className="absolute left-0 top-1/2 z-20 flex h-4 w-4 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white/90 text-[9px] font-bold leading-none text-slate-700 shadow-sm hover:scale-125 hover:bg-white"
+          title="Тащить — изменить старт фазы"
+        >
+          ◀
+        </span>
       )}
+      {/* Правая ручка — видимая стрелка ▶ внутри плашки */}
       {editable && (
         <span
           onMouseDown={(e) => beginDrag(e, "end")}
-          className="absolute right-0 top-0 h-full w-1.5 cursor-ew-resize rounded-r bg-slate-900/40 hover:bg-slate-900/70"
-          title="Перетащить дедлайн"
-        />
+          className="absolute right-0 top-1/2 z-20 flex h-4 w-4 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white/90 text-[9px] font-bold leading-none text-slate-700 shadow-sm hover:scale-125 hover:bg-white"
+          title="Тащить — изменить дедлайн фазы"
+        >
+          ▶
+        </span>
       )}
-      {dragging && hoverIso && dragging !== "move" && (
+      {dragging && hoverIso && (
         <div
-          className={`pointer-events-none absolute -top-5 whitespace-nowrap rounded-md bg-slate-900 px-1.5 py-0.5 text-[10px] text-white shadow ${dragging === "end" ? "right-0" : "left-0"}`}
+          className={`pointer-events-none absolute -top-5 z-30 whitespace-nowrap rounded-md bg-slate-900 px-1.5 py-0.5 text-[10px] text-white shadow ${dragging === "end" ? "right-0" : "left-0"}`}
         >
           {dragging === "end" ? "→" : "←"} {formatDM(hoverIso)}
-        </div>
-      )}
-      {moveLabel && (
-        <div className="pointer-events-none absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white shadow">
-          {moveLabel}
         </div>
       )}
     </div>
