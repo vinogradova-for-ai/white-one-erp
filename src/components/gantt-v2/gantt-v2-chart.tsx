@@ -462,7 +462,6 @@ function BarView({
       borderClass={borderClass}
       done={bar.state === "done"}
       future={bar.state === "future"}
-      title={bar.title}
       tooltip={tooltip}
       editable={editable}
       hasStartHandle={
@@ -549,7 +548,7 @@ function BarView({
 }
 
 function DraggableBar({
-  left, width, top, height, barColor, stateClass, borderClass, done, future, title, tooltip,
+  left, width, top, height, barColor, stateClass, borderClass, done, future, tooltip,
   editable, hasStartHandle, chartStart, chartEnd, startIso, endIso, onCommit, onCommitStart,
 }: {
   left: number;
@@ -561,7 +560,6 @@ function DraggableBar({
   borderClass: string;
   done?: boolean;
   future?: boolean;
-  title: string;
   tooltip: string;
   editable: boolean;
   hasStartHandle: boolean;
