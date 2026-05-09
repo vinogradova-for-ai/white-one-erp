@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { GanttV2Client } from "@/components/gantt-v2/gantt-v2-client";
 import type { GanttRowV2, GanttBarV2, BarState, GanttFilterOptions } from "@/components/gantt-v2/types";
 import { ORDER_STATUS_LABELS, BRAND_LABELS } from "@/lib/constants";
@@ -53,6 +54,9 @@ function getPhaseOwner(phaseKey: string, pmName: string | null | undefined, fact
 }
 
 export default async function GanttV2Page() {
+  const session = await auth();
+  const isOwner = session?.user?.role === "OWNER";
+
   const [orders, packagingOrders, devModels, owners, factories] = await Promise.all([
     prisma.order.findMany({
       where: { deletedAt: null, status: { not: "ON_SALE" } },
@@ -420,6 +424,7 @@ export default async function GanttV2Page() {
       rows={rows}
       filterOptions={filterOptions}
       todayIso={todayIso}
+      isOwner={isOwner}
     />
   );
 }

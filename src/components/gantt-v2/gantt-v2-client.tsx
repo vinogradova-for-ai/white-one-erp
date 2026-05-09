@@ -52,10 +52,12 @@ export function GanttV2Client({
   rows,
   filterOptions,
   todayIso,
+  isOwner,
 }: {
   rows: GanttRowV2[];
   filterOptions: GanttFilterOptions;
   todayIso: string;
+  isOwner: boolean;
 }) {
   const router = useRouter();
   const [filters, setFilters] = useState<GanttFilters>(initialFilters);
@@ -66,7 +68,40 @@ export function GanttV2Client({
   const [pending, setPending] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [normalizing, setNormalizing] = useState(false);
   const [, startTransition] = useTransition();
+
+  async function normalizeAll() {
+    if (normalizing) return;
+    const ok = window.confirm(
+      "Нормализовать таймлайны всех заказов?\n\n" +
+      "Будут перевыставлены даты по дефолтным длительностям, чтобы фазы шли строго последовательно:\n" +
+      "• Разработка — 14 дней\n" +
+      "• Производство — 35 дней\n" +
+      "• ОТК — 5 дней\n" +
+      "• Доставка — 30 дней\n\n" +
+      "Если в заказе уже стоит более поздняя плановая дата — она сохранится. Если раньше или пусто — поставится дефолт.\n\n" +
+      "Это разовая массовая операция. Продолжить?"
+    );
+    if (!ok) return;
+    setNormalizing(true);
+    try {
+      const res = await fetch("/api/admin/normalize-phase-dates", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        window.alert(`Ошибка: ${data?.error?.message ?? res.status}`);
+        return;
+      }
+      window.alert(
+        `Готово.\n\n` +
+        `Заказы: обновлено ${data.orders.changed} из ${data.orders.total}\n` +
+        `Упаковка: обновлено ${data.packaging.changed} из ${data.packaging.total}`
+      );
+      startTransition(() => router.refresh());
+    } finally {
+      setNormalizing(false);
+    }
+  }
 
   // ---------- KPI ----------
   const weekStart = startOfWeek(todayIso);
@@ -277,6 +312,17 @@ export function GanttV2Client({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {isOwner && (
+            <button
+              type="button"
+              onClick={normalizeAll}
+              disabled={normalizing}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              title="Перевыставить даты у всех заказов так, чтобы фазы шли последовательно"
+            >
+              {normalizing ? "Нормализую…" : "⏤ Нормализовать таймлайны"}
+            </button>
+          )}
           <Link
             href="/orders/new"
             className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
