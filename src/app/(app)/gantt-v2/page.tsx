@@ -14,21 +14,6 @@ const PHASES = [
   { key: "shipping",    title: "Доставка",     color: "bg-fuchsia-500", startKey: "qcDate",              endKey: "arrivalPlannedDate",  doneAt: ["WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
 ] as const;
 
-const DEV_PHASES = [
-  { key: "patterns",  title: "Лекала",       color: "bg-rose-400",   fromKey: "createdAt",         toKey: "patternsDate",        doneAt: ["PATTERNS", "SAMPLE", "APPROVED", "IN_PRODUCTION"] },
-  { key: "sample",    title: "Образец",      color: "bg-purple-500", fromKey: "patternsDate",      toKey: "sampleDate",          doneAt: ["SAMPLE", "APPROVED", "IN_PRODUCTION"] },
-  { key: "approval",  title: "Утверждение",  color: "bg-teal-500",   fromKey: "sampleDate",        toKey: "approvedDate",        doneAt: ["APPROVED", "IN_PRODUCTION"] },
-  { key: "prelaunch", title: "Подготовка",   color: "bg-emerald-500",fromKey: "approvedDate",      toKey: "productionStartDate", doneAt: ["IN_PRODUCTION"] },
-] as const;
-
-const MODEL_STATUS_LABELS: Record<string, string> = {
-  IDEA: "Идея",
-  PATTERNS: "Лекала",
-  SAMPLE: "Образец",
-  APPROVED: "Утверждён",
-  IN_PRODUCTION: "В производстве",
-};
-
 const PACKAGING_STATUS_LABELS: Record<string, string> = {
   ORDERED: "Заказано",
   IN_PRODUCTION: "В пошиве",
@@ -57,7 +42,7 @@ export default async function GanttV2Page() {
   const session = await auth();
   const isOwner = session?.user?.role === "OWNER";
 
-  const [orders, packagingOrders, devModels, owners, factories] = await Promise.all([
+  const [orders, packagingOrders, owners, factories] = await Promise.all([
     prisma.order.findMany({
       where: { deletedAt: null, status: { not: "ON_SALE" } },
       orderBy: { launchMonth: "asc" },
@@ -86,19 +71,6 @@ export default async function GanttV2Page() {
     }).catch((err) => {
       console.warn("[gantt-v2] packagingOrder.findMany failed, returning empty:", err?.message);
       return [] as never[];
-    }),
-    prisma.productModel.findMany({
-      where: {
-        deletedAt: null,
-        activated: true,
-        status: { in: ["IDEA", "PATTERNS", "SAMPLE", "APPROVED"] },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 200,
-      include: {
-        owner: { select: { id: true, name: true } },
-        preferredFactory: { select: { id: true, name: true } },
-      },
     }),
     prisma.user.findMany({
       where: {
@@ -300,82 +272,9 @@ export default async function GanttV2Page() {
     });
   }
 
-  // === РАЗРАБОТКА ФАСОНОВ ===
-  for (const m of devModels) {
-    const launchEnd = m.plannedLaunchMonth
-      ? `${String(m.plannedLaunchMonth).slice(0, 4)}-${String(m.plannedLaunchMonth).slice(4, 6)}-01`
-      : iso(new Date(today.getTime() + 30 * 86400000))!;
-
-    const bars: GanttBarV2[] = [];
-    let prevDate = iso(m.createdAt) ?? todayIso;
-    let foundActive = false;
-
-    for (const ph of DEV_PHASES) {
-      const fromRaw = ph.fromKey === "createdAt"
-        ? m.createdAt
-        : (m as Record<string, unknown>)[ph.fromKey] as Date | null | undefined;
-      const toRaw = (m as Record<string, unknown>)[ph.toKey] as Date | null | undefined;
-
-      const fromIso = iso(fromRaw) ?? prevDate;
-      const done = (ph.doneAt as readonly string[]).includes(m.status);
-      let endIso: string;
-
-      if (toRaw) {
-        endIso = iso(toRaw)!;
-      } else if (!done) {
-        endIso = launchEnd > fromIso ? launchEnd : iso(new Date(today.getTime() + 14 * 86400000))!;
-      } else {
-        continue;
-      }
-
-      const isActive = !done && !foundActive;
-      if (isActive) foundActive = true;
-      const state: BarState = done ? "done" : isActive ? "active" : "future";
-      const overdue = !done && endIso < todayIso;
-      const daysToEnd = Math.round((new Date(endIso).getTime() - new Date(todayIso).getTime()) / 86400000);
-      const nearlyDue = !done && !overdue && daysToEnd >= 0 && daysToEnd <= NEARLY_DUE_DAYS;
-
-      bars.push({
-        key: ph.key,
-        title: ph.title,
-        color: ph.color,
-        start: fromIso,
-        end: endIso,
-        state,
-        owner: m.preferredFactory?.name ?? m.owner?.name ?? undefined,
-        overdue,
-        nearlyDue,
-        orderId: m.id,
-        endField: ph.toKey,
-      });
-
-      prevDate = endIso;
-      if (!done) break;
-    }
-
-    if (bars.length === 0) continue;
-
-    rows.push({
-      group: "development",
-      id: m.id,
-      href: `/models/${m.id}`,
-      title: m.name,
-      subtitle: m.category + (m.subcategory ? ` · ${m.subcategory}` : ""),
-      statusLabel: MODEL_STATUS_LABELS[m.status] ?? m.status,
-      brand: m.brand,
-      factoryId: m.preferredFactory?.id ?? null,
-      factoryName: m.preferredFactory?.name ?? null,
-      ownerId: m.owner?.id ?? null,
-      ownerName: m.owner?.name ?? null,
-      launchMonth: m.plannedLaunchMonth ?? null,
-      category: m.category ?? null,
-      rawStatus: m.status,
-      hasOverdue: bars.some((b) => b.overdue),
-      hasNearlyDue: bars.some((b) => b.nearlyDue),
-      thumbnails: m.photoUrls?.[0] ? [{ photoUrl: m.photoUrls[0], colorName: null }] : [],
-      bars,
-    });
-  }
+  // (Раньше тут была секция «Разработка фасонов» (Лекала/Образец/Утверждение/
+  // Подготовка) — убрана по запросу Алёны: «у нас нет такого этапа, как лекала».
+  // На /gantt-v2 теперь только заказы (4 фазы) и упаковка (3 фазы без ОТК).
 
   // Опции фильтров с подсчётом
   const launchMonthMap = new Map<number, number>();
@@ -404,10 +303,6 @@ export default async function GanttV2Page() {
       { value: "qc",          label: "ОТК", color: "bg-amber-500" },
       { value: "shipping",    label: "Доставка", color: "bg-fuchsia-500" },
       { value: "delivery",    label: "Доставка упаковки", color: "bg-fuchsia-500" },
-      { value: "patterns",    label: "Лекала", color: "bg-rose-400" },
-      { value: "sample",      label: "Образец", color: "bg-purple-500" },
-      { value: "approval",    label: "Утверждение", color: "bg-teal-500" },
-      { value: "prelaunch",   label: "Подготовка", color: "bg-emerald-500" },
     ],
     owners: owners.map((u) => ({ value: u.id, label: u.name })),
     factories: factories.map((f) => ({
