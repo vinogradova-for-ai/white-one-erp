@@ -50,6 +50,11 @@ export type GanttRowV2 = {
   // Производные риски строки (агрегат по барам)
   hasOverdue: boolean;
   hasNearlyDue: boolean;
+  // Нелогичный порядок фаз в БД (например, qcDate < readyAtFactoryDate).
+  // Правило: фазы строго последовательны Разработка → Производство → ОТК → Доставка,
+  // даты должны идти неубывающе. Если найдено нарушение — показываем значок ⚠️.
+  hasDateOrderIssue?: boolean;
+  dateOrderIssueText?: string;
   isPaused?: boolean;
   thumbnails?: GanttThumbnail[];
   bars: GanttBarV2[];
@@ -70,6 +75,7 @@ export type GanttFilters = {
   burning: boolean;     // только горящие
   overdue: boolean;     // только просроченные
   thisWeek: boolean;    // только с активностью на этой неделе
+  dateIssue: boolean;   // только заказы с нарушенным порядком фаз
   myOnly: string | null; // userId или null
 };
 
