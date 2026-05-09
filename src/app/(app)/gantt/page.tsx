@@ -115,19 +115,32 @@ export default async function GanttPage({
     const totalQty = o.lines.reduce((a, l) => a + l.quantity, 0);
     const colors = o.lines.map((l) => l.productVariant?.colorName ?? "?").join(", ");
     const bars: GanttRow["bars"] = [];
-    const phasesToShow = phaseFilter ? PHASES.filter((p) => p.key === phaseFilter) : PHASES;
-    for (const ph of phasesToShow) {
+    // Алёна: «у каждого процесса в графике ганта должен быть каждый этап —
+    // разработка, производство, ОТК и доставка». Поэтому всегда генерируем
+    // все 4 фазы. Если в БД дата фазы пустая — берём end предыдущей фазы
+    // (плашка нулевой длительности, но видна и редактируется через ◀ ▶).
+    let prevEnd: string | null = null;
+    type BarSrc = { ph: typeof PHASES[number]; s: string; e: string; done: boolean; overdue: boolean };
+    const allBars: BarSrc[] = [];
+    for (const ph of PHASES) {
       const startRaw = (o as Record<string, unknown>)[ph.startKey] as Date | null | undefined;
       const endRaw = (o as Record<string, unknown>)[ph.endKey] as Date | null | undefined;
-      if (!endRaw) continue;
-      const startIso = iso(startRaw) ?? todayIso;
-      const endIso = iso(endRaw)!;
+      // Старт фазы: из БД, либо end предыдущей, либо сегодня для самой первой.
+      const s: string = iso(startRaw) ?? prevEnd ?? todayIso;
+      // Конец фазы: из БД, либо равен старту (нулевая длительность).
+      const e: string = iso(endRaw) ?? s;
       const done = ph.doneAt.includes(o.status as never);
-      const overdue = !done && endIso < todayIso;
-      // Первая фаза цепочки получает startField — даёт возможность тянуть
-      // её левый край (старт всей цепочки). Остальные фазы start = end предыдущей,
-      // редактируется через handle предыдущей.
-      const isFirst = bars.length === 0;
+      const overdue = !done && e < todayIso;
+      allBars.push({ ph, s, e, done, overdue });
+      prevEnd = e;
+    }
+    // Применяем фильтр по фазе только при отображении: если он есть, оставляем
+    // только нужную плашку (но генерируем всё, чтобы prevEnd тянулась корректно).
+    const visibleBars = phaseFilter ? allBars.filter(b => b.ph.key === phaseFilter) : allBars;
+    for (let i = 0; i < visibleBars.length; i++) {
+      const { ph, s: startIso, e: endIso, done, overdue } = visibleBars[i];
+      // Первая фаза в видимом списке получает startField — её левый край редактирует start цепочки.
+      const isFirstInChain = !phaseFilter && i === 0;
       bars.push({
         key: ph.key,
         title: ph.title,
@@ -136,12 +149,13 @@ export default async function GanttPage({
         end: endIso,
         owner: getPhaseOwner(ph.key, o.owner?.name, o.factory?.name),
         overdue,
+        done,
         orderId: o.id,
         endField: ph.endKey,
-        ...(isFirst ? { startField: ph.startKey } : {}),
+        ...(isFirstInChain ? { startField: ph.startKey } : {}),
       });
     }
-    if (phaseFilter && bars.length === 0) continue;
+    if (bars.length === 0) continue;
 
     const thumbs = o.lines.map((l) => ({
       photoUrl: l.productVariant?.photoUrls?.[0] ?? o.productModel.photoUrls?.[0] ?? null,
@@ -160,13 +174,16 @@ export default async function GanttPage({
     });
   }
 
-  // Заказы упаковки: две фазы — Производство (orderedDate → productionEndDate)
-  // и Доставка (productionEndDate → expectedDate). Каждая со своим title и end.
+  // Заказы упаковки: 3 фазы — Разработка (decisionDate → orderedDate),
+  // Производство (orderedDate → productionEndDate) и Доставка
+  // (productionEndDate → expectedDate). Если каких-то дат в БД нет —
+  // плашка отображается нулевой длительности у предыдущей границы,
+  // и Алёна тащит её ◀ или ▶ чтобы задать длительность.
   for (const po of packagingOrders) {
-    if (!po.expectedDate) continue;
     const orderedIso = iso(po.orderedDate) ?? todayIso;
-    const expectedIso = iso(po.expectedDate)!;
-    const productionEndIso = iso(po.productionEndDate) ?? expectedIso;
+    const decisionIso = iso(po.decisionDate) ?? orderedIso;
+    const productionEndIso = iso(po.productionEndDate) ?? orderedIso;
+    const expectedIso = iso(po.expectedDate) ?? productionEndIso;
     const totalQty = po.lines.reduce((a, l) => a + l.quantity, 0);
     const names = po.lines.map((l) => l.packagingItem.name).join(", ");
     const thumbs = po.lines
@@ -174,12 +191,28 @@ export default async function GanttPage({
       .slice(0, 3);
     const factoryOwner = po.factory?.name ?? po.supplierName ?? po.owner?.name;
 
+    // «Разработка» считается завершённой как только заказ передан в производство (status != ORDERED).
+    const developmentDone = po.status !== "ORDERED";
     const productionDone = ["IN_TRANSIT", "ARRIVED"].includes(po.status);
     const deliveryDone = po.status === "ARRIVED";
+    const developmentOverdue = !developmentDone && orderedIso < todayIso;
     const productionOverdue = !productionDone && productionEndIso < todayIso;
     const deliveryOverdue = !deliveryDone && expectedIso < todayIso;
 
     const bars: GanttRow["bars"] = [
+      {
+        key: "preparation",
+        title: "Разработка",
+        color: "bg-rose-300",
+        start: decisionIso,
+        end: orderedIso,
+        owner: factoryOwner,
+        overdue: developmentOverdue,
+        done: developmentDone,
+        orderId: po.id,
+        endField: "orderedDate",
+        startField: "decisionDate",
+      },
       {
         key: "production",
         title: "Производство",
@@ -191,7 +224,6 @@ export default async function GanttPage({
         done: productionDone,
         orderId: po.id,
         endField: "productionEndDate",
-        startField: "orderedDate",
       },
       {
         key: "delivery",

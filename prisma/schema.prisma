@@ -801,6 +801,10 @@ model PackagingOrder {
 
   status          PackagingOrderStatus @default(ORDERED)
 
+  // decisionDate — старт «Разработки» заказа упаковки (когда решили делать).
+  // Если null, в графике Ганта берётся как orderedDate (фаза Разработка
+  // нулевой длительности).
+  decisionDate        DateTime?
   orderedDate         DateTime      @default(now())
   productionEndDate   DateTime?
   expectedDate        DateTime?
