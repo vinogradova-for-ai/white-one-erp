@@ -17,6 +17,7 @@ const MORE_LINKS = [
   { href: "/variants", label: "Цветомодели", icon: "◎" },
   { href: "/packaging-orders", label: "Заказы упаковки", icon: "▥" },
   { href: "/gantt", label: "Гант", icon: "▤" },
+  { href: "/gantt-v2", label: "Гант v2", icon: "▦" },
   { href: "/payments", label: "Платежи", icon: "₽" },
   { href: "/content-schedule", label: "Артикулы для фотосессии", icon: "✿" },
   { href: "/incoming", label: "Поставки", icon: "▣" },
