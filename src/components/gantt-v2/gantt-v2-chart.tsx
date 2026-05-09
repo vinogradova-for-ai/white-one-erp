@@ -330,6 +330,14 @@ function RowView({
         <div className="flex shrink-0 flex-col items-end gap-0.5">
           {row.hasOverdue && <span title="Просрочено" className="text-sm">🔥</span>}
           {!row.hasOverdue && row.hasNearlyDue && <span title="Скоро дедлайн" className="text-sm">⚠️</span>}
+          {row.hasDateOrderIssue && (
+            <span
+              title={`Нелогичный порядок фаз: ${row.dateOrderIssueText ?? ""}. Перетащите ◀ ▶ чтобы исправить.`}
+              className="rounded-full border border-orange-400 bg-orange-100 px-1.5 py-0.5 text-[9px] font-bold text-orange-700"
+            >
+              ↯ даты
+            </span>
+          )}
         </div>
       </div>
 
@@ -467,8 +475,13 @@ function BarView({
       chartEnd={chartEnd}
       startIso={effStart}
       endIso={effEnd}
-      onCommit={(newEndIso) => {
+      onCommit={(rawNewEndIso) => {
         if (!bar.orderId || !bar.endField) return;
+        // ПРАВИЛО: фазы строго последовательны и не пересекаются.
+        // ▶ фазы не может уехать левее start этой же фазы (иначе фаза перевернётся).
+        // Минимум — start, минимальная длительность фазы 0 дней (фаза «нулевая», точка).
+        const minEnd = effStart;
+        const newEndIso = rawNewEndIso < minEnd ? minEnd : rawNewEndIso;
         const oldEndIso = pendingChanges[pendKey ?? ""] ?? bar.end;
         const deltaMs = parseISO(newEndIso).getTime() - parseISO(oldEndIso).getTime();
         const deltaDays = Math.round(deltaMs / 86400000);
@@ -486,15 +499,25 @@ function BarView({
       }}
       onCommitStart={
         ((prev && prev.orderId && prev.endField) || (barIndex === 0 && bar.startField))
-          ? (newStartIso) => {
+          ? (rawNewStartIso) => {
               if (!bar.orderId) return;
               const oldStartIso = effStart;
-              const deltaMs = parseISO(newStartIso).getTime() - parseISO(oldStartIso).getTime();
-              const deltaDays = Math.round(deltaMs / 86400000);
-              if (deltaDays === 0) return;
               if (prev && prev.orderId && prev.endField) {
                 // ◀ не-первой фазы = ▶ предыдущей. Меняем длительность предыдущей,
                 // текущая и далее едут на дельту с сохранением длительностей.
+                // ПРАВИЛО: новый end предыдущей не может уехать левее start предыдущей.
+                const prevPrev = barIndex >= 2 ? allBars[barIndex - 2] : null;
+                const prevPrevKey = prevPrev?.orderId && prevPrev?.endField
+                  ? `${rowGroup}:${prevPrev.orderId}:${prevPrev.endField}`
+                  : null;
+                let prevStart: string;
+                if (prevPrevKey && pendingChanges[prevPrevKey]) prevStart = pendingChanges[prevPrevKey];
+                else if (prevPrev) prevStart = prevPrev.end;
+                else prevStart = prev.start;
+                const newStartIso = rawNewStartIso < prevStart ? prevStart : rawNewStartIso;
+                const deltaMs = parseISO(newStartIso).getTime() - parseISO(oldStartIso).getTime();
+                const deltaDays = Math.round(deltaMs / 86400000);
+                if (deltaDays === 0) return;
                 onBarChange(prev.orderId, prev.endField, newStartIso, rowGroup);
                 for (let j = barIndex; j < allBars.length; j++) {
                   const nb = allBars[j];
@@ -505,12 +528,17 @@ function BarView({
                   onBarChange(nb.orderId, nb.endField, shifted, rowGroup);
                 }
               } else if (bar.startField) {
-                // === НОВЫЙ КОНТРАКТ ===
                 // ◀ ПЕРВОЙ фазы (Разработка): меняем ТОЛЬКО startField.
                 // End разработки (= start следующей фазы) НЕ двигается.
                 // Хвост стоит. По факту — фиксируем, что разработка
-                // фактически началась раньше/позже, чем планировали;
-                // дедлайны фабрики/логистики при этом не сдвигаются.
+                // фактически началась раньше/позже, чем планировали.
+                // ПРАВИЛО: новый start не может быть позже end этой же фазы
+                // (иначе Разработка перевернётся и пересечётся с Производством).
+                const maxStart = effEnd;
+                const newStartIso = rawNewStartIso > maxStart ? maxStart : rawNewStartIso;
+                const deltaMs = parseISO(newStartIso).getTime() - parseISO(oldStartIso).getTime();
+                const deltaDays = Math.round(deltaMs / 86400000);
+                if (deltaDays === 0) return;
                 onBarChange(bar.orderId, bar.startField, newStartIso, rowGroup);
               }
             }

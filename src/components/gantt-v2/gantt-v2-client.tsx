@@ -27,6 +27,7 @@ const initialFilters: GanttFilters = {
   burning: false,
   overdue: false,
   thisWeek: false,
+  dateIssue: false,
   myOnly: null,
 };
 
@@ -76,12 +77,14 @@ export function GanttV2Client({
     let burning = 0;
     let overdue = 0;
     let thisWeek = 0;
+    let dateIssues = 0;
     const factoryLoad = new Map<string, number>();
     let cycleSum = 0;
     let cycleCount = 0;
     for (const r of rows) {
       if (r.hasOverdue) overdue += 1;
       if (r.hasOverdue || r.hasNearlyDue) burning += 1;
+      if (r.hasDateOrderIssue) dateIssues += 1;
       const finishesThisWeek = r.bars.some((b) => b.state !== "done" && b.end >= weekStart && b.end < weekEnd);
       if (finishesThisWeek) thisWeek += 1;
       if (r.factoryId) factoryLoad.set(r.factoryId, (factoryLoad.get(r.factoryId) ?? 0) + 1);
@@ -99,7 +102,7 @@ export function GanttV2Client({
     const overloaded = Array.from(factoryLoad.values()).filter((n) => n >= 5).length;
     const factoriesTotal = factoryLoad.size;
     const cycleAvg = cycleCount > 0 ? Math.round(cycleSum / cycleCount) : 0;
-    return { inWork, burning, overdue, thisWeek, overloaded, factoriesTotal, cycleAvg };
+    return { inWork, burning, overdue, thisWeek, dateIssues, overloaded, factoriesTotal, cycleAvg };
   }, [rows, weekStart, weekEnd]);
 
   // ---------- Фильтрация ----------
@@ -123,6 +126,7 @@ export function GanttV2Client({
         const finishesThisWeek = r.bars.some((b) => b.state !== "done" && b.end >= weekStart && b.end < weekEnd);
         if (!finishesThisWeek) return false;
       }
+      if (filters.dateIssue && !r.hasDateOrderIssue) return false;
       if (filters.myOnly && r.ownerId !== filters.myOnly) return false;
       if (q) {
         const hay = `${r.title} ${r.subtitle} ${r.statusLabel} ${r.factoryName ?? ""} ${r.ownerName ?? ""}`.toLowerCase();
@@ -260,7 +264,7 @@ export function GanttV2Client({
     filters.brand.length || filters.phase.length || filters.ownerId.length ||
     filters.factoryId.length || filters.launchMonth.length || filters.status.length ||
     filters.category.length || filters.search || filters.burning || filters.overdue ||
-    filters.thisWeek || filters.myOnly;
+    filters.thisWeek || filters.dateIssue || filters.myOnly;
 
   return (
     <div className="space-y-3">
@@ -283,7 +287,7 @@ export function GanttV2Client({
       </div>
 
       {/* KPI-полоса */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
         <KpiTile
           label="В работе"
           value={kpi.inWork}
@@ -296,21 +300,28 @@ export function GanttV2Client({
           value={kpi.burning}
           tone={kpi.burning > 0 ? "burning" : "neutral"}
           active={filters.burning}
-          onClick={() => setFilters((f) => ({ ...f, burning: !f.burning, overdue: false, thisWeek: false }))}
+          onClick={() => setFilters((f) => ({ ...f, burning: !f.burning, overdue: false, thisWeek: false, dateIssue: false }))}
         />
         <KpiTile
           label="Просрочено"
           value={kpi.overdue}
           tone={kpi.overdue > 0 ? "danger" : "neutral"}
           active={filters.overdue}
-          onClick={() => setFilters((f) => ({ ...f, overdue: !f.overdue, burning: false, thisWeek: false }))}
+          onClick={() => setFilters((f) => ({ ...f, overdue: !f.overdue, burning: false, thisWeek: false, dateIssue: false }))}
         />
         <KpiTile
           label="На этой неделе"
           value={kpi.thisWeek}
           tone="info"
           active={filters.thisWeek}
-          onClick={() => setFilters((f) => ({ ...f, thisWeek: !f.thisWeek, burning: false, overdue: false }))}
+          onClick={() => setFilters((f) => ({ ...f, thisWeek: !f.thisWeek, burning: false, overdue: false, dateIssue: false }))}
+        />
+        <KpiTile
+          label="Битые даты"
+          value={kpi.dateIssues}
+          tone={kpi.dateIssues > 0 ? "warn" : "neutral"}
+          active={filters.dateIssue}
+          onClick={() => setFilters((f) => ({ ...f, dateIssue: !f.dateIssue, burning: false, overdue: false, thisWeek: false }))}
         />
         <KpiTile label="Цикл-тайм средний" value={`${kpi.cycleAvg} дн`} tone="neutral" />
         <KpiTile

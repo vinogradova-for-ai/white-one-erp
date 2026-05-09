@@ -117,10 +117,30 @@ export default async function GanttV2Page() {
 
   const rows: GanttRowV2[] = [];
 
+  // Проверка нелогичного порядка фаз: даты должны идти неубывающе
+  // (Разработка → Производство → ОТК → Доставка). Возвращает текст ошибки или null.
+  function checkDateOrder(arr: Array<{ name: string; d: Date | null | undefined }>): string | null {
+    const filled = arr.filter((x) => x.d !== null && x.d !== undefined);
+    for (let i = 1; i < filled.length; i++) {
+      if (filled[i].d! < filled[i - 1].d!) {
+        return `${filled[i].name} (${iso(filled[i].d)}) раньше, чем ${filled[i - 1].name} (${iso(filled[i - 1].d)})`;
+      }
+    }
+    return null;
+  }
+
   // === ЗАКАЗЫ ===
   for (const o of orders) {
     const totalQty = o.lines.reduce((a, l) => a + l.quantity, 0);
     const colors = o.lines.map((l) => l.productVariant?.colorName ?? "?").join(", ");
+
+    const dateOrderIssue = checkDateOrder([
+      { name: "старт Разработки", d: o.decisionDate },
+      { name: "старт Производства", d: o.handedToFactoryDate },
+      { name: "старт ОТК", d: o.readyAtFactoryDate },
+      { name: "старт Доставки", d: o.qcDate },
+      { name: "конец Доставки", d: o.arrivalPlannedDate },
+    ]);
 
     let prevEnd: string | null = null;
     let activeIdx = -1;
@@ -186,6 +206,8 @@ export default async function GanttV2Page() {
       rawStatus: o.status,
       hasOverdue: bars.some((b) => b.overdue),
       hasNearlyDue: bars.some((b) => b.nearlyDue),
+      hasDateOrderIssue: !!dateOrderIssue,
+      dateOrderIssueText: dateOrderIssue ?? undefined,
       thumbnails: thumbs,
       bars,
     });
@@ -193,6 +215,12 @@ export default async function GanttV2Page() {
 
   // === УПАКОВКА ===
   for (const po of packagingOrders) {
+    const packDateIssue = checkDateOrder([
+      { name: "старт Разработки", d: (po as { decisionDate?: Date | null }).decisionDate ?? null },
+      { name: "старт Производства", d: po.orderedDate },
+      { name: "старт Доставки", d: po.productionEndDate },
+      { name: "конец Доставки", d: po.expectedDate },
+    ]);
     const orderedIso = iso(po.orderedDate) ?? todayIso;
     const decisionIso = iso(po.decisionDate) ?? orderedIso;
     const productionEndIso = iso(po.productionEndDate) ?? orderedIso;
@@ -261,6 +289,8 @@ export default async function GanttV2Page() {
       rawStatus: po.status,
       hasOverdue: bars.some((b) => b.overdue),
       hasNearlyDue: bars.some((b) => b.nearlyDue),
+      hasDateOrderIssue: !!packDateIssue,
+      dateOrderIssueText: packDateIssue ?? undefined,
       thumbnails: thumbs,
       bars,
     });
