@@ -6,6 +6,7 @@ import { assertCan } from "@/lib/rbac";
 import { orderCreateSchema } from "@/lib/validators/order";
 import { calculateOrderEconomics } from "@/lib/calculations/product-cost";
 import { generatePaymentsForOrder } from "@/lib/payments/generate-for-order";
+import { normalizeOrderDates } from "@/lib/normalize-phase-dates";
 
 async function nextOrderNumber() {
   const year = new Date().getUTCFullYear();
@@ -81,6 +82,18 @@ export async function POST(req: NextRequest) {
 
     const toDate = (s?: string | null) => (s ? new Date(s) : null);
 
+    // Дефолтные таймлайны для всех 4 фаз: Разработка → Производство → ОТК → Доставка.
+    // Если в форме что-то не заполнено — нормализуем по дефолтным длительностям
+    // (14/35/5/30 дн), чтобы у каждого нового заказа сразу была разумная картинка.
+    const phases = normalizeOrderDates({
+      decisionDate: null,
+      handedToFactoryDate: toDate(data.handedToFactoryDate),
+      readyAtFactoryDate: toDate(data.readyAtFactoryDate),
+      qcDate: toDate(data.qcDate),
+      arrivalPlannedDate: toDate(data.arrivalPlannedDate),
+      createdAt: new Date(),
+    });
+
     const order = await prisma.order.create({
       data: {
         orderNumber: await nextOrderNumber(),
@@ -94,12 +107,13 @@ export async function POST(req: NextRequest) {
         paymentTerms: data.paymentTerms ?? null,
         packagingType: data.packagingType ?? null,
         notes: data.notes ?? null,
-        handedToFactoryDate: toDate(data.handedToFactoryDate),
+        decisionDate: phases.decisionDate,
+        handedToFactoryDate: phases.handedToFactoryDate,
         sewingStartDate: toDate(data.sewingStartDate),
-        readyAtFactoryDate: toDate(data.readyAtFactoryDate),
-        qcDate: toDate(data.qcDate),
+        readyAtFactoryDate: phases.readyAtFactoryDate,
+        qcDate: phases.qcDate,
         shipmentDate: toDate(data.shipmentDate),
-        arrivalPlannedDate: toDate(data.arrivalPlannedDate),
+        arrivalPlannedDate: phases.arrivalPlannedDate,
         packingDoneDate: toDate(data.packingDoneDate),
         wbShipmentDate: toDate(data.wbShipmentDate),
         saleStartDate: toDate(data.saleStartDate),

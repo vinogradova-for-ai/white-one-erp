@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { packagingOrderCreateSchema } from "@/lib/validators/packaging-order";
+import { normalizePackagingDates } from "@/lib/normalize-phase-dates";
 
 async function nextPackagingOrderNumber() {
   const year = new Date().getUTCFullYear();
@@ -70,13 +71,26 @@ export async function POST(req: NextRequest) {
       }
       const itemsById = new Map(items.map((i) => [i.id, i]));
 
+      // Дефолтные таймлайны 3 фаз упаковки: Разработка → Производство → Доставка
+      // (без ОТК). Подставляем 7/21/14 дн чтобы у нового заказа упаковки
+      // сразу были осмысленные сроки.
+      const packPhases = normalizePackagingDates({
+        decisionDate: null,
+        orderedDate: null,
+        productionEndDate: data.productionEndDate ? new Date(data.productionEndDate) : null,
+        expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
+        createdAt: new Date(),
+      });
+
       const order = await tx.packagingOrder.create({
         data: {
           orderNumber: await nextPackagingOrderNumber(),
           factoryId: data.factoryId || null,
           supplierName: data.supplierName || null,
-          productionEndDate: data.productionEndDate ? new Date(data.productionEndDate) : null,
-          expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
+          decisionDate: packPhases.decisionDate,
+          orderedDate: packPhases.orderedDate,
+          productionEndDate: packPhases.productionEndDate,
+          expectedDate: packPhases.expectedDate,
           deliveryMethod: data.deliveryMethod || null,
           ownerId: data.ownerId,
           notes: data.notes || null,
