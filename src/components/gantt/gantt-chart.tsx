@@ -521,7 +521,7 @@ function DraggableBar({
       {editable && onCommitStart && (
         <span
           onMouseDown={(e) => beginDrag(e, "start")}
-          className="absolute left-0 top-1/2 z-20 flex h-4 w-4 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white/90 text-[9px] font-bold leading-none text-slate-700 shadow-sm hover:scale-125 hover:bg-white"
+          className="absolute left-0 top-1/2 z-20 flex h-5 w-5 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white text-[11px] font-bold leading-none text-slate-900 shadow ring-1 ring-slate-300 hover:scale-110 hover:ring-2 hover:ring-slate-700"
           title="Тащить — изменить старт фазы"
         >
           ◀
@@ -531,7 +531,7 @@ function DraggableBar({
       {editable && (
         <span
           onMouseDown={(e) => beginDrag(e, "end")}
-          className="absolute right-0 top-1/2 z-20 flex h-4 w-4 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white/90 text-[9px] font-bold leading-none text-slate-700 shadow-sm hover:scale-125 hover:bg-white"
+          className="absolute right-0 top-1/2 z-20 flex h-5 w-5 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white text-[11px] font-bold leading-none text-slate-900 shadow ring-1 ring-slate-300 hover:scale-110 hover:ring-2 hover:ring-slate-700"
           title="Тащить — изменить дедлайн фазы"
         >
           ▶
