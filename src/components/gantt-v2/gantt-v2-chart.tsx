@@ -1,17 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { GanttRowV2, GanttBarV2, GanttGroup, GanttZoom, GanttDensity, GanttThumbnail } from "./types";
 import { colorHexFromName, isLightColor } from "@/lib/color-map";
 
-const ZOOM_OPTIONS: Record<GanttZoom, { daysBack: number; daysForward: number }> = {
-  "1w": { daysBack: 2, daysForward: 7 },
-  "1m": { daysBack: 7, daysForward: 30 },
-  "3m": { daysBack: 14, daysForward: 75 },
-  "6m": { daysBack: 30, daysForward: 150 },
-  "1y": { daysBack: 60, daysForward: 300 },
-  "auto": { daysBack: 14, daysForward: 75 },
+const ZOOM_OPTIONS: Record<GanttZoom, { daysBack: number; daysForward: number; pxPerDay: number }> = {
+  // pxPerDay задаёт «насколько широко рисуется один день». От него зависит
+  // полная ширина контента — если она > ширины контейнера, появляется
+  // горизонтальный скролл и можно крутить вправо в будущее.
+  "1w": { daysBack: 2,  daysForward: 7,   pxPerDay: 90 },
+  "1m": { daysBack: 7,  daysForward: 30,  pxPerDay: 35 },
+  "3m": { daysBack: 14, daysForward: 75,  pxPerDay: 22 },
+  "6m": { daysBack: 30, daysForward: 150, pxPerDay: 14 },
+  "1y": { daysBack: 60, daysForward: 300, pxPerDay: 8  },
+  "auto":{ daysBack: 14, daysForward: 75, pxPerDay: 22 },
 };
 
 const DENSITY: Record<GanttDensity, { rowH: number; thumbSize: number; barH: number; barTop: number; showSubtitle: boolean }> = {
@@ -61,11 +64,16 @@ export function GanttV2Chart({
   onBarChange: (orderId: string, endField: string, newDateIso: string, group: GanttGroup) => void;
   pendingChanges: Record<string, string>;
 }) {
-  const { daysBack, daysForward } = ZOOM_OPTIONS[zoom];
+  const { daysBack, daysForward, pxPerDay } = ZOOM_OPTIONS[zoom];
   const today = parseISO(todayIso);
   const chartStart = toISO(addDays(today, -daysBack));
   const chartEnd = toISO(addDays(today, daysForward));
   const totalDays = Math.max(1, dayDiff(chartStart, chartEnd));
+
+  // Ширина timeline-области в пикселях. Контейнер скроллится по горизонтали,
+  // если эта ширина больше viewport. Левая колонка фиксирована 300px.
+  const timelinePx = totalDays * pxPerDay;
+  const totalPx = 300 + timelinePx;
 
   const dens = DENSITY[density];
 
@@ -134,6 +142,20 @@ export function GanttV2Chart({
 
   const todayPct = posPct(todayIso);
 
+  // Скролл к "сегодня" при первом рендере и при смене зума.
+  // Иначе при широком timelinePx видно только самое начало (прошлое),
+  // а сегодня и будущие даты приходится прокручивать вручную.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    // Левая колонка 300px, далее timeline. Скроллим так, чтобы "сегодня"
+    // оказалось примерно на 1/3 от левого края видимой области.
+    const todayX = (todayPct / 100) * timelinePx;
+    const target = Math.max(0, todayX - el.clientWidth * 0.33 + 300);
+    el.scrollLeft = target;
+  }, [zoom, timelinePx, todayPct]);
+
   if (totalRows === 0) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
@@ -148,8 +170,8 @@ export function GanttV2Chart({
     <div className="rounded-xl border border-slate-200 bg-white">
       {/* Десктоп: Гант */}
       <div className="hidden md:block">
-        <div className="max-h-[calc(100vh-360px)] overflow-auto">
-          <div className="min-w-[1100px]">
+        <div ref={scrollRef} className="max-h-[calc(100vh-360px)] overflow-auto">
+          <div style={{ width: `${totalPx}px`, minWidth: "100%" }}>
             {/* Шкала */}
             <div className="sticky top-0 z-20 grid grid-cols-[300px_1fr] border-b border-slate-200 bg-white">
               <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
