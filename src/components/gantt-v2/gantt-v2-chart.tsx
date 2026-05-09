@@ -652,24 +652,29 @@ function DraggableBar({
       <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] text-white shadow-lg group-hover:block">
         {tooltip}
       </div>
-      {/* Левая ручка ◀ */}
+      {/*
+        Resize-хваты в стиле Figma/Linear: тонкие вертикальные полоски на краях
+        плашки. В покое скрыты, появляются на hover плашки. Сама полоска 3px,
+        но hit-area через горизонтальный padding ~10px — за счёт этого попасть
+        легко даже на узких плашках. При hover на хват — он становится ярче.
+      */}
       {editable && hasStartHandle && onCommitStart && (
         <span
           onMouseDown={(e) => beginDrag(e, "start")}
-          className="absolute left-0 top-1/2 z-20 flex h-5 w-5 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white text-[11px] font-bold leading-none text-slate-900 shadow ring-1 ring-slate-300 hover:scale-110 hover:ring-2 hover:ring-slate-700"
-          title="Тащить — изменить начало фазы"
+          title="Потянуть — изменить начало фазы"
+          className="absolute left-0 top-0 z-20 h-full w-2.5 -translate-x-1/2 cursor-ew-resize opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100"
         >
-          ◀
+          {/* Видимая часть — узкая вертикальная плашка */}
+          <span className="pointer-events-none absolute left-1/2 top-1/2 h-[80%] w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.35)] transition-all hover:w-[5px] hover:bg-slate-900 hover:shadow-[0_0_0_1px_white]" />
         </span>
       )}
-      {/* Правая ручка ▶ */}
       {editable && (
         <span
           onMouseDown={(e) => beginDrag(e, "end")}
-          className="absolute right-0 top-1/2 z-20 flex h-5 w-5 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white text-[11px] font-bold leading-none text-slate-900 shadow ring-1 ring-slate-300 hover:scale-110 hover:ring-2 hover:ring-slate-700"
-          title="Тащить — изменить конец фазы"
+          title="Потянуть — изменить конец фазы"
+          className="absolute right-0 top-0 z-20 h-full w-2.5 translate-x-1/2 cursor-ew-resize opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100"
         >
-          ▶
+          <span className="pointer-events-none absolute left-1/2 top-1/2 h-[80%] w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.35)] transition-all hover:w-[5px] hover:bg-slate-900 hover:shadow-[0_0_0_1px_white]" />
         </span>
       )}
       {dragging && hoverIso && (
