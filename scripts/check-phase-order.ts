@@ -14,7 +14,7 @@ function fmt(d: Date | null | undefined): string {
 
   console.log(`\n=== Проверка ${orders.length} заказов ===\n`);
 
-  const violations: Array<{ id: string; n: number; title: string; status: string; problem: string; dates: string }> = [];
+  const violations: Array<{ id: string; n: string; title: string; status: string; problem: string; dates: string }> = [];
 
   for (const o of orders) {
     const dates = [
