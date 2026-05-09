@@ -97,6 +97,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       };
       if (data.factoryId !== undefined) writeData.factoryId = data.factoryId || null;
       if (data.supplierName !== undefined) writeData.supplierName = data.supplierName || null;
+      if (data.decisionDate !== undefined) writeData.decisionDate = data.decisionDate ? new Date(data.decisionDate) : null;
       if (data.orderedDate !== undefined) writeData.orderedDate = data.orderedDate ? new Date(data.orderedDate) : null;
       if (data.productionEndDate !== undefined) writeData.productionEndDate = data.productionEndDate ? new Date(data.productionEndDate) : null;
       if (data.expectedDate !== undefined) writeData.expectedDate = data.expectedDate ? new Date(data.expectedDate) : null;
