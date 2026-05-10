@@ -69,7 +69,37 @@ export function GanttV2Client({
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [normalizing, setNormalizing] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkDates, setBulkDates] = useState({
+    decisionDate: "2026-04-01",
+    handedToFactoryDate: "2026-04-16",
+    readyAtFactoryDate: "2026-08-01",
+    qcDate: "2026-08-02",
+    arrivalPlannedDate: "2026-08-03",
+  });
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [, startTransition] = useTransition();
+
+  async function applyBulk() {
+    setBulkBusy(true);
+    try {
+      const res = await fetch("/api/admin/apply-dates-all-orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bulkDates),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        window.alert(`Ошибка: ${data?.error?.message ?? res.status}`);
+        return;
+      }
+      window.alert(`Готово. Один таймлайн применён к ${data.updated} активным заказам.`);
+      setBulkOpen(false);
+      startTransition(() => router.refresh());
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   async function normalizeAll() {
     if (normalizing) return;
@@ -324,6 +354,25 @@ export function GanttV2Client({
           {isOwner && (
             <button
               type="button"
+              onClick={() => setBulkOpen(true)}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              title="Применить один таймлайн ко всем активным заказам"
+            >
+              🟰 Один таймлайн всем
+            </button>
+          )}
+          {isOwner && (
+            <Link
+              href="/gantt-v2/wizard"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              title="Пройти по всем заказам и заполнить даты вручную"
+            >
+              📝 Опросник
+            </Link>
+          )}
+          {isOwner && (
+            <button
+              type="button"
               onClick={normalizeAll}
               disabled={normalizing}
               className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
@@ -488,6 +537,67 @@ export function GanttV2Client({
         onBarChange={handleBarChange}
         pendingChanges={pending}
       />
+
+      {/* Модалка «Один таймлайн всем» */}
+      {bulkOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !bulkBusy && setBulkOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-base font-semibold text-slate-900">
+              Один таймлайн ко всем заказам
+            </div>
+            <div className="mt-1 text-xs text-slate-500">
+              Применит эти 5 дат сразу ко всем активным заказам (кроме «В продаже»).
+            </div>
+
+            <div className="mt-4 space-y-2.5">
+              {[
+                { key: "decisionDate", label: "Старт Разработки" },
+                { key: "handedToFactoryDate", label: "Конец Разработки = старт Производства" },
+                { key: "readyAtFactoryDate", label: "Конец Производства = старт ОТК" },
+                { key: "qcDate", label: "Конец ОТК = старт Доставки" },
+                { key: "arrivalPlannedDate", label: "Конец Доставки" },
+              ].map((f) => (
+                <div key={f.key}>
+                  <label className="block text-xs font-medium text-slate-700">{f.label}</label>
+                  <input
+                    type="date"
+                    value={bulkDates[f.key as keyof typeof bulkDates]}
+                    onChange={(e) =>
+                      setBulkDates((d) => ({ ...d, [f.key]: e.target.value }))
+                    }
+                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setBulkOpen(false)}
+                disabled={bulkBusy}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={applyBulk}
+                disabled={bulkBusy}
+                className="ml-auto rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
+              >
+                {bulkBusy ? "Применяю…" : "Применить ко всем"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sticky save-bar */}
       {pendingCount > 0 && (
