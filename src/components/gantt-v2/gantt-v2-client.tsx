@@ -411,6 +411,25 @@ export function GanttV2Client({
           {isOwner && (
             <button
               type="button"
+              onClick={() => setBulkOpen(true)}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              title="Применить один таймлайн ко всем активным заказам"
+            >
+              🟰 Один таймлайн всем
+            </button>
+          )}
+          {isOwner && (
+            <Link
+              href="/gantt-v2/wizard"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              title="Пройти по всем заказам и заполнить даты вручную"
+            >
+              📝 Опросник
+            </Link>
+          )}
+          {isOwner && (
+            <button
+              type="button"
               onClick={normalizeAll}
               disabled={normalizing}
               className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
