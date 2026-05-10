@@ -19,48 +19,52 @@ const ZOOM_OPTIONS: Record<GanttZoom, { pxPerDay: number }> = {
   "auto": { pxPerDay: 22  },
 };
 
-// Возвращает [start, endExclusive] — календарные границы для зума, привязанные
-// к "сегодня". endExclusive — день, ПОСЛЕ последнего видимого (так удобнее
-// считать длительность через addDays).
+// Возвращает start (старт текущего периода — пн или 1-е число), а end — это
+// конец таймлайна с большим запасом вперёд, чтобы скролл вправо никогда
+// не «упирался». Зум определяет масштаб (pxPerDay) и стартовую точку,
+// но не ограничивает будущее.
 function calendarRangeForZoom(zoom: GanttZoom, today: Date): { start: Date; end: Date } {
   const y = today.getUTCFullYear();
   const m = today.getUTCMonth();
   if (zoom === "1w") {
-    // Понедельник = 1, Воскресенье = 7. JS getUTCDay: Вс=0..Сб=6.
-    // Сдвиг до понедельника:
-    const dayIdx = (today.getUTCDay() + 6) % 7; // Пн=0, Вс=6
+    const dayIdx = (today.getUTCDay() + 6) % 7;
     const start = new Date(Date.UTC(y, m, today.getUTCDate() - dayIdx));
-    const end = new Date(Date.UTC(y, m, start.getUTCDate() + 7)); // вс+1
+    // Запас на 12 недель вперёд от понедельника
+    const end = new Date(Date.UTC(y, m, start.getUTCDate() + 12 * 7));
     return { start, end };
   }
   if (zoom === "1m") {
     return {
       start: new Date(Date.UTC(y, m, 1)),
-      end: new Date(Date.UTC(y, m + 1, 1)),
+      // Запас на 6 месяцев вперёд
+      end: new Date(Date.UTC(y, m + 6, 1)),
     };
   }
   if (zoom === "3m") {
     return {
       start: new Date(Date.UTC(y, m, 1)),
-      end: new Date(Date.UTC(y, m + 3, 1)),
+      // Запас на 9 месяцев вперёд (видно текущие 3 + ещё 6 при скролле)
+      end: new Date(Date.UTC(y, m + 9, 1)),
     };
   }
   if (zoom === "6m") {
     return {
       start: new Date(Date.UTC(y, m, 1)),
-      end: new Date(Date.UTC(y, m + 6, 1)),
+      // Запас на 18 месяцев
+      end: new Date(Date.UTC(y, m + 18, 1)),
     };
   }
   if (zoom === "1y") {
     return {
       start: new Date(Date.UTC(y, 0, 1)),
-      end: new Date(Date.UTC(y + 1, 0, 1)),
+      // Запас на 2 года
+      end: new Date(Date.UTC(y + 2, 0, 1)),
     };
   }
-  // auto: ближайшие 3 месяца с 1-го числа
+  // auto
   return {
     start: new Date(Date.UTC(y, m, 1)),
-    end: new Date(Date.UTC(y, m + 3, 1)),
+    end: new Date(Date.UTC(y, m + 9, 1)),
   };
 }
 
