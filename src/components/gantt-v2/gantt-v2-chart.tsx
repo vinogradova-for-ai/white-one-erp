@@ -93,6 +93,8 @@ function dayDiff(a: string, b: string): number {
 }
 
 const MONTH_RU = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+// JS getUTCDay: Вс=0, Пн=1, ..., Сб=6.
+const DAYS_RU = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 
 export type GanttGroupView = { key: string; label: string; rows: GanttRowV2[] };
 
@@ -134,14 +136,14 @@ export function GanttV2Chart({
     const out: Array<{ iso: string; pct: number; label: string; isMonthStart: boolean; isStrong: boolean }> = [];
     const start = parseISO(chartStart);
     if (zoom === "1w") {
-      // дни
+      // дни с подписью «Пн 5», «Вт 6» — чтобы понятно какой это день недели.
       const cur = new Date(start);
       while (cur <= parseISO(chartEnd)) {
         const iso = toISO(cur);
         out.push({
           iso,
           pct: (dayDiff(chartStart, iso) / totalDays) * 100,
-          label: `${cur.getUTCDate()}`,
+          label: `${DAYS_RU[cur.getUTCDay()]} ${cur.getUTCDate()}`,
           isMonthStart: cur.getUTCDate() === 1,
           isStrong: cur.getUTCDay() === 1,
         });
