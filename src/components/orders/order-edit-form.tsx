@@ -9,6 +9,8 @@ import type { DeliveryMethod } from "@prisma/client";
 type Option = { id: string; name: string };
 
 type Timeline = {
+  decisionDate: string;
+  handedToFactoryDate: string;
   readyAtFactoryDate: string;
   qcDate: string;
   arrivalPlannedDate: string;
@@ -134,6 +136,8 @@ export function OrderEditForm({
         deliveryMethod: common.deliveryMethod || null,
         paymentTerms: common.paymentTerms || null,
         notes: common.notes || null,
+        decisionDate: timeline.decisionDate || null,
+        handedToFactoryDate: timeline.handedToFactoryDate || null,
         readyAtFactoryDate: timeline.readyAtFactoryDate || null,
         qcDate: timeline.qcDate || null,
         arrivalPlannedDate: timeline.arrivalPlannedDate || null,

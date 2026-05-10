@@ -267,6 +267,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             orderId={order.id}
             launchMonth={`${String(order.launchMonth).slice(0, 4)}-${String(order.launchMonth).slice(4, 6)}`}
             initial={{
+              decisionDate: order.decisionDate ? order.decisionDate.toISOString().slice(0, 10) : "",
+              handedToFactoryDate: order.handedToFactoryDate ? order.handedToFactoryDate.toISOString().slice(0, 10) : "",
               readyAtFactoryDate: order.readyAtFactoryDate ? order.readyAtFactoryDate.toISOString().slice(0, 10) : "",
               qcDate: order.qcDate ? order.qcDate.toISOString().slice(0, 10) : "",
               arrivalPlannedDate: order.arrivalPlannedDate ? order.arrivalPlannedDate.toISOString().slice(0, 10) : "",

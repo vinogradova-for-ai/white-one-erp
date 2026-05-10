@@ -5,12 +5,14 @@ import { DELIVERY_DURATION_DAYS } from "@/lib/constants";
 import type { DeliveryMethod } from "@prisma/client";
 
 type Timeline = {
+  decisionDate: string;
+  handedToFactoryDate: string;
   readyAtFactoryDate: string;
   qcDate: string;
   arrivalPlannedDate: string;
 };
 
-type PhaseKey = "production" | "qc" | "shipping";
+type PhaseKey = "preparation" | "production" | "qc" | "shipping";
 
 type Phase = {
   key: PhaseKey;
@@ -18,19 +20,24 @@ type Phase = {
   icon: string;
   color: string;
   endField: keyof Timeline;
-  startField: "production-start" | keyof Timeline;
+  // startField: для первой фазы — это поле, которое хранит старт цепочки
+  // (decisionDate). Для остальных — endField предыдущей фазы.
+  startField: keyof Timeline;
 };
 
 const PHASES: Phase[] = [
-  { key: "production", title: "Производство", icon: "🪡", color: "#3b82f6", startField: "production-start",   endField: "readyAtFactoryDate" },
-  { key: "qc",         title: "ОТК",          icon: "✓",  color: "#f59e0b", startField: "readyAtFactoryDate", endField: "qcDate" },
-  { key: "shipping",   title: "Доставка",     icon: "✈",  color: "#6366f1", startField: "qcDate",             endField: "arrivalPlannedDate" },
+  { key: "preparation", title: "Разработка",   icon: "✎",  color: "#f43f5e", startField: "decisionDate",        endField: "handedToFactoryDate" },
+  { key: "production",  title: "Производство", icon: "🪡", color: "#3b82f6", startField: "handedToFactoryDate", endField: "readyAtFactoryDate" },
+  { key: "qc",          title: "ОТК",          icon: "✓",  color: "#f59e0b", startField: "readyAtFactoryDate",  endField: "qcDate" },
+  { key: "shipping",    title: "Доставка",     icon: "✈",  color: "#6366f1", startField: "qcDate",              endField: "arrivalPlannedDate" },
 ];
 
 const AUTO_SHARES: Record<keyof Timeline, number> = {
-  readyAtFactoryDate: 0.55,
-  qcDate: 0.75,
-  arrivalPlannedDate: 1.00,
+  decisionDate:        0.00,
+  handedToFactoryDate: 0.15,
+  readyAtFactoryDate:  0.85,
+  qcDate:              0.95,
+  arrivalPlannedDate:  1.00,
 };
 
 function parseISO(iso: string): Date | null {
@@ -67,7 +74,7 @@ function addDays(iso: string, days: number): string {
 function calcTimeline(launchMonth: string, deliveryMethod?: DeliveryMethod | null): Timeline {
   const [y, m] = launchMonth.split("-").map(Number);
   const empty: Timeline = {
-    readyAtFactoryDate: "", qcDate: "", arrivalPlannedDate: "",
+    decisionDate: "", handedToFactoryDate: "", readyAtFactoryDate: "", qcDate: "", arrivalPlannedDate: "",
   };
   if (!y || !m) return empty;
   const t0 = new Date();
@@ -77,16 +84,19 @@ function calcTimeline(launchMonth: string, deliveryMethod?: DeliveryMethod | nul
   if (totalMs <= 0) return empty;
 
   // Если есть способ доставки — фаза доставки берёт ровно столько дней, сколько прописано
-  // в DELIVERY_DURATION_DAYS, остальное идёт под производство+ОТК.
+  // в DELIVERY_DURATION_DAYS, остальное идёт под Разработку + Производство + ОТК.
   const deliveryDays = deliveryMethod ? DELIVERY_DURATION_DAYS[deliveryMethod] : null;
   if (deliveryDays != null) {
-    const arrival = t1; // прибытие = 1-е число месяца продаж
+    const arrival = t1;
     const qcDate = new Date(arrival.getTime() - deliveryDays * 86400000);
-    const productionMs = qcDate.getTime() - t0.getTime();
-    const ready = productionMs > 0
-      ? new Date(t0.getTime() + productionMs * 0.85) // 85% времени до ОТК — производство
-      : qcDate;
+    const totalPreShipMs = qcDate.getTime() - t0.getTime();
+    if (totalPreShipMs <= 0) return empty;
+    // Распределение до отгрузки: 15% Разработка, 70% Производство, 15% ОТК.
+    const handed = new Date(t0.getTime() + totalPreShipMs * 0.15);
+    const ready = new Date(t0.getTime() + totalPreShipMs * 0.85);
     return {
+      decisionDate: toISO(t0),
+      handedToFactoryDate: toISO(handed),
       readyAtFactoryDate: toISO(ready),
       qcDate: toISO(qcDate),
       arrivalPlannedDate: toISO(arrival),
@@ -116,9 +126,13 @@ export function OrderTimeline({
 }) {
   // Если в БД уже сохранены даты — считаем таймлайн "ручным" и НЕ пересчитываем дефолты,
   // иначе при каждом mount авто-рассчёт перетрёт сохранённые значения пользователя.
-  const hasSavedDates = !!(initial.readyAtFactoryDate || initial.qcDate || initial.arrivalPlannedDate);
+  const hasSavedDates = !!(
+    initial.decisionDate || initial.handedToFactoryDate ||
+    initial.readyAtFactoryDate || initial.qcDate || initial.arrivalPlannedDate
+  );
   const [touched, setTouched] = useState(hasSavedDates);
-  const [productionStart, setProductionStart] = useState(() => toISO(new Date()));
+  // Старт цепочки = decisionDate из таймлайна. Если decisionDate пуст — берём сегодня.
+  const chainStart = initial.decisionDate || toISO(new Date());
   const railRef = useRef<HTMLDivElement>(null);
   const [dragInfo, setDragInfo] = useState<{ left: number; label: string } | null>(null);
   // Зум шкалы: "auto" (по фазам), "1w" / "1m" / "3m" — фиксированные диапазоны.
@@ -136,10 +150,10 @@ export function OrderTimeline({
     onChange(calcTimeline(launchMonth, deliveryMethod));
   }
 
-  // Шкала: от старта производства (или сегодня, если он позже) до даты прибытия,
+  // Шкала: от старта Разработки (или сегодня, если он позже) до даты прибытия,
   // либо фиксированный диапазон по выбранному зуму.
   const todayIsoForChart = toISO(new Date());
-  const chartStart = daysBetween(productionStart, todayIsoForChart) > 0 ? productionStart : todayIsoForChart;
+  const chartStart = daysBetween(chainStart, todayIsoForChart) > 0 ? chainStart : todayIsoForChart;
   const zoomDays = zoom === "1w" ? 7 : zoom === "1m" ? 30 : zoom === "3m" ? 90 : null;
   const chartEnd = zoomDays != null
     ? addDays(chartStart, zoomDays)
@@ -147,13 +161,12 @@ export function OrderTimeline({
   const totalDays = Math.max(1, daysBetween(chartStart, chartEnd));
 
   const getStartIso = useCallback((ph: Phase): string => {
-    if (ph.startField === "production-start") return productionStart;
-    return initial[ph.startField] || productionStart;
-  }, [initial, productionStart]);
+    return initial[ph.startField] || chainStart;
+  }, [initial, chainStart]);
 
   const getEndIso = useCallback((ph: Phase): string => {
-    return initial[ph.endField] || productionStart;
-  }, [initial, productionStart]);
+    return initial[ph.endField] || chainStart;
+  }, [initial, chainStart]);
 
   function posPct(iso: string): number {
     const d = daysBetween(chartStart, iso);
@@ -167,7 +180,7 @@ export function OrderTimeline({
     origStart: string;
     origEnd: string;
     origPrevEnd: string | null;
-    origProductionStart: string;
+    origChainStart: string;
     pxPerDay: number;
   };
   const dragRef = useRef<DragState | null>(null);
@@ -192,7 +205,7 @@ export function OrderTimeline({
       origStart: getStartIso(phase),
       origEnd: getEndIso(phase),
       origPrevEnd: prevPhase ? getEndIso(prevPhase) : null,
-      origProductionStart: productionStart,
+      origChainStart: chainStart,
       pxPerDay,
     };
 
@@ -227,14 +240,11 @@ export function OrderTimeline({
         setDragInfo({ left: posPct(newEnd), label: formatDM(newEnd) });
       } else if (s.mode === "resize-left") {
         if (idx === 0) {
-          // Drag ◀ самой первой плашки = меняем стартовую дату всей цепочки.
-          // ВСЕ фазы сдвигаются на ту же дельту — длительности всех сохраняются.
-          const newStart = addDays(s.origProductionStart, deltaDays);
-          for (const ph of PHASES) {
-            next[ph.endField] = addDays(origAllEnds[ph.endField], deltaDays);
-          }
-          setProductionStart(newStart);
-          setTouched(true);
+          // Drag ◀ ПЕРВОЙ плашки (Разработка) = меняем decisionDate.
+          // End разработки (= start Производства) НЕ двигается. Хвост стоит.
+          // По факту фиксируем что разработка фактически началась раньше/позже.
+          const newStart = addDays(s.origChainStart, deltaDays);
+          next.decisionDate = newStart;
           setDragInfo({ left: posPct(newStart), label: formatDM(newStart) });
           commitChange(next);
           return;
