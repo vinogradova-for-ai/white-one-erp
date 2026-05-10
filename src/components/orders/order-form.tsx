@@ -125,13 +125,17 @@ export function OrderForm({
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [paymentsTouched, setPaymentsTouched] = useState(false);
 
-  // Таймлайн — 3 этапа: производство, ОТК, доставка
+  // Таймлайн — 4 этапа: разработка, производство, ОТК, доставка
   type Timeline = {
+    decisionDate: string;
+    handedToFactoryDate: string;
     readyAtFactoryDate: string;
     qcDate: string;
     arrivalPlannedDate: string;
   };
   const [timeline, setTimeline] = useState<Timeline>({
+    decisionDate: "",
+    handedToFactoryDate: "",
     readyAtFactoryDate: "",
     qcDate: "",
     arrivalPlannedDate: "",
@@ -283,6 +287,8 @@ export function OrderForm({
         }));
       }
       // Таймлайн — даты этапов
+      if (timeline.decisionDate) payload.decisionDate = timeline.decisionDate;
+      if (timeline.handedToFactoryDate) payload.handedToFactoryDate = timeline.handedToFactoryDate;
       if (timeline.readyAtFactoryDate) payload.readyAtFactoryDate = timeline.readyAtFactoryDate;
       if (timeline.qcDate) payload.qcDate = timeline.qcDate;
       if (timeline.arrivalPlannedDate) payload.arrivalPlannedDate = timeline.arrivalPlannedDate;

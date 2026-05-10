@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { OrderTimeline } from "@/components/orders/order-timeline";
 
 type Timeline = {
+  decisionDate: string;
+  handedToFactoryDate: string;
   readyAtFactoryDate: string;
   qcDate: string;
   arrivalPlannedDate: string;
@@ -39,6 +41,8 @@ export function OrderTimelineEditor({
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            decisionDate: timeline.decisionDate || null,
+            handedToFactoryDate: timeline.handedToFactoryDate || null,
             readyAtFactoryDate: timeline.readyAtFactoryDate || null,
             qcDate: timeline.qcDate || null,
             arrivalPlannedDate: timeline.arrivalPlannedDate || null,

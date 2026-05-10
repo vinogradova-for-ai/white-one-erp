@@ -73,6 +73,8 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
             packagingType: order.packagingType ?? "",
             notes: order.notes ?? "",
             timeline: {
+              decisionDate: iso(order.decisionDate),
+              handedToFactoryDate: iso(order.handedToFactoryDate),
               readyAtFactoryDate: iso(order.readyAtFactoryDate),
               qcDate: iso(order.qcDate),
               arrivalPlannedDate: iso(order.arrivalPlannedDate),
