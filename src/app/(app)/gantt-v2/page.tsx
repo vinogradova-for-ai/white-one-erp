@@ -276,12 +276,16 @@ export default async function GanttV2Page() {
   // Подготовка) — убрана по запросу Алёны: «у нас нет такого этапа, как лекала».
   // На /gantt-v2 теперь только заказы (4 фазы) и упаковка (3 фазы без ОТК).
 
-  // Опции фильтров с подсчётом
+  // Опции фильтров с подсчётом — берём ТОЛЬКО те значения, которые реально
+  // присутствуют у заказов. Иначе фильтр «Статус» показывает все 10 статусов
+  // из enum, половина которых у Алёны не используется.
   const launchMonthMap = new Map<number, number>();
   const categoryMap = new Map<string, number>();
+  const statusMap = new Map<string, number>();
   for (const r of rows) {
     if (r.launchMonth) launchMonthMap.set(r.launchMonth, (launchMonthMap.get(r.launchMonth) ?? 0) + 1);
     if (r.category) categoryMap.set(r.category, (categoryMap.get(r.category) ?? 0) + 1);
+    if (r.rawStatus) statusMap.set(r.rawStatus, (statusMap.get(r.rawStatus) ?? 0) + 1);
   }
   const launchMonths = Array.from(launchMonthMap.entries())
     .sort(([a], [b]) => a - b)
@@ -310,7 +314,12 @@ export default async function GanttV2Page() {
       label: `${f.name}${f.country ? ` (${f.country === "CN" ? "CN" : f.country})` : ""}`,
     })),
     launchMonths,
-    statuses: Object.entries(ORDER_STATUS_LABELS).map(([v, l]) => ({ value: v, label: l })),
+    statuses: Array.from(statusMap.entries())
+      .map(([v, count]) => ({
+        value: v,
+        label: ORDER_STATUS_LABELS[v as keyof typeof ORDER_STATUS_LABELS] ?? v,
+        count,
+      })),
     categories: Array.from(categoryMap.entries()).map(([c, count]) => ({ value: c, label: c, count })),
   };
 
