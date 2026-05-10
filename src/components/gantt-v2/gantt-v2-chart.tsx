@@ -156,6 +156,25 @@ export function GanttV2Chart({
     el.scrollLeft = target;
   }, [zoom, timelinePx, todayPct]);
 
+  // Тачпад двумя пальцами вверх-вниз по умолчанию скроллит страницу,
+  // а не контейнер Ганта. Перехватываем wheel: если жест преимущественно
+  // вертикальный, переводим его в горизонтальный скролл графика.
+  // Жесты по горизонтали (deltaX != 0) и shift+wheel оставляем как есть.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    function onWheel(e: WheelEvent) {
+      if (!el || el.scrollWidth <= el.clientWidth) return;
+      // Преимущественно вертикальный жест и без shift — листаем по горизонтали.
+      if (!e.shiftKey && Math.abs(e.deltaY) > Math.abs(e.deltaX) && Math.abs(e.deltaX) < 2) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      }
+    }
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
   if (totalRows === 0) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
