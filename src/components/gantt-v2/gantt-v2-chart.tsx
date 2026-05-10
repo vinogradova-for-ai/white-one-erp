@@ -5,17 +5,64 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { GanttRowV2, GanttBarV2, GanttGroup, GanttZoom, GanttDensity, GanttThumbnail } from "./types";
 import { colorHexFromName, isLightColor } from "@/lib/color-map";
 
-const ZOOM_OPTIONS: Record<GanttZoom, { daysBack: number; daysForward: number; pxPerDay: number }> = {
-  // pxPerDay задаёт «насколько широко рисуется один день». От него зависит
-  // полная ширина контента — если она > ширины контейнера, появляется
-  // горизонтальный скролл и можно крутить вправо в будущее.
-  "1w": { daysBack: 2,  daysForward: 7,   pxPerDay: 90 },
-  "1m": { daysBack: 7,  daysForward: 30,  pxPerDay: 35 },
-  "3m": { daysBack: 14, daysForward: 75,  pxPerDay: 22 },
-  "6m": { daysBack: 30, daysForward: 150, pxPerDay: 14 },
-  "1y": { daysBack: 60, daysForward: 300, pxPerDay: 8  },
-  "auto":{ daysBack: 14, daysForward: 75, pxPerDay: 22 },
+const ZOOM_OPTIONS: Record<GanttZoom, { pxPerDay: number }> = {
+  // pxPerDay задаёт «насколько широко рисуется один день». Полная ширина
+  // контента = totalDays × pxPerDay. Если она больше viewport — появляется
+  // горизонтальный скролл.
+  // Границы шкалы рассчитываются календарно: 1w = пн-вс текущей недели,
+  // 1m = весь календарный месяц, 3m = текущий месяц + 2 следующих, и т.д.
+  "1w":   { pxPerDay: 120 },
+  "1m":   { pxPerDay: 35  },
+  "3m":   { pxPerDay: 22  },
+  "6m":   { pxPerDay: 14  },
+  "1y":   { pxPerDay: 8   },
+  "auto": { pxPerDay: 22  },
 };
+
+// Возвращает [start, endExclusive] — календарные границы для зума, привязанные
+// к "сегодня". endExclusive — день, ПОСЛЕ последнего видимого (так удобнее
+// считать длительность через addDays).
+function calendarRangeForZoom(zoom: GanttZoom, today: Date): { start: Date; end: Date } {
+  const y = today.getUTCFullYear();
+  const m = today.getUTCMonth();
+  if (zoom === "1w") {
+    // Понедельник = 1, Воскресенье = 7. JS getUTCDay: Вс=0..Сб=6.
+    // Сдвиг до понедельника:
+    const dayIdx = (today.getUTCDay() + 6) % 7; // Пн=0, Вс=6
+    const start = new Date(Date.UTC(y, m, today.getUTCDate() - dayIdx));
+    const end = new Date(Date.UTC(y, m, start.getUTCDate() + 7)); // вс+1
+    return { start, end };
+  }
+  if (zoom === "1m") {
+    return {
+      start: new Date(Date.UTC(y, m, 1)),
+      end: new Date(Date.UTC(y, m + 1, 1)),
+    };
+  }
+  if (zoom === "3m") {
+    return {
+      start: new Date(Date.UTC(y, m, 1)),
+      end: new Date(Date.UTC(y, m + 3, 1)),
+    };
+  }
+  if (zoom === "6m") {
+    return {
+      start: new Date(Date.UTC(y, m, 1)),
+      end: new Date(Date.UTC(y, m + 6, 1)),
+    };
+  }
+  if (zoom === "1y") {
+    return {
+      start: new Date(Date.UTC(y, 0, 1)),
+      end: new Date(Date.UTC(y + 1, 0, 1)),
+    };
+  }
+  // auto: ближайшие 3 месяца с 1-го числа
+  return {
+    start: new Date(Date.UTC(y, m, 1)),
+    end: new Date(Date.UTC(y, m + 3, 1)),
+  };
+}
 
 const DENSITY: Record<GanttDensity, { rowH: number; thumbSize: number; barH: number; barTop: number; showSubtitle: boolean }> = {
   compact:  { rowH: 32, thumbSize: 0,  barH: 16, barTop: 8,  showSubtitle: false },
@@ -64,10 +111,13 @@ export function GanttV2Chart({
   onBarChange: (orderId: string, endField: string, newDateIso: string, group: GanttGroup) => void;
   pendingChanges: Record<string, string>;
 }) {
-  const { daysBack, daysForward, pxPerDay } = ZOOM_OPTIONS[zoom];
+  const { pxPerDay } = ZOOM_OPTIONS[zoom];
   const today = parseISO(todayIso);
-  const chartStart = toISO(addDays(today, -daysBack));
-  const chartEnd = toISO(addDays(today, daysForward));
+  const range = calendarRangeForZoom(zoom, today);
+  const chartStart = toISO(range.start);
+  // end эксклюзивный (день ПОСЛЕ последнего видимого), но шкала рисует до
+  // последнего видимого включительно. dayDiff между ними = количество дней.
+  const chartEnd = toISO(range.end);
   const totalDays = Math.max(1, dayDiff(chartStart, chartEnd));
 
   // Ширина timeline-области в пикселях. Контейнер скроллится по горизонтали,
