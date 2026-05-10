@@ -313,6 +313,15 @@ export function GanttV2Client({
         </div>
         <div className="flex items-center gap-2">
           {isOwner && (
+            <Link
+              href="/gantt-v2/wizard"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              title="Пройти по всем заказам и заполнить даты вручную"
+            >
+              📝 Опросник
+            </Link>
+          )}
+          {isOwner && (
             <button
               type="button"
               onClick={normalizeAll}
@@ -320,7 +329,7 @@ export function GanttV2Client({
               className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               title="Перевыставить даты у всех заказов так, чтобы фазы шли последовательно"
             >
-              {normalizing ? "Нормализую…" : "⏤ Нормализовать таймлайны"}
+              {normalizing ? "Нормализую…" : "⏤ Нормализовать"}
             </button>
           )}
           <Link

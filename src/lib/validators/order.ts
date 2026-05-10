@@ -31,6 +31,7 @@ export const orderCreateSchema = z.object({
   payments: z.array(orderPaymentInputSchema).optional(),
 
   // Таймлайн — примерные даты этапов
+  decisionDate: z.string().optional().nullable(),
   handedToFactoryDate: z.string().optional().nullable(),
   sewingStartDate: z.string().optional().nullable(),
   readyAtFactoryDate: z.string().optional().nullable(),
