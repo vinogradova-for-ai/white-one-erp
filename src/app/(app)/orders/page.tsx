@@ -10,31 +10,46 @@ import { OrderStatus } from "@prisma/client";
 export default async function OrdersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string }>;
+  searchParams: Promise<{ status?: string; owner?: string }>;
 }) {
   const sp = await searchParams;
   const where: {
     deletedAt: null;
     status?: OrderStatus;
+    ownerId?: string;
   } = { deletedAt: null };
   if (sp.status && sp.status in ORDER_STATUS_LABELS) where.status = sp.status as OrderStatus;
+  if (sp.owner) where.ownerId = sp.owner;
 
-  const orders = await prisma.order.findMany({
-    where,
-    orderBy: { updatedAt: "desc" },
-    take: 200,
-    include: {
-      productModel: { select: { name: true, photoUrls: true } },
-      lines: {
-        include: {
-          productVariant: { select: { colorName: true, photoUrls: true } },
+  // От старого к новому: сначала по месяцу запуска (старые сверху),
+  // потом по дате создания. Это снимает «хаотичность» дефолтного
+  // upd-desc — заказы стоят в логике сезона/запуска.
+  const [orders, ownerOptions] = await Promise.all([
+    prisma.order.findMany({
+      where,
+      orderBy: [{ launchMonth: "asc" }, { createdAt: "asc" }],
+      take: 200,
+      include: {
+        productModel: { select: { name: true, photoUrls: true } },
+        lines: {
+          include: {
+            productVariant: { select: { colorName: true, photoUrls: true } },
+          },
+          orderBy: { createdAt: "asc" },
         },
-        orderBy: { createdAt: "asc" },
+        factory: { select: { name: true } },
+        owner: { select: { name: true } },
       },
-      factory: { select: { name: true } },
-      owner: { select: { name: true } },
-    },
-  });
+    }),
+    prisma.user.findMany({
+      where: {
+        isActive: true,
+        role: { in: ["OWNER", "PRODUCT_MANAGER", "ASSISTANT", "CONTENT_MANAGER", "LOGISTICS"] },
+      },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -51,23 +66,43 @@ export default async function OrdersPage({
         </Link>
       </div>
 
-      <div className="sticky top-0 z-20 -mx-2 flex flex-wrap items-center gap-1.5 bg-white/90 px-2 py-2 backdrop-blur sm:-mx-0 sm:px-0">
-        <span className="text-xs uppercase tracking-wide text-slate-400 mr-1">Статус:</span>
-        <Link
-          href="/orders"
-          className={`rounded-full px-3 py-1 text-xs font-medium ${!sp.status ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-        >
-          Все
-        </Link>
-        {Object.entries(ORDER_STATUS_LABELS).map(([k, v]) => (
+      <div className="sticky top-0 z-20 -mx-2 space-y-1.5 bg-white/90 px-2 py-2 backdrop-blur sm:-mx-0 sm:px-0">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs uppercase tracking-wide text-slate-400 mr-1">Статус:</span>
           <Link
-            key={k}
-            href={`/orders?status=${k}`}
-            className={`rounded-full px-3 py-1 text-xs font-medium ${sp.status === k ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+            href={hrefWith(sp, { status: undefined })}
+            className={`rounded-full px-3 py-1 text-xs font-medium ${!sp.status ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
           >
-            {v}
+            Все
           </Link>
-        ))}
+          {Object.entries(ORDER_STATUS_LABELS).map(([k, v]) => (
+            <Link
+              key={k}
+              href={hrefWith(sp, { status: k })}
+              className={`rounded-full px-3 py-1 text-xs font-medium ${sp.status === k ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+            >
+              {v}
+            </Link>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs uppercase tracking-wide text-slate-400 mr-1">Ответственный:</span>
+          <Link
+            href={hrefWith(sp, { owner: undefined })}
+            className={`rounded-full px-3 py-1 text-xs font-medium ${!sp.owner ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+          >
+            Все
+          </Link>
+          {ownerOptions.map((u) => (
+            <Link
+              key={u.id}
+              href={hrefWith(sp, { owner: u.id })}
+              className={`rounded-full px-3 py-1 text-xs font-medium ${sp.owner === u.id ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+            >
+              {u.name}
+            </Link>
+          ))}
+        </div>
       </div>
 
       {/* Мобильная версия — карточки */}
@@ -193,6 +228,21 @@ export default async function OrdersPage({
       </div>
     </div>
   );
+}
+
+function hrefWith(
+  sp: { status?: string; owner?: string },
+  patch: { status?: string | undefined; owner?: string | undefined },
+): string {
+  const next: Record<string, string> = {};
+  if (sp.status) next.status = sp.status;
+  if (sp.owner) next.owner = sp.owner;
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === undefined) delete next[k];
+    else next[k] = v;
+  }
+  const qs = new URLSearchParams(next).toString();
+  return qs ? `/orders?${qs}` : "/orders";
 }
 
 const MONTH_NAMES_RU = [
