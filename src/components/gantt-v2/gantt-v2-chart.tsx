@@ -126,10 +126,24 @@ export function GanttV2Chart({
   const chartEnd = toISO(range.end);
   const totalDays = Math.max(1, dayDiff(chartStart, chartEnd));
 
+  // Ширина левой колонки «Заказ / фасон» — drag-resize, как в Google Sheets.
+  // Сохраняется в localStorage, чтобы при перезагрузке не сбрасывалась.
+  const LEFT_MIN = 140;
+  const LEFT_MAX = 700;
+  const [leftColWidth, setLeftColWidth] = useState<number>(300);
+  useEffect(() => {
+    const stored = Number(window.localStorage.getItem("gantt-v2:leftColWidth"));
+    if (stored >= LEFT_MIN && stored <= LEFT_MAX) setLeftColWidth(stored);
+  }, []);
+  function persistLeftColWidth(w: number) {
+    window.localStorage.setItem("gantt-v2:leftColWidth", String(w));
+  }
+  const gridCols = `${leftColWidth}px 1fr`;
+
   // Ширина timeline-области в пикселях. Контейнер скроллится по горизонтали,
-  // если эта ширина больше viewport. Левая колонка фиксирована 300px.
+  // если эта ширина больше viewport.
   const timelinePx = totalDays * pxPerDay;
-  const totalPx = 300 + timelinePx;
+  const totalPx = leftColWidth + timelinePx;
 
   const dens = DENSITY[density];
 
@@ -234,9 +248,20 @@ export function GanttV2Chart({
         <div ref={scrollRef} className="h-[calc(100vh-200px)] overflow-auto">
           <div style={{ width: `${totalPx}px`, minWidth: "100%" }}>
             {/* Шкала */}
-            <div className="sticky top-0 z-20 grid grid-cols-[300px_1fr] border-b border-slate-200 bg-white">
-              <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+            <div className="sticky top-0 z-20 grid border-b border-slate-200 bg-white" style={{ gridTemplateColumns: gridCols }}>
+              <div className="relative px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Заказ / Фасон
+                {/* Drag-handle для ресайза левой колонки. Узкая полоска на правом
+                    краю, hit-area через padding ~5px влево-вправо, чтобы было
+                    легко попасть курсором. Полоса видна всегда (≈1px), на hover
+                    ярче, как в Google Sheets / Notion. */}
+                <ResizeHandle
+                  current={leftColWidth}
+                  min={LEFT_MIN}
+                  max={LEFT_MAX}
+                  onChange={setLeftColWidth}
+                  onCommit={persistLeftColWidth}
+                />
               </div>
               <div className="relative h-9">
                 {marks.map((m) => (
@@ -281,6 +306,7 @@ export function GanttV2Chart({
                 chartEnd={chartEnd}
                 density={dens}
                 showHeader={groups.length > 1 || groups[0]?.key !== "all"}
+                gridCols={gridCols}
                 onBarChange={onBarChange}
                 pendingChanges={pendingChanges}
               />
@@ -311,7 +337,7 @@ export function GanttV2Chart({
 }
 
 function GroupBlock({
-  group, marks, todayPct, posPct, chartStart, chartEnd, density, showHeader, onBarChange, pendingChanges,
+  group, marks, todayPct, posPct, chartStart, chartEnd, density, showHeader, gridCols, onBarChange, pendingChanges,
 }: {
   group: GanttGroupView;
   marks: Array<{ iso: string; pct: number; isStrong: boolean }>;
@@ -321,6 +347,7 @@ function GroupBlock({
   chartEnd: string;
   density: typeof DENSITY[GanttDensity];
   showHeader: boolean;
+  gridCols: string;
   onBarChange: (orderId: string, endField: string, newDateIso: string, group: GanttGroup) => void;
   pendingChanges: Record<string, string>;
 }) {
@@ -342,7 +369,8 @@ function GroupBlock({
       {showHeader && (
         <div
           onClick={() => setCollapsed((c) => !c)}
-          className="sticky top-9 z-10 grid cursor-pointer grid-cols-[300px_1fr] border-b border-slate-200 bg-slate-50 hover:bg-slate-100"
+          className="sticky top-9 z-10 grid cursor-pointer border-b border-slate-200 bg-slate-50 hover:bg-slate-100"
+          style={{ gridTemplateColumns: gridCols }}
         >
           <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-slate-700">
             <span className="text-[10px]">{collapsed ? "▶" : "▼"}</span>
@@ -369,6 +397,7 @@ function GroupBlock({
           chartStart={chartStart}
           chartEnd={chartEnd}
           density={density}
+          gridCols={gridCols}
           onBarChange={onBarChange}
           pendingChanges={pendingChanges}
         />
@@ -378,7 +407,7 @@ function GroupBlock({
 }
 
 function RowView({
-  row, marks, todayPct, posPct, chartStart, chartEnd, density, onBarChange, pendingChanges,
+  row, marks, todayPct, posPct, chartStart, chartEnd, density, gridCols, onBarChange, pendingChanges,
 }: {
   row: GanttRowV2;
   marks: Array<{ iso: string; pct: number; isStrong: boolean }>;
@@ -387,11 +416,12 @@ function RowView({
   chartStart: string;
   chartEnd: string;
   density: typeof DENSITY[GanttDensity];
+  gridCols: string;
   onBarChange: (orderId: string, endField: string, newDateIso: string, group: GanttGroup) => void;
   pendingChanges: Record<string, string>;
 }) {
   return (
-    <div className="grid grid-cols-[300px_1fr] border-b border-slate-100 hover:bg-slate-50/50">
+    <div className="grid border-b border-slate-100 hover:bg-slate-50/50" style={{ gridTemplateColumns: gridCols }}>
       {/* Левая колонка */}
       <div className="flex items-start gap-2 px-3 py-2" style={{ minHeight: density.rowH }}>
         {density.thumbSize > 0 && row.thumbnails && row.thumbnails.length > 0 && (
@@ -804,6 +834,54 @@ function Thumb({ thumb, z, size }: { thumb: GanttThumbnail; z: number; size: num
       style={{ zIndex: z, width: size, height: size }}
     >
       нет
+    </span>
+  );
+}
+
+function ResizeHandle({
+  current, min, max, onChange, onCommit,
+}: {
+  current: number;
+  min: number;
+  max: number;
+  onChange: (w: number) => void;
+  onCommit: (w: number) => void;
+}) {
+  const startRef = useRef<{ x: number; w: number } | null>(null);
+  useEffect(() => {
+    function onMove(e: MouseEvent) {
+      if (!startRef.current) return;
+      const next = Math.min(max, Math.max(min, startRef.current.w + (e.clientX - startRef.current.x)));
+      onChange(next);
+    }
+    function onUp() {
+      if (startRef.current) onCommit(current);
+      startRef.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    }
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [current, min, max, onChange, onCommit]);
+
+  return (
+    <span
+      role="separator"
+      aria-orientation="vertical"
+      title="Перетащите, чтобы изменить ширину колонки"
+      onMouseDown={(e) => {
+        e.preventDefault();
+        startRef.current = { x: e.clientX, w: current };
+        document.body.style.cursor = "col-resize";
+        document.body.style.userSelect = "none";
+      }}
+      className="absolute -right-1 top-0 z-30 h-full w-2 cursor-col-resize select-none"
+    >
+      <span className="absolute right-1 top-0 h-full w-px bg-slate-200 transition-colors hover:bg-slate-500" />
     </span>
   );
 }
