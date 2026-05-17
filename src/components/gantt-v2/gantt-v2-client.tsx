@@ -8,12 +8,8 @@ import type {
   GanttRowV2,
   GanttFilterOptions,
   GanttFilters,
-  GanttGrouping,
-  GanttSort,
-  GanttDensity,
   GanttZoom,
 } from "./types";
-import { BRAND_LABELS } from "@/lib/constants";
 
 const initialFilters: GanttFilters = {
   brand: [],
@@ -31,28 +27,10 @@ const initialFilters: GanttFilters = {
   myOnly: null,
 };
 
-function startOfWeek(iso: string): string {
-  const d = new Date(iso);
-  const day = (d.getUTCDay() + 6) % 7;
-  d.setUTCDate(d.getUTCDate() - day);
-  return d.toISOString().slice(0, 10);
-}
-
-function addDays(iso: string, n: number): string {
-  const d = new Date(iso);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
-function daysBetween(a: string, b: string): number {
-  return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000);
-}
-
 export function GanttV2Client({
   rows,
   filterOptions,
   todayIso,
-  isOwner,
 }: {
   rows: GanttRowV2[];
   filterOptions: GanttFilterOptions;
@@ -61,223 +39,41 @@ export function GanttV2Client({
 }) {
   const router = useRouter();
   const [filters, setFilters] = useState<GanttFilters>(initialFilters);
-  const [grouping, setGrouping] = useState<GanttGrouping>("none");
-  const [sort, setSort] = useState<GanttSort>("urgency");
   const [zoom, setZoom] = useState<GanttZoom>("3m");
-  const [density, setDensity] = useState<GanttDensity>("normal");
   const [pending, setPending] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [normalizing, setNormalizing] = useState(false);
-  const [bulkOpen, setBulkOpen] = useState(false);
-  const [bulkDates, setBulkDates] = useState({
-    decisionDate: "2026-04-01",
-    handedToFactoryDate: "2026-04-16",
-    readyAtFactoryDate: "2026-08-01",
-    qcDate: "2026-08-02",
-    arrivalPlannedDate: "2026-08-03",
-  });
-  const [bulkBusy, setBulkBusy] = useState(false);
   const [, startTransition] = useTransition();
 
-  async function applyBulk() {
-    setBulkBusy(true);
-    try {
-      const res = await fetch("/api/admin/apply-dates-all-orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bulkDates),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        window.alert(`Ошибка: ${data?.error?.message ?? res.status}`);
-        return;
-      }
-      window.alert(`Готово. Один таймлайн применён к ${data.updated} активным заказам.`);
-      setBulkOpen(false);
-      startTransition(() => router.refresh());
-    } finally {
-      setBulkBusy(false);
-    }
-  }
-
-  async function normalizeAll() {
-    if (normalizing) return;
-    const ok = window.confirm(
-      "Нормализовать таймлайны всех заказов?\n\n" +
-      "Будут перевыставлены даты по дефолтным длительностям, чтобы фазы шли строго последовательно:\n" +
-      "• Разработка — 14 дней\n" +
-      "• Производство — 35 дней\n" +
-      "• ОТК — 5 дней\n" +
-      "• Доставка — 30 дней\n\n" +
-      "Если в заказе уже стоит более поздняя плановая дата — она сохранится. Если раньше или пусто — поставится дефолт.\n\n" +
-      "Это разовая массовая операция. Продолжить?"
-    );
-    if (!ok) return;
-    setNormalizing(true);
-    try {
-      const res = await fetch("/api/admin/normalize-phase-dates", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) {
-        window.alert(`Ошибка: ${data?.error?.message ?? res.status}`);
-        return;
-      }
-      window.alert(
-        `Готово.\n\n` +
-        `Заказы: обновлено ${data.orders.changed} из ${data.orders.total}\n` +
-        `Упаковка: обновлено ${data.packaging.changed} из ${data.packaging.total}`
-      );
-      startTransition(() => router.refresh());
-    } finally {
-      setNormalizing(false);
-    }
-  }
-
-  // ---------- KPI ----------
-  const weekStart = startOfWeek(todayIso);
-  const weekEnd = addDays(weekStart, 7);
-
-  const kpi = useMemo(() => {
-    const inWork = rows.length;
-    let burning = 0;
-    let overdue = 0;
-    let thisWeek = 0;
-    let dateIssues = 0;
-    const factoryLoad = new Map<string, number>();
-    let cycleSum = 0;
-    let cycleCount = 0;
-    for (const r of rows) {
-      if (r.hasOverdue) overdue += 1;
-      if (r.hasOverdue || r.hasNearlyDue) burning += 1;
-      if (r.hasDateOrderIssue) dateIssues += 1;
-      const finishesThisWeek = r.bars.some((b) => b.state !== "done" && b.end >= weekStart && b.end < weekEnd);
-      if (finishesThisWeek) thisWeek += 1;
-      if (r.factoryId) factoryLoad.set(r.factoryId, (factoryLoad.get(r.factoryId) ?? 0) + 1);
-      // Цикл-тайм: разница между первой и последней датой бар
-      if (r.bars.length >= 2) {
-        const first = r.bars[0].start;
-        const last = r.bars[r.bars.length - 1].end;
-        const days = daysBetween(first, last);
-        if (days > 0 && days < 365) {
-          cycleSum += days;
-          cycleCount += 1;
-        }
-      }
-    }
-    const overloaded = Array.from(factoryLoad.values()).filter((n) => n >= 5).length;
-    const factoriesTotal = factoryLoad.size;
-    const cycleAvg = cycleCount > 0 ? Math.round(cycleSum / cycleCount) : 0;
-    return { inWork, burning, overdue, thisWeek, dateIssues, overloaded, factoriesTotal, cycleAvg };
-  }, [rows, weekStart, weekEnd]);
-
-  // ---------- Фильтрация ----------
+  // ---------- Фильтрация: только Категория и Ответственный ----------
   const filtered = useMemo(() => {
-    const q = filters.search.trim().toLowerCase();
     return rows.filter((r) => {
-      if (filters.brand.length && (!r.brand || !filters.brand.includes(r.brand))) return false;
       if (filters.ownerId.length && (!r.ownerId || !filters.ownerId.includes(r.ownerId))) return false;
-      if (filters.factoryId.length && (!r.factoryId || !filters.factoryId.includes(r.factoryId))) return false;
-      if (filters.launchMonth.length && (!r.launchMonth || !filters.launchMonth.includes(String(r.launchMonth)))) return false;
-      if (filters.status.length && (!r.rawStatus || !filters.status.includes(r.rawStatus))) return false;
       if (filters.category.length && (!r.category || !filters.category.includes(r.category))) return false;
-      if (filters.phase.length) {
-        // Учитываем только активную фазу — это и есть «где сейчас стоит заказ»
-        const activeBar = r.bars.find((b) => b.state === "active");
-        if (!activeBar || !filters.phase.includes(activeBar.key)) return false;
-      }
-      if (filters.burning && !r.hasOverdue && !r.hasNearlyDue) return false;
-      if (filters.overdue && !r.hasOverdue) return false;
-      if (filters.thisWeek) {
-        const finishesThisWeek = r.bars.some((b) => b.state !== "done" && b.end >= weekStart && b.end < weekEnd);
-        if (!finishesThisWeek) return false;
-      }
-      if (filters.dateIssue && !r.hasDateOrderIssue) return false;
-      if (filters.myOnly && r.ownerId !== filters.myOnly) return false;
-      if (q) {
-        const hay = `${r.title} ${r.subtitle} ${r.statusLabel} ${r.factoryName ?? ""} ${r.ownerName ?? ""}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
       return true;
     });
-  }, [rows, filters, weekStart, weekEnd]);
+  }, [rows, filters]);
 
-  // ---------- Сортировка ----------
+  // ---------- Сортировка: от старого к новому по месяцу запуска ----------
   const sorted = useMemo(() => {
     const arr = [...filtered];
     arr.sort((a, b) => {
-      if (sort === "title") return a.title.localeCompare(b.title);
-      if (sort === "launchMonth") {
-        const av = a.launchMonth ?? 999999;
-        const bv = b.launchMonth ?? 999999;
-        return av - bv;
-      }
-      const aLastEnd = a.bars[a.bars.length - 1]?.end ?? "";
-      const bLastEnd = b.bars[b.bars.length - 1]?.end ?? "";
-      if (sort === "deadline") return aLastEnd.localeCompare(bLastEnd);
-      // urgency: горящие → просроченные → дедлайн
-      const aScore = (a.hasOverdue ? 0 : a.hasNearlyDue ? 1 : 2);
-      const bScore = (b.hasOverdue ? 0 : b.hasNearlyDue ? 1 : 2);
-      if (aScore !== bScore) return aScore - bScore;
-      return aLastEnd.localeCompare(bLastEnd);
+      const av = a.launchMonth ?? 999999;
+      const bv = b.launchMonth ?? 999999;
+      if (av !== bv) return av - bv;
+      // Тай-брейкер: по дате старта первой фазы
+      const aStart = a.bars[0]?.start ?? "";
+      const bStart = b.bars[0]?.start ?? "";
+      return aStart.localeCompare(bStart);
     });
     return arr;
-  }, [filtered, sort]);
+  }, [filtered]);
 
-  // ---------- Группировка ----------
-  const groups = useMemo(() => {
-    if (grouping === "none") return [{ key: "all", label: "Все заказы", rows: sorted }];
-    const map = new Map<string, GanttRowV2[]>();
-    const keyLabel = new Map<string, string>();
-    for (const r of sorted) {
-      let key = "—";
-      let label = "Без группы";
-      switch (grouping) {
-        case "brand":
-          key = r.brand ?? "_none";
-          label = r.brand ? (BRAND_LABELS[r.brand] ?? r.brand) : "Без бренда";
-          break;
-        case "factory":
-          key = r.factoryId ?? "_none";
-          label = r.factoryName ?? "Без фабрики";
-          break;
-        case "owner":
-          key = r.ownerId ?? "_none";
-          label = r.ownerName ?? "Без ответственного";
-          break;
-        case "launchMonth":
-          key = r.launchMonth ? String(r.launchMonth) : "_none";
-          if (r.launchMonth) {
-            const MONTH_RU = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
-            const y = String(r.launchMonth).slice(0, 4);
-            const m = Number(String(r.launchMonth).slice(4, 6)) - 1;
-            label = `${MONTH_RU[m]} ${y}`;
-          } else {
-            label = "Без даты запуска";
-          }
-          break;
-        case "phase": {
-          const active = r.bars.find((b) => b.state === "active");
-          key = active?.key ?? "_done";
-          label = active?.title ?? "Все фазы пройдены";
-          break;
-        }
-        case "category":
-          key = r.category ?? "_none";
-          label = r.category ?? "Без категории";
-          break;
-        case "type":
-          key = r.group;
-          label = r.group === "orders" ? "Заказы производства" : r.group === "packaging" ? "Заказы упаковки" : "Разработка фасонов";
-          break;
-      }
-      if (!map.has(key)) {
-        map.set(key, []);
-        keyLabel.set(key, label);
-      }
-      map.get(key)!.push(r);
-    }
-    return Array.from(map.entries()).map(([key, rows]) => ({ key, label: keyLabel.get(key)!, rows }));
-  }, [sorted, grouping]);
+  // ---------- Без группировки ----------
+  const groups = useMemo(
+    () => [{ key: "all", label: "Все заказы", rows: sorted }],
+    [sorted],
+  );
 
   // ---------- Drag-сохранение ----------
   function handleBarChange(orderId: string, endField: string, newDateIso: string, group: string) {
@@ -325,192 +121,33 @@ export function GanttV2Client({
   }
 
   const pendingCount = Object.keys(pending).length;
-  const hasActiveFilters =
-    filters.brand.length || filters.phase.length || filters.ownerId.length ||
-    filters.factoryId.length || filters.launchMonth.length || filters.status.length ||
-    filters.category.length || filters.search || filters.burning || filters.overdue ||
-    filters.thisWeek || filters.dateIssue || filters.myOnly;
 
   return (
     <div className="space-y-3">
       {/* Шапка */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">График Ганта · Mission Control</h1>
+          <h1 className="text-2xl font-bold text-slate-900">График Ганта</h1>
           <div className="text-sm text-slate-500">
-            Один экран — весь цикл от разработки до доставки. Видимо: {sorted.length} из {rows.length}
+            Видимо: {sorted.length} из {rows.length}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {isOwner && (
-            <button
-              type="button"
-              onClick={() => setBulkOpen(true)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              title="Применить один таймлайн ко всем активным заказам"
-            >
-              🟰 Один таймлайн всем
-            </button>
-          )}
-          {isOwner && (
-            <Link
-              href="/gantt-v2/wizard"
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              title="Пройти по всем заказам и заполнить даты вручную"
-            >
-              📝 Опросник
-            </Link>
-          )}
-          {isOwner && (
-            <button
-              type="button"
-              onClick={() => setBulkOpen(true)}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              title="Применить один таймлайн ко всем активным заказам"
-            >
-              🟰 Один таймлайн всем
-            </button>
-          )}
-          {isOwner && (
-            <Link
-              href="/gantt-v2/wizard"
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              title="Пройти по всем заказам и заполнить даты вручную"
-            >
-              📝 Опросник
-            </Link>
-          )}
-          {isOwner && (
-            <button
-              type="button"
-              onClick={normalizeAll}
-              disabled={normalizing}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              title="Перевыставить даты у всех заказов так, чтобы фазы шли последовательно"
-            >
-              {normalizing ? "Нормализую…" : "⏤ Нормализовать"}
-            </button>
-          )}
-          <Link
-            href="/orders/new"
-            className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
-          >
-            + Новый заказ
-          </Link>
-        </div>
+        <Link
+          href="/orders/new"
+          className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+        >
+          + Новый заказ
+        </Link>
       </div>
 
-      {/* KPI-полоса */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
-        <KpiTile
-          label="В работе"
-          value={kpi.inWork}
-          tone={hasActiveFilters ? "muted" : "neutral"}
-          active={!hasActiveFilters}
-          onClick={() => setFilters(initialFilters)}
-        />
-        <KpiTile
-          label="Горит сейчас"
-          value={kpi.burning}
-          tone={kpi.burning > 0 ? "burning" : "neutral"}
-          active={filters.burning}
-          onClick={() => setFilters((f) => ({ ...f, burning: !f.burning, overdue: false, thisWeek: false, dateIssue: false }))}
-        />
-        <KpiTile
-          label="Просрочено"
-          value={kpi.overdue}
-          tone={kpi.overdue > 0 ? "danger" : "neutral"}
-          active={filters.overdue}
-          onClick={() => setFilters((f) => ({ ...f, overdue: !f.overdue, burning: false, thisWeek: false, dateIssue: false }))}
-        />
-        <KpiTile
-          label="На этой неделе"
-          value={kpi.thisWeek}
-          tone="info"
-          active={filters.thisWeek}
-          onClick={() => setFilters((f) => ({ ...f, thisWeek: !f.thisWeek, burning: false, overdue: false, dateIssue: false }))}
-        />
-        <KpiTile
-          label="Битые даты"
-          value={kpi.dateIssues}
-          tone={kpi.dateIssues > 0 ? "warn" : "neutral"}
-          active={filters.dateIssue}
-          onClick={() => setFilters((f) => ({ ...f, dateIssue: !f.dateIssue, burning: false, overdue: false, thisWeek: false }))}
-        />
-        <KpiTile label="Цикл-тайм средний" value={`${kpi.cycleAvg} дн`} tone="neutral" />
-        <KpiTile
-          label="Фабрики"
-          value={`${kpi.overloaded}/${kpi.factoriesTotal}${kpi.overloaded > 0 ? " 🔥" : ""}`}
-          tone={kpi.overloaded > 0 ? "warn" : "neutral"}
-        />
-      </div>
-
-      {/* Панель фильтров */}
+      {/* Панель: фильтры + зум */}
       <div className="rounded-xl border border-slate-200 bg-white p-3">
-        <div className="flex flex-wrap items-center gap-2 mb-2">
+        <div className="flex flex-wrap items-center gap-3">
           <span className="text-xs uppercase tracking-wide text-slate-400">Фильтры:</span>
-          <FilterDropdown label="Бренд" options={filterOptions.brands} value={filters.brand}
-            onChange={(v) => setFilters((f) => ({ ...f, brand: v }))} />
-          <FilterDropdown label="Этап" options={filterOptions.phases} value={filters.phase}
-            onChange={(v) => setFilters((f) => ({ ...f, phase: v }))} />
-          <FilterDropdown label="Ответственный" options={filterOptions.owners} value={filters.ownerId}
-            onChange={(v) => setFilters((f) => ({ ...f, ownerId: v }))} />
-          <FilterDropdown label="Фабрика" options={filterOptions.factories} value={filters.factoryId}
-            onChange={(v) => setFilters((f) => ({ ...f, factoryId: v }))} />
-          <FilterDropdown label="Месяц запуска" options={filterOptions.launchMonths} value={filters.launchMonth}
-            onChange={(v) => setFilters((f) => ({ ...f, launchMonth: v }))} />
-          <FilterDropdown label="Статус" options={filterOptions.statuses} value={filters.status}
-            onChange={(v) => setFilters((f) => ({ ...f, status: v }))} />
           <FilterDropdown label="Категория" options={filterOptions.categories} value={filters.category}
             onChange={(v) => setFilters((f) => ({ ...f, category: v }))} />
-
-          <input
-            type="text"
-            placeholder="Поиск: фасон, цвет, номер…"
-            value={filters.search}
-            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-            className="ml-auto w-56 rounded-lg border border-slate-300 px-3 py-1.5 text-xs focus:border-slate-500 focus:outline-none"
-          />
-
-          {hasActiveFilters && (
-            <button
-              type="button"
-              onClick={() => setFilters(initialFilters)}
-              className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
-            >
-              Сбросить ×
-            </button>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 pt-2">
-          <span className="text-xs uppercase tracking-wide text-slate-400">Группировка:</span>
-          <RadioGroup
-            options={[
-              { key: "none", label: "Без" },
-              { key: "type", label: "Тип" },
-              { key: "brand", label: "Бренд" },
-              { key: "factory", label: "Фабрика" },
-              { key: "owner", label: "PM" },
-              { key: "launchMonth", label: "Месяц" },
-              { key: "phase", label: "Этап" },
-              { key: "category", label: "Категория" },
-            ]}
-            value={grouping}
-            onChange={(v) => setGrouping(v as GanttGrouping)}
-          />
-
-          <span className="ml-3 text-xs uppercase tracking-wide text-slate-400">Сортировка:</span>
-          <RadioGroup
-            options={[
-              { key: "urgency", label: "Срочность" },
-              { key: "deadline", label: "Дедлайн" },
-              { key: "launchMonth", label: "Запуск" },
-              { key: "title", label: "А-Я" },
-            ]}
-            value={sort}
-            onChange={(v) => setSort(v as GanttSort)}
-          />
+          <FilterDropdown label="Ответственный" options={filterOptions.owners} value={filters.ownerId}
+            onChange={(v) => setFilters((f) => ({ ...f, ownerId: v }))} />
 
           <span className="ml-3 text-xs uppercase tracking-wide text-slate-400">Зум:</span>
           <RadioGroup
@@ -518,22 +155,9 @@ export function GanttV2Client({
               { key: "1w", label: "1 нед" },
               { key: "1m", label: "1 мес" },
               { key: "3m", label: "3 мес" },
-              { key: "6m", label: "6 мес" },
-              { key: "1y", label: "Год" },
             ]}
             value={zoom}
             onChange={(v) => setZoom(v as GanttZoom)}
-          />
-
-          <span className="ml-3 text-xs uppercase tracking-wide text-slate-400">Плотность:</span>
-          <RadioGroup
-            options={[
-              { key: "compact", label: "≡" },
-              { key: "normal", label: "≣" },
-              { key: "spacious", label: "▤" },
-            ]}
-            value={density}
-            onChange={(v) => setDensity(v as GanttDensity)}
           />
         </div>
       </div>
@@ -542,72 +166,11 @@ export function GanttV2Client({
       <GanttV2Chart
         groups={groups}
         zoom={zoom}
-        density={density}
+        density="normal"
         todayIso={todayIso}
         onBarChange={handleBarChange}
         pendingChanges={pending}
       />
-
-      {/* Модалка «Один таймлайн всем» */}
-      {bulkOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => !bulkBusy && setBulkOpen(false)}
-        >
-          <div
-            className="w-full max-w-md rounded-xl bg-white p-5 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-base font-semibold text-slate-900">
-              Один таймлайн ко всем заказам
-            </div>
-            <div className="mt-1 text-xs text-slate-500">
-              Применит эти 5 дат сразу ко всем активным заказам (кроме «В продаже»).
-            </div>
-
-            <div className="mt-4 space-y-2.5">
-              {[
-                { key: "decisionDate", label: "Старт Разработки" },
-                { key: "handedToFactoryDate", label: "Конец Разработки = старт Производства" },
-                { key: "readyAtFactoryDate", label: "Конец Производства = старт ОТК" },
-                { key: "qcDate", label: "Конец ОТК = старт Доставки" },
-                { key: "arrivalPlannedDate", label: "Конец Доставки" },
-              ].map((f) => (
-                <div key={f.key}>
-                  <label className="block text-xs font-medium text-slate-700">{f.label}</label>
-                  <input
-                    type="date"
-                    value={bulkDates[f.key as keyof typeof bulkDates]}
-                    onChange={(e) =>
-                      setBulkDates((d) => ({ ...d, [f.key]: e.target.value }))
-                    }
-                    className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm focus:border-slate-500 focus:outline-none"
-                  />
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-5 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setBulkOpen(false)}
-                disabled={bulkBusy}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-              >
-                Отмена
-              </button>
-              <button
-                type="button"
-                onClick={applyBulk}
-                disabled={bulkBusy}
-                className="ml-auto rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-40"
-              >
-                {bulkBusy ? "Применяю…" : "Применить ко всем"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Sticky save-bar */}
       {pendingCount > 0 && (
@@ -638,49 +201,6 @@ export function GanttV2Client({
         </div>
       )}
     </div>
-  );
-}
-
-// ============================================================
-// KPI-плитка
-// ============================================================
-function KpiTile({
-  label, value, tone, active, onClick,
-}: {
-  label: string;
-  value: number | string;
-  tone: "neutral" | "burning" | "danger" | "warn" | "info" | "muted";
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  const toneClass: Record<string, string> = {
-    neutral: "border-slate-200 bg-white",
-    burning: "border-amber-300 bg-amber-50",
-    danger: "border-red-300 bg-red-50",
-    warn: "border-orange-300 bg-orange-50",
-    info: "border-sky-300 bg-sky-50",
-    muted: "border-slate-200 bg-slate-50",
-  };
-  const valueClass: Record<string, string> = {
-    neutral: "text-slate-900",
-    burning: "text-amber-900",
-    danger: "text-red-700",
-    warn: "text-orange-800",
-    info: "text-sky-800",
-    muted: "text-slate-700",
-  };
-  const Wrap = onClick ? "button" : "div";
-  return (
-    <Wrap
-      type={onClick ? "button" : undefined}
-      onClick={onClick}
-      className={`flex flex-col items-start rounded-xl border px-3 py-2 text-left transition ${toneClass[tone]} ${
-        active ? "ring-2 ring-slate-900" : onClick ? "hover:shadow-sm" : ""
-      } ${onClick ? "cursor-pointer" : ""}`}
-    >
-      <span className="text-[11px] uppercase tracking-wide text-slate-500">{label}</span>
-      <span className={`mt-0.5 text-2xl font-bold ${valueClass[tone]}`}>{value}</span>
-    </Wrap>
   );
 }
 
