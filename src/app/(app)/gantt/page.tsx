@@ -119,17 +119,25 @@ export default async function GanttPage({
     // разработка, производство, ОТК и доставка». Поэтому всегда генерируем
     // все 4 фазы. Если в БД дата фазы пустая — берём end предыдущей фазы
     // (плашка нулевой длительности, но видна и редактируется через ◀ ▶).
+    //
+    // Исключение: если фаза УЖЕ ДОЛЖНА БЫТЬ ПРОЙДЕНА по статусу (done == true),
+    // но в БД дат на неё вообще нет (start и end null) — не рисуем фантомную
+    // плашку. Алёна: «в самом начале какая-то разработка встаёт, не поняла
+    // откуда она подтянулась» — это про такие фантомы у заказов, которые уже
+    // в производстве, но decisionDate не был заполнен.
     let prevEnd: string | null = null;
     type BarSrc = { ph: typeof PHASES[number]; s: string; e: string; done: boolean; overdue: boolean };
     const allBars: BarSrc[] = [];
     for (const ph of PHASES) {
       const startRaw = (o as Record<string, unknown>)[ph.startKey] as Date | null | undefined;
       const endRaw = (o as Record<string, unknown>)[ph.endKey] as Date | null | undefined;
+      const done = ph.doneAt.includes(o.status as never);
+      // Фантом-фильтр: done-фаза без обеих дат — пропускаем.
+      if (done && !startRaw && !endRaw) continue;
       // Старт фазы: из БД, либо end предыдущей, либо сегодня для самой первой.
       const s: string = iso(startRaw) ?? prevEnd ?? todayIso;
       // Конец фазы: из БД, либо равен старту (нулевая длительность).
       const e: string = iso(endRaw) ?? s;
-      const done = ph.doneAt.includes(o.status as never);
       const overdue = !done && e < todayIso;
       allBars.push({ ph, s, e, done, overdue });
       prevEnd = e;
@@ -161,6 +169,10 @@ export default async function GanttPage({
       photoUrl: l.productVariant?.photoUrls?.[0] ?? o.productModel.photoUrls?.[0] ?? null,
       colorName: l.productVariant?.colorName ?? null,
     }));
+    // Архив: заказ уже доехал на склад МСК / упакован / отгружен — это
+    // фактически завершённая работа продуктового отдела. Перемещаем в конец
+    // списка и затемняем, чтобы текущие производства не терялись среди них.
+    const archived = ["WAREHOUSE_MSK", "PACKING", "SHIPPED_WB"].includes(o.status);
     rows.push({
       group: "orders",
       id: o.id,
@@ -171,6 +183,7 @@ export default async function GanttPage({
       owner: o.owner?.name,
       thumbnails: thumbs,
       bars,
+      archived,
     });
   }
 
@@ -322,8 +335,10 @@ export default async function GanttPage({
   }
 
   // Сортировка: ближайшие к закрытию цикла — наверху. Берём максимальный
-  // end по всем барам (последний дедлайн заказа).
+  // end по всем барам (последний дедлайн заказа). Архивные (склад МСК и далее)
+  // всегда уходят в самый конец, независимо от их дат.
   rows.sort((a, b) => {
+    if (!!a.archived !== !!b.archived) return a.archived ? 1 : -1;
     const aEnd = a.bars.reduce((m, x) => (x.end > m ? x.end : m), a.bars[0]?.end ?? "");
     const bEnd = b.bars.reduce((m, x) => (x.end > m ? x.end : m), b.bars[0]?.end ?? "");
     return aEnd.localeCompare(bEnd);
