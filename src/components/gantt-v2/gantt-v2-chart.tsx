@@ -528,9 +528,11 @@ function BarView({
   if (bar.overdue) borderClass = "ring-2 ring-red-500";
   else if (bar.nearlyDue) borderClass = "ring-2 ring-amber-500";
 
+  // ПРОСРОЧЕНО/СКОРО ДЕДЛАЙН в тултипе не дублируем — для этого уже есть
+  // цветная обводка плашки и иконка 🔥/⚠️ в шапке строки.
   const tooltip = `${bar.title} · ${formatDM(effStart)} → ${formatDM(effEnd)} · ${days} дн${
     bar.owner ? ` · ${bar.owner}` : ""
-  }${bar.overdue ? " · ПРОСРОЧЕНО" : ""}${bar.nearlyDue && !bar.overdue ? " · СКОРО ДЕДЛАЙН" : ""}${dirty ? " · ИЗМЕНЕНО" : ""}`;
+  }${dirty ? " · ИЗМЕНЕНО" : ""}`;
 
   const editable = !!(bar.orderId && bar.endField);
 
