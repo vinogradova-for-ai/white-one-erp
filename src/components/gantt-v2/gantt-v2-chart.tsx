@@ -718,17 +718,6 @@ function DraggableBar({
     setDragging(mode);
   }
 
-  // Future-полоса делается в виде diagonal-stripes overlay, чтобы было видно,
-  // что эта фаза ещё впереди и редактируется, но не «исполняется».
-  const futureOverlay = future ? (
-    <div
-      className="pointer-events-none absolute inset-0 rounded"
-      style={{
-        background: "repeating-linear-gradient(45deg, transparent 0 4px, rgba(255,255,255,0.4) 4px 8px)",
-      }}
-    />
-  ) : null;
-
   return (
     <div
       ref={ref}
@@ -736,7 +725,6 @@ function DraggableBar({
       style={{ left: `${left}%`, width: `${width}%`, top, height }}
       title={tooltip}
     >
-      {futureOverlay}
       {/* Галочка для done */}
       {done && (
         <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12px] font-bold text-white drop-shadow-sm">
