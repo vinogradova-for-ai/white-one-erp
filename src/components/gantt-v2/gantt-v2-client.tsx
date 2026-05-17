@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { toast } from "sonner";
 import { GanttV2Chart } from "./gantt-v2-chart";
 import type {
   GanttRowV2,
@@ -40,9 +41,12 @@ export function GanttV2Client({
   const router = useRouter();
   const [filters, setFilters] = useState<GanttFilters>(initialFilters);
   const [zoom, setZoom] = useState<GanttZoom>("3m");
+  // pending — буфер изменений: drag → попадает сюда, через 600мс улетает в API.
+  // Хранится и в state (для подсветки на барах), и в ref (для дебаунс-таймера —
+  // он читает актуальный снэпшот без stale closure).
   const [pending, setPending] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const pendingRef = useRef<Record<string, string>>({});
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [, startTransition] = useTransition();
 
   // ---------- Фильтрация: только Категория и Ответственный ----------
@@ -76,30 +80,26 @@ export function GanttV2Client({
     [sorted],
   );
 
-  // ---------- Drag-сохранение ----------
-  function handleBarChange(orderId: string, endField: string, newDateIso: string, group: string) {
-    setPending((p) => ({ ...p, [`${group}:${orderId}:${endField}`]: newDateIso }));
-  }
-
-  function discard() {
+  // ---------- Drag → автосейв ----------
+  // Каждое изменение попадает в pending, перезапускаем дебаунс-таймер 600мс.
+  // Когда таймер дотикает (юзер перестал тащить) — снапшот улетает в API
+  // одним батчем (каждый заказ — один PATCH), потом toast «Сохранено» и refresh.
+  async function flushAutosave() {
+    const snapshot = pendingRef.current;
+    if (Object.keys(snapshot).length === 0) return;
+    pendingRef.current = {};
     setPending({});
-    setSaveError(null);
-  }
-
-  async function save() {
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const byOrder: Record<string, { group: string; orderId: string; fields: Record<string, string> }> = {};
-      for (const [k, v] of Object.entries(pending)) {
-        const [g, id, field] = k.split(":");
-        const key = `${g}:${id}`;
-        if (!byOrder[key]) byOrder[key] = { group: g, orderId: id, fields: {} };
-        byOrder[key].fields[field] = v;
-      }
-      const errors: string[] = [];
-      for (const { group, orderId, fields } of Object.values(byOrder)) {
-        const base = group === "packaging" ? "/api/packaging-orders" : group === "development" ? "/api/models" : "/api/orders";
+    const byOrder: Record<string, { group: string; orderId: string; fields: Record<string, string> }> = {};
+    for (const [k, v] of Object.entries(snapshot)) {
+      const [g, id, field] = k.split(":");
+      const key = `${g}:${id}`;
+      if (!byOrder[key]) byOrder[key] = { group: g, orderId: id, fields: {} };
+      byOrder[key].fields[field] = v;
+    }
+    const errors: string[] = [];
+    for (const { group, orderId, fields } of Object.values(byOrder)) {
+      const base = group === "packaging" ? "/api/packaging-orders" : group === "development" ? "/api/models" : "/api/orders";
+      try {
         const res = await fetch(`${base}/${orderId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -109,19 +109,25 @@ export function GanttV2Client({
           const j = await res.json().catch(() => ({}));
           errors.push(`${orderId}: ${j?.error?.message ?? res.status}`);
         }
+      } catch (e) {
+        errors.push(`${orderId}: ${(e as Error).message}`);
       }
-      if (errors.length > 0) {
-        setSaveError(`Ошибки: ${errors.join("; ")}`);
-        return;
-      }
-      setPending({});
-      startTransition(() => router.refresh());
-    } finally {
-      setSaving(false);
     }
+    if (errors.length > 0) {
+      toast.error(`Не сохранилось: ${errors.join("; ")}`);
+      return;
+    }
+    toast.success("Сохранено");
+    startTransition(() => router.refresh());
   }
 
-  const pendingCount = Object.keys(pending).length;
+  function handleBarChange(orderId: string, endField: string, newDateIso: string, group: string) {
+    const key = `${group}:${orderId}:${endField}`;
+    pendingRef.current = { ...pendingRef.current, [key]: newDateIso };
+    setPending(pendingRef.current);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(flushAutosave, 600);
+  }
 
   return (
     <div className="space-y-3">
@@ -174,34 +180,6 @@ export function GanttV2Client({
         pendingChanges={pending}
       />
 
-      {/* Sticky save-bar */}
-      {pendingCount > 0 && (
-        <div className="sticky bottom-3 z-30 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-3 shadow-lg">
-          <div className="flex-1 text-sm">
-            <span className="font-semibold text-amber-900">Несохранённых изменений: {pendingCount}</span>
-            <div className="text-xs text-amber-800">
-              Перетащите ещё или сохраните разом. Каждый заказ — один запрос.
-            </div>
-            {saveError && <div className="mt-1 text-xs text-red-600">{saveError}</div>}
-          </div>
-          <button
-            type="button"
-            onClick={discard}
-            disabled={saving}
-            className="rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-sm text-amber-900 hover:bg-amber-100 disabled:opacity-50"
-          >
-            Отменить
-          </button>
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving}
-            className="rounded-lg bg-amber-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
-          >
-            {saving ? "Сохранение…" : `Сохранить (${pendingCount})`}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
