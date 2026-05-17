@@ -40,6 +40,9 @@ export type GanttRow = {
   owner?: string | null;
   thumbnails?: GanttThumbnail[];
   bars: GanttBar[];
+  // Архив: товар уже доехал до склада / упакован / на WB. Выводим в конец списка
+  // и затемняем, чтобы не мешал при планировании текущих производств.
+  archived?: boolean;
 };
 
 const GROUP_LABELS: Record<GanttGroup | "all", string> = {
@@ -265,7 +268,7 @@ function RowView({
   pendingChanges?: Record<string, string>;
 }) {
   return (
-    <div className="grid grid-cols-[260px_1fr] border-b border-slate-100 hover:bg-slate-50">
+    <div className={`grid grid-cols-[260px_1fr] border-b border-slate-100 hover:bg-slate-50 ${row.archived ? "opacity-45" : ""}`}>
       <div className="flex items-start gap-2 px-3 py-2">
         {row.thumbnails && row.thumbnails.length > 0 && <ThumbnailStack thumbs={row.thumbnails} />}
         <div className="min-w-0 flex-1">
