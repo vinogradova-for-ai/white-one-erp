@@ -410,18 +410,6 @@ function RowView({
             </div>
           )}
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-0.5">
-          {row.hasOverdue && <span title="Просрочено" className="text-sm">🔥</span>}
-          {!row.hasOverdue && row.hasNearlyDue && <span title="Скоро дедлайн" className="text-sm">⚠️</span>}
-          {row.hasDateOrderIssue && (
-            <span
-              title={`Нелогичный порядок фаз: ${row.dateOrderIssueText ?? ""}. Перетащите ◀ ▶ чтобы исправить.`}
-              className="rounded-full border border-orange-400 bg-orange-100 px-1.5 py-0.5 text-[9px] font-bold text-orange-700"
-            >
-              ↯ даты
-            </span>
-          )}
-        </div>
       </div>
 
       {/* Правая колонка — таймлайн */}
