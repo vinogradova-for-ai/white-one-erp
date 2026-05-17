@@ -235,7 +235,7 @@ export function GanttChart({
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
         <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-blue-500 align-middle" />Производство</span>
         <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-amber-500 align-middle" />ОТК</span>
-        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-fuchsia-500 align-middle" />Доставка</span>
+        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-emerald-500 align-middle" />Доставка</span>
         <span className="hidden sm:inline">·</span>
         <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-rose-400 align-middle" />Лекала</span>
         <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-purple-500 align-middle" />Образец</span>

@@ -290,10 +290,10 @@ export function GanttV2Chart({
 
         {/* Легенда */}
         <div className="border-t border-slate-200 p-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-500">
-          <LegendItem color="bg-rose-300" label="Разработка" />
+          <LegendItem color="bg-slate-400" label="Разработка" />
           <LegendItem color="bg-blue-500" label="Производство" />
           <LegendItem color="bg-amber-500" label="ОТК" />
-          <LegendItem color="bg-fuchsia-500" label="Доставка" />
+          <LegendItem color="bg-emerald-500" label="Доставка" />
           <span className="text-slate-300">·</span>
           <span><span className="inline-block h-3 w-3 rounded-sm border-2 border-red-500 align-middle mr-1" />Просрочено</span>
           <span><span className="inline-block h-3 w-3 rounded-sm border-2 border-amber-500 align-middle mr-1" />Скоро дедлайн</span>
