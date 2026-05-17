@@ -231,7 +231,7 @@ export function GanttV2Chart({
     <div className="rounded-xl border border-slate-200 bg-white">
       {/* Десктоп: Гант */}
       <div className="hidden md:block">
-        <div ref={scrollRef} className="max-h-[calc(100vh-360px)] overflow-auto">
+        <div ref={scrollRef} className="h-[calc(100vh-200px)] overflow-auto">
           <div style={{ width: `${totalPx}px`, minWidth: "100%" }}>
             {/* Шкала */}
             <div className="sticky top-0 z-20 grid grid-cols-[300px_1fr] border-b border-slate-200 bg-white">
@@ -709,7 +709,6 @@ function DraggableBar({
       ref={ref}
       className={`group absolute rounded ${barColor} ${stateClass} ${borderClass} shadow-sm transition-all duration-300 ${flash ? "ring-2 ring-emerald-400 ring-offset-1" : ""}`}
       style={{ left: `${left}%`, width: `${width}%`, top, height }}
-      title={tooltip}
     >
       {/* Галочка для done */}
       {done && (
@@ -717,7 +716,8 @@ function DraggableBar({
           ✓
         </span>
       )}
-      {/* Подсказка тултип */}
+      {/* Подсказка-тултип — единственный источник правды (родного title нет,
+          чтобы браузер не показывал свой жёлтый тултип поверх кастомного). */}
       <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] text-white shadow-lg group-hover:block">
         {tooltip}
       </div>

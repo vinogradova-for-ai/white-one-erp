@@ -159,6 +159,12 @@ export function GanttV2Client({
             value={zoom}
             onChange={(v) => setZoom(v as GanttZoom)}
           />
+
+          <div className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
+            <span className="flex items-center gap-1"><span>🔥</span>просрочено</span>
+            <span className="flex items-center gap-1"><span>⚠️</span>скоро дедлайн</span>
+            <span className="flex items-center gap-1"><span className="rounded-full border border-orange-400 bg-orange-100 px-1 py-0.5 text-[9px] font-bold text-orange-700">↯ даты</span>фазы не в порядке</span>
+          </div>
         </div>
       </div>
 
