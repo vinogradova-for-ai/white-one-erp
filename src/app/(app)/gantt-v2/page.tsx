@@ -8,10 +8,10 @@ import { ORDER_STATUS_LABELS, BRAND_LABELS } from "@/lib/constants";
 // Каждой фазе соответствует пара полей в БД (start/end), причём end предыдущей
 // фазы = start следующей (одно поле в БД).
 const PHASES = [
-  { key: "preparation", title: "Разработка",   color: "bg-rose-300",    startKey: "decisionDate",        endKey: "handedToFactoryDate", doneAt: ["IN_PRODUCTION", "QC", "READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
+  { key: "preparation", title: "Разработка",   color: "bg-slate-400",    startKey: "decisionDate",        endKey: "handedToFactoryDate", doneAt: ["IN_PRODUCTION", "QC", "READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
   { key: "production",  title: "Производство", color: "bg-blue-500",    startKey: "handedToFactoryDate", endKey: "readyAtFactoryDate",  doneAt: ["QC", "READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
   { key: "qc",          title: "ОТК",          color: "bg-amber-500",   startKey: "readyAtFactoryDate",  endKey: "qcDate",              doneAt: ["READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
-  { key: "shipping",    title: "Доставка",     color: "bg-fuchsia-500", startKey: "qcDate",              endKey: "arrivalPlannedDate",  doneAt: ["WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
+  { key: "shipping",    title: "Доставка",     color: "bg-emerald-500", startKey: "qcDate",              endKey: "arrivalPlannedDate",  doneAt: ["WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
 ] as const;
 
 const PACKAGING_STATUS_LABELS: Record<string, string> = {
@@ -222,9 +222,9 @@ export default async function GanttV2Page() {
       start: string; end: string; done: boolean;
       endField: string; startField?: string;
     }> = [
-      { key: "preparation", title: "Разработка",  color: "bg-rose-300",    start: decisionIso,    end: orderedIso,       done: developmentDone, endField: "orderedDate", startField: "decisionDate" },
+      { key: "preparation", title: "Разработка",  color: "bg-slate-400",    start: decisionIso,    end: orderedIso,       done: developmentDone, endField: "orderedDate", startField: "decisionDate" },
       { key: "production",  title: "Производство", color: "bg-blue-500",    start: orderedIso,     end: productionEndIso, done: productionDone,  endField: "productionEndDate" },
-      { key: "delivery",    title: "Доставка",      color: "bg-fuchsia-500", start: productionEndIso, end: expectedIso,    done: deliveryDone,    endField: "expectedDate" },
+      { key: "delivery",    title: "Доставка",      color: "bg-emerald-500", start: productionEndIso, end: expectedIso,    done: deliveryDone,    endField: "expectedDate" },
     ];
 
     const bars: GanttBarV2[] = phases.map((p, i) => {
@@ -302,11 +302,11 @@ export default async function GanttV2Page() {
       { value: "SERDCEBIENIE", label: BRAND_LABELS.SERDCEBIENIE },
     ],
     phases: [
-      { value: "preparation", label: "Разработка", color: "bg-rose-300" },
+      { value: "preparation", label: "Разработка", color: "bg-slate-400" },
       { value: "production",  label: "Производство", color: "bg-blue-500" },
       { value: "qc",          label: "ОТК", color: "bg-amber-500" },
-      { value: "shipping",    label: "Доставка", color: "bg-fuchsia-500" },
-      { value: "delivery",    label: "Доставка упаковки", color: "bg-fuchsia-500" },
+      { value: "shipping",    label: "Доставка", color: "bg-emerald-500" },
+      { value: "delivery",    label: "Доставка упаковки", color: "bg-emerald-500" },
     ],
     owners: owners.map((u) => ({ value: u.id, label: u.name })),
     factories: factories.map((f) => ({

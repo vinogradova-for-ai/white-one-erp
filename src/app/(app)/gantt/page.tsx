@@ -7,10 +7,10 @@ import { ORDER_STATUS_LABELS } from "@/lib/constants";
 const PHASES = [
   // Разработка заказа: от принятия решения о партии до передачи в фабрику.
   // Сюда уходит оформление, подготовка тех-пакета, согласование цен и т.п.
-  { key: "preparation", title: "Разработка",   color: "bg-rose-300",    startKey: "decisionDate",        endKey: "handedToFactoryDate", doneAt: ["IN_PRODUCTION", "QC", "READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
+  { key: "preparation", title: "Разработка",   color: "bg-slate-400",    startKey: "decisionDate",        endKey: "handedToFactoryDate", doneAt: ["IN_PRODUCTION", "QC", "READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
   { key: "production",  title: "Производство", color: "bg-blue-500",    startKey: "handedToFactoryDate", endKey: "readyAtFactoryDate",  doneAt: ["QC", "READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
   { key: "qc",          title: "ОТК",          color: "bg-amber-500",   startKey: "readyAtFactoryDate",  endKey: "qcDate",              doneAt: ["READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
-  { key: "shipping",    title: "Доставка",     color: "bg-fuchsia-500", startKey: "qcDate",              endKey: "arrivalPlannedDate",  doneAt: ["WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
+  { key: "shipping",    title: "Доставка",     color: "bg-emerald-500", startKey: "qcDate",              endKey: "arrivalPlannedDate",  doneAt: ["WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
 ] as const;
 
 // Этапы разработки фасона. Бары рисуются между соседними датами;
@@ -216,7 +216,7 @@ export default async function GanttPage({
       {
         key: "preparation",
         title: "Разработка",
-        color: "bg-rose-300",
+        color: "bg-slate-400",
         start: decisionIso,
         end: orderedIso,
         owner: factoryOwner,
@@ -241,7 +241,7 @@ export default async function GanttPage({
       {
         key: "delivery",
         title: "Доставка",
-        color: "bg-fuchsia-500",
+        color: "bg-emerald-500",
         start: productionEndIso,
         end: expectedIso,
         owner: factoryOwner,
