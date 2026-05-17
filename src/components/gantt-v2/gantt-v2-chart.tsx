@@ -712,12 +712,6 @@ function DraggableBar({
       className={`group absolute rounded ${barColor} ${stateClass} ${borderClass} shadow-sm transition-all duration-300 ${flash ? "ring-2 ring-emerald-400 ring-offset-1" : ""}`}
       style={{ left: `${left}%`, width: `${width}%`, top, height }}
     >
-      {/* Галочка для done */}
-      {done && (
-        <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[12px] font-bold text-white drop-shadow-sm">
-          ✓
-        </span>
-      )}
       {/* Подсказка-тултип — единственный источник правды (родного title нет,
           чтобы браузер не показывал свой жёлтый тултип поверх кастомного). */}
       <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] text-white shadow-lg group-hover:block">
