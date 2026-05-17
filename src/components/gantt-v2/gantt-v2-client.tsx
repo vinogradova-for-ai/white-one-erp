@@ -54,18 +54,19 @@ export function GanttV2Client({
     });
   }, [rows, filters]);
 
-  // ---------- Сортировка: от старого к новому по месяцу запуска ----------
+  // ---------- Сортировка: по дедлайну производства (end фазы «Производство»)
+  //  от ранней даты к поздней. Если у заказа нет фазы production (упаковка) —
+  //  берём end её аналогичной средней фазы. Без даты — в самый конец. ----------
   const sorted = useMemo(() => {
+    function productionDeadline(row: typeof filtered[number]): string {
+      const prod = row.bars.find((b) => b.key === "production");
+      if (prod?.end) return prod.end;
+      // У упаковки фаза называется тоже "production" (см. /gantt-v2/page.tsx),
+      // но если вдруг нет — fallback на последнюю фазу.
+      return row.bars[row.bars.length - 1]?.end ?? "9999-99-99";
+    }
     const arr = [...filtered];
-    arr.sort((a, b) => {
-      const av = a.launchMonth ?? 999999;
-      const bv = b.launchMonth ?? 999999;
-      if (av !== bv) return av - bv;
-      // Тай-брейкер: по дате старта первой фазы
-      const aStart = a.bars[0]?.start ?? "";
-      const bStart = b.bars[0]?.start ?? "";
-      return aStart.localeCompare(bStart);
-    });
+    arr.sort((a, b) => productionDeadline(a).localeCompare(productionDeadline(b)));
     return arr;
   }, [filtered]);
 
