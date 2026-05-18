@@ -124,18 +124,21 @@ function LineCard({
   onChanged: () => void;
 }) {
   const [plan, setPlan] = useState<Record<string, number>>(line.sizeDistribution ?? {});
-  // Факт количества — отдельное поле, появляется после ОТК. Используем строку
-  // в state чтобы юзер мог стереть до пустого (= null в БД, факт не проставлен).
-  const [factStr, setFactStr] = useState<string>(line.quantityActual?.toString() ?? "");
+  // Факт по размерам — фабрика часто накраивает другую размерную матрицу.
+  // Если все ячейки нули → факт не проставлен (sizeDistributionActual=null,
+  // quantityActual=null). Если что-то введено — сохраняем и общее quantityActual
+  // = сумма по размерам.
+  const [fact, setFact] = useState<Record<string, number>>(line.sizeDistributionActual ?? {});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const qty = Object.values(plan).reduce((a, b) => a + (Number(b) || 0), 0);
-  const factNum = factStr.trim() === "" ? null : Number(factStr);
+  const factQty = Object.values(fact).reduce((a, b) => a + (Number(b) || 0), 0);
+  const factEmpty = factQty === 0;
 
   const dirty =
     JSON.stringify(plan) !== JSON.stringify(line.sizeDistribution ?? {}) ||
-    factNum !== line.quantityActual;
+    JSON.stringify(fact) !== JSON.stringify(line.sizeDistributionActual ?? {});
 
   async function save() {
     setSaving(true);
@@ -146,8 +149,9 @@ function LineCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           quantity: qty,
-          quantityActual: factNum,
+          quantityActual: factEmpty ? null : factQty,
           sizeDistribution: Object.keys(plan).length > 0 ? plan : null,
+          sizeDistributionActual: factEmpty ? null : fact,
         }),
       });
       if (!res.ok) {
@@ -206,8 +210,19 @@ function LineCard({
             <span className="truncate text-[11px] font-normal text-slate-400">{line.sku}</span>
           </div>
           {sizes.length > 0 && (
-            <div className="mt-1.5">
-              <SizeRow sizes={sizes} dist={plan} onChange={setPlan} />
+            <div className="mt-1.5 space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="w-10 shrink-0 text-[10px] uppercase tracking-wider text-slate-500">План</span>
+                <div className="flex-1 min-w-0">
+                  <SizeRow sizes={sizes} dist={plan} onChange={setPlan} accent="slate" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-10 shrink-0 text-[10px] uppercase tracking-wider text-emerald-600">Факт</span>
+                <div className="flex-1 min-w-0">
+                  <SizeRow sizes={sizes} dist={fact} onChange={setFact} accent="emerald" placeholder="—" />
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -216,25 +231,25 @@ function LineCard({
             <span className="text-[9px] uppercase text-slate-400">план</span>
             <div className="text-sm font-semibold text-slate-900">{qty} <span className="text-[11px] font-normal text-slate-500">шт</span></div>
           </div>
-          {/* Факт количества — проставляется после ОТК. Если пусто = факт ещё не известен */}
-          <label className="flex items-baseline gap-1 mt-0.5">
-            <span className="text-[9px] uppercase text-emerald-600">факт</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={factStr}
-              onChange={(e) => setFactStr(e.target.value.replace(/\D/g, ""))}
-              placeholder="—"
-              className={`h-6 w-16 rounded border bg-white px-1 text-right text-sm font-semibold tabular-nums ${
-                factNum !== null && factNum !== qty
-                  ? "border-amber-300 text-amber-700"
-                  : "border-slate-200 text-slate-900"
-              }`}
-              title={factNum !== null && factNum !== qty
-                ? `Расхождение с планом: ${factNum > qty ? "+" : ""}${factNum - qty} шт`
-                : "Введите фактическое количество после ОТК"}
-            />
-          </label>
+          <div
+            className="flex items-baseline gap-1"
+            title={
+              factEmpty
+                ? "Факт ещё не проставлен — заполни строку «Факт» после ОТК"
+                : factQty !== qty
+                  ? `Расхождение с планом: ${factQty > qty ? "+" : ""}${factQty - qty} шт`
+                  : "Факт совпадает с планом"
+            }
+          >
+            <span className={`text-[9px] uppercase ${factEmpty ? "text-slate-300" : "text-emerald-600"}`}>факт</span>
+            <div className={`text-sm font-semibold ${
+              factEmpty ? "text-slate-300" :
+              factQty !== qty ? "text-amber-700" :
+              "text-emerald-700"
+            }`}>
+              {factEmpty ? "—" : factQty}{!factEmpty && <span className="text-[11px] font-normal text-slate-500"> шт</span>}
+            </div>
+          </div>
           <div className="text-[11px] text-slate-500 mt-0.5">{formatCurrency(line.batchCost)}</div>
           {dirty && (
             <button
@@ -257,34 +272,50 @@ function SizeRow({
   sizes,
   dist,
   onChange,
+  accent = "slate",
+  placeholder,
 }: {
   sizes: string[];
   dist: Record<string, number>;
   onChange: (v: Record<string, number>) => void;
+  accent?: "slate" | "emerald";
+  placeholder?: string;
 }) {
+  const ringClass = accent === "emerald"
+    ? "border-emerald-200 focus:border-emerald-400 text-emerald-800"
+    : "border-slate-200 focus:border-slate-400 text-slate-900";
   return (
     <div>
       <div
         className="grid gap-1"
         style={{ gridTemplateColumns: `repeat(${sizes.length}, minmax(0, 1fr))` }}
       >
-        {sizes.map((s) => (
-          <label key={s} className="block min-w-0">
-            <div className="text-center text-[10px] leading-none text-slate-500">{s}</div>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={dist[s] ?? 0}
-              onFocus={(e) => e.target.select()}
-              onChange={(e) => {
-                const digits = e.target.value.replace(/\D/g, "");
-                const n = digits === "" ? 0 : Number(digits);
-                onChange({ ...dist, [s]: n });
-              }}
-              className="mt-0.5 h-9 w-full rounded border border-slate-200 bg-white px-1 text-center text-sm font-medium tabular-nums text-slate-900 sm:h-7 sm:text-[11px]"
-            />
-          </label>
-        ))}
+        {sizes.map((s) => {
+          const val = dist[s];
+          const isEmpty = val === undefined || val === 0;
+          return (
+            <label key={s} className="block min-w-0">
+              {/* Подписи размеров рисуем только для верхнего ряда (План).
+                  Для нижнего ряда (Факт) — нет, чтобы не дублировать. */}
+              {accent === "slate" && (
+                <div className="text-center text-[10px] leading-none text-slate-500">{s}</div>
+              )}
+              <input
+                type="text"
+                inputMode="numeric"
+                value={isEmpty && placeholder ? "" : (val ?? 0)}
+                placeholder={placeholder}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, "");
+                  const n = digits === "" ? 0 : Number(digits);
+                  onChange({ ...dist, [s]: n });
+                }}
+                className={`mt-0.5 h-9 w-full rounded border bg-white px-1 text-center text-sm font-medium tabular-nums sm:h-7 sm:text-[11px] ${ringClass}`}
+              />
+            </label>
+          );
+        })}
       </div>
     </div>
   );
