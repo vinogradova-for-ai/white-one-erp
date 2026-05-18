@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Демо: Канбан Леши — Project Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/leshey-demo/gantt.css">
+<link rel="stylesheet" href="/leshey-demo/pages.css">
+<link rel="stylesheet" href="/leshey-demo/kanban.css">
+<style>
+  body { font-family: 'Inter', sans-serif; margin: 0; background: #f5f5f7; }
+  .demo-banner {
+    background: #fff8e1; border-bottom: 1px solid #ffe082;
+    padding: 8px 16px; font-size: 13px; color: #8d6e00; text-align: center;
+  }
+  .demo-banner b { color: #5a4500; }
+  .card-image-placeholder {
+    width: 100%; aspect-ratio: 3/4; display: flex;
+    align-items: center; justify-content: center;
+    font-size: 11px; color: rgba(0,0,0,.4);
+    background: linear-gradient(135deg, var(--c1, #e0e0e0), var(--c2, #c0c0c0));
+  }
+</style>
+</head>
+<body>
+
+<div class="demo-banner">
+  📸 <b>Статичная копия канбана из приложения Леши</b> для предпросмотра. Не редактирует данные, drag-and-drop отключён. Источник: <code>github.com/AlexeyWOC/kanban</code>
+</div>
+
+<nav class="top-nav">
+  <div class="nav-left">
+    <a href="#" class="nav-link">Ганта</a>
+    <a href="#" class="nav-link active">Канбан</a>
+    <a href="#" class="nav-link">Чек-лист</a>
+    <a href="#" class="nav-link">Todo</a>
+    <a href="#" class="nav-link">Лог изменений</a>
+    <a href="#" class="nav-link">База знаний</a>
+    <a href="#" class="nav-link">Токены</a>
+  </div>
+  <div class="nav-right">
+    <div class="nav-user-wrap">
+      <div class="nav-avatar">A</div>
+      <span class="nav-user-name">Алёна</span>
+    </div>
+    <a href="#" class="nav-link nav-logout">Выйти</a>
+  </div>
+</nav>
+
+<div class="board-tabs" style="padding:0 24px;display:flex;gap:4px;margin-top:4px;">
+  <a href="#" class="board-tab active"
+     style="padding:6px 16px;border-radius:8px;font-size:13px;font-weight:500;text-decoration:none;background:#0071e3;color:#fff;">Товары</a>
+  <a href="#" class="board-tab"
+     style="padding:6px 16px;border-radius:8px;font-size:13px;font-weight:500;text-decoration:none;background:#f0f0f3;color:#48484a;">Упаковка</a>
+  <a href="#" class="board-tab"
+     style="padding:6px 16px;border-radius:8px;font-size:13px;font-weight:500;text-decoration:none;background:#f0f0f3;color:#48484a;">Склад</a>
+</div>
+
+<div class="app-header">
+  <div class="app-header-left">
+    <h1>Канбан</h1>
+    <span class="app-subtitle">· Project Manager</span>
+  </div>
+  <div class="app-header-right" style="display:flex;align-items:center;gap:12px;">
+    <div class="view-toggle">
+      <button class="view-toggle-btn active">Доска</button>
+      <button class="view-toggle-btn">Список</button>
+      <button class="view-toggle-btn">Таблица</button>
+    </div>
+    <div class="filter-group">
+      <label class="filter-label">ЗАВОД</label>
+      <select class="filter-select">
+        <option>Все заводы</option>
+        <option>Фабрика 1</option>
+        <option>Фабрика 2</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label class="filter-label">СОРТИРОВКА</label>
+      <div style="display:flex;gap:2px;">
+        <button class="kb-sort-btn active" style="padding:4px 10px;border-radius:6px;border:1px solid #d1d1d6;background:#0071e3;color:#fff;font-size:12px;cursor:pointer;">По умолч.</button>
+        <button class="kb-sort-btn" style="padding:4px 10px;border-radius:6px;border:1px solid #d1d1d6;background:#fff;font-size:12px;cursor:pointer;">По имени</button>
+        <button class="kb-sort-btn" style="padding:4px 10px;border-radius:6px;border:1px solid #d1d1d6;background:#fff;font-size:12px;cursor:pointer;">По дате</button>
+      </div>
+    </div>
+    <button class="btn-add-global" style="white-space:nowrap;">+ Добавить</button>
+  </div>
+</div>
+
+<main class="board">
+
+  <!-- 1. Идея -->
+  <div class="column">
+    <div class="column-header">
+      <span class="column-dot" style="background:var(--stage-idea)"></span>
+      <span class="column-title">Идея</span>
+      <span class="column-count">2</span>
+      <button class="btn-add-col">+</button>
+    </div>
+    <div class="column-body">
+
+      <div class="card">
+        <div class="card-image-placeholder" style="--c1:#fce4ec;--c2:#f8bbd0;">Платье «Лотос»</div>
+        <div class="card-body">
+          <div class="card-name">Платье «Лотос»</div>
+          <div class="card-comment">Шёлк-вискоза, длина миди, рукав-кимоно</div>
+          <div class="card-fabric">🧵 70% шёлк, 30% вискоза</div>
+          <div class="card-price-qty">
+            <span class="card-price">¥ 320</span>
+            <span class="card-qty">1500 шт</span>
+          </div>
+          <div class="card-badges-row" style="margin-top:6px;display:flex;gap:6px;">
+            <span class="card-factory-badge">F1</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-image-placeholder" style="--c1:#e8eaf6;--c2:#c5cae9;">Жакет «Северный»</div>
+        <div class="card-body">
+          <div class="card-name">Жакет «Северный»</div>
+          <div class="card-comment">Шерсть, oversize</div>
+          <div class="card-fabric">🧵 100% шерсть</div>
+          <div class="card-price-qty">
+            <span class="card-field-empty" style="font-size:12px;color:#aeaeb2;">— цена не задана</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 2. Образец -->
+  <div class="column">
+    <div class="column-header">
+      <span class="column-dot" style="background:var(--stage-has_sample)"></span>
+      <span class="column-title">Образец</span>
+      <span class="column-count">3</span>
+      <button class="btn-add-col">+</button>
+    </div>
+    <div class="column-body">
+
+      <div class="card">
+        <div class="card-image-placeholder" style="--c1:#fff3e0;--c2:#ffe0b2;">Юбка «Карамель»</div>
+        <div class="card-body">
+          <div class="card-name">Юбка «Карамель»</div>
+          <div class="card-comment">Образец №2 на пути из Китая</div>
+          <div class="card-fabric">🧵 Хлопок-стрейч</div>
+          <div class="card-price-qty">
+            <span class="card-price">¥ 180</span>
+            <span class="card-qty">2000 шт</span>
+          </div>
+          <div class="card-badges-row" style="margin-top:6px;display:flex;gap:6px;">
+            <span class="card-factory-badge">F2</span>
+          </div>
+          <div class="card-subtask-progress" style="margin-top:8px;">
+            <div style="height:4px;background:#e5e5ea;border-radius:2px;overflow:hidden;">
+              <div style="width:40%;height:100%;background:#0071e3;"></div>
+            </div>
+            <div style="font-size:11px;color:#86868b;margin-top:4px;">2/5 задач</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-image-placeholder" style="--c1:#e0f2f1;--c2:#b2dfdb;">Топ «Морской»</div>
+        <div class="card-body">
+          <div class="card-name">Топ «Морской»</div>
+          <div class="card-comment">Жду фото первого образца</div>
+          <div class="card-fabric">🧵 Лён</div>
+          <div class="card-price-qty">
+            <span class="card-price">¥ 95</span>
+            <span class="card-qty">3000 шт</span>
+          </div>
+          <div class="card-badges-row" style="margin-top:6px;display:flex;gap:6px;">
+            <span class="card-factory-badge">F1</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-image-placeholder" style="--c1:#f3e5f5;--c2:#e1bee7;">Брюки «Зефир»</div>
+        <div class="card-body">
+          <div class="card-name">Брюки «Зефир»</div>
+          <div class="card-comment">Образец №1 — нужно перешить пояс</div>
+          <div class="card-fabric">🧵 Вискоза-сатин</div>
+          <div class="card-price-qty">
+            <span class="card-price">¥ 240</span>
+            <span class="card-qty">1200 шт</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 3. Идеальный образец -->
+  <div class="column">
+    <div class="column-header">
+      <span class="column-dot" style="background:var(--stage-has_ideal_sample)"></span>
+      <span class="column-title">Идеал. образец</span>
+      <span class="column-count">1</span>
+      <button class="btn-add-col">+</button>
+    </div>
+    <div class="column-body">
+
+      <div class="card">
+        <div class="card-image-placeholder" style="--c1:#fffde7;--c2:#fff59d;">Платье «Солнце»</div>
+        <div class="card-body">
+          <div class="card-name">Платье «Солнце»</div>
+          <div class="card-comment">Образец утверждён, размерную сетку делаем</div>
+          <div class="card-fabric">🧵 Поплин</div>
+          <div class="card-price-qty">
+            <span class="card-price">¥ 210</span>
+            <span class="card-qty">2500 шт</span>
+          </div>
+          <div class="card-badges-row" style="margin-top:6px;display:flex;gap:6px;">
+            <span class="card-factory-badge">F1</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 4. Размерная сетка -->
+  <div class="column">
+    <div class="column-header">
+      <span class="column-dot" style="background:var(--stage-sizing_done)"></span>
+      <span class="column-title">Размерная сетка</span>
+      <span class="column-count">1</span>
+      <button class="btn-add-col">+</button>
+    </div>
+    <div class="column-body">
+
+      <div class="card">
+        <div class="card-image-placeholder" style="--c1:#e3f2fd;--c2:#bbdefb;">Рубашка «Минимал»</div>
+        <div class="card-body">
+          <div class="card-name">Рубашка «Минимал»</div>
+          <div class="card-comment">Готова к запуску в производство</div>
+          <div class="card-fabric">🧵 Хлопок-поплин</div>
+          <div class="card-price-qty">
+            <span class="card-price">¥ 165</span>
+            <span class="card-qty">5000 шт</span>
+          </div>
+          <div class="card-badges-row" style="margin-top:6px;display:flex;gap:6px;">
+            <span class="card-factory-badge">F3</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 5. Производство -->
+  <div class="column">
+    <div class="column-header">
+      <span class="column-dot" style="background:var(--stage-in_production)"></span>
+      <span class="column-title">Производство</span>
+      <span class="column-count">2</span>
+      <button class="btn-add-col">+</button>
+    </div>
+    <div class="column-body">
+
+      <div class="card">
+        <div class="card-image-placeholder" style="--c1:#e8f5e9;--c2:#c8e6c9;">Кардиган «Лес»</div>
+        <div class="card-body">
+          <div class="card-name">Кардиган «Лес»</div>
+          <div class="card-comment">Партия 1500 шт, ждём раскрой</div>
+          <div class="card-fabric">🧵 Шерсть-меринос</div>
+          <div class="card-price-qty">
+            <span class="card-price">¥ 380</span>
+            <span class="card-qty">1500 шт</span>
+          </div>
+          <div class="card-badges-row" style="margin-top:6px;display:flex;gap:6px;">
+            <span class="card-factory-badge">F2</span>
+          </div>
+          <div class="card-linked" style="margin-top:8px;font-size:11px;color:#0071e3;">🔗 Гант: Партия #42</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-image-placeholder" style="--c1:#fff9c4;--c2:#fff59d;">Пальто «Дюна»</div>
+        <div class="card-body">
+          <div class="card-name">Пальто «Дюна»</div>
+          <div class="card-comment">2-я волна, осенняя коллекция</div>
+          <div class="card-fabric">🧵 Кашемир + шерсть</div>
+          <div class="card-price-qty">
+            <span class="card-price">¥ 620</span>
+            <span class="card-qty">800 шт</span>
+          </div>
+          <div class="card-badges-row" style="margin-top:6px;display:flex;gap:6px;">
+            <span class="card-factory-badge">F1</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 6. Готов -->
+  <div class="column">
+    <div class="column-header">
+      <span class="column-dot" style="background:var(--stage-ready)"></span>
+      <span class="column-title">Готов</span>
+      <span class="column-count">1</span>
+      <button class="btn-add-col">+</button>
+    </div>
+    <div class="column-body">
+
+      <div class="card">
+        <div class="card-image-placeholder" style="--c1:#dcedc8;--c2:#aed581;">Свитер «Уют»</div>
+        <div class="card-body">
+          <div class="card-name">Свитер «Уют»</div>
+          <div class="card-comment">Партия пошита, ждёт упаковку</div>
+          <div class="card-fabric">🧵 Альпака</div>
+          <div class="card-price-qty">
+            <span class="card-price">¥ 450</span>
+            <span class="card-qty">1000 шт</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 7. Проверен -->
+  <div class="column">
+    <div class="column-header">
+      <span class="column-dot" style="background:var(--stage-verified)"></span>
+      <span class="column-title">Проверен</span>
+      <span class="column-count">1</span>
+      <button class="btn-add-col">+</button>
+    </div>
+    <div class="column-body">
+
+      <div class="card">
+        <div class="card-image-placeholder" style="--c1:#fff8e1;--c2:#ffecb3;">Топ «Лимон»</div>
+        <div class="card-body">
+          <div class="card-name">Топ «Лимон»</div>
+          <div class="card-comment">ОТК пройден, ждёт отгрузку</div>
+          <div class="card-fabric">🧵 Хлопок</div>
+          <div class="card-price-qty">
+            <span class="card-price">¥ 88</span>
+            <span class="card-qty">2200 шт</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 8. В пути -->
+  <div class="column">
+    <div class="column-header">
+      <span class="column-dot" style="background:var(--stage-in_transit)"></span>
+      <span class="column-title">В пути</span>
+      <span class="column-count">2</span>
+      <button class="btn-add-col">+</button>
+    </div>
+    <div class="column-body">
+
+      <div class="card">
+        <div class="card-image-placeholder" style="--c1:#ffe0b2;--c2:#ffcc80;">Платье «Янтарь»</div>
+        <div class="card-body">
+          <div class="card-name">Платье «Янтарь»</div>
+          <div class="card-comment">Поезд №34, прибытие 25.05</div>
+          <div class="card-fabric">🧵 Шифон</div>
+          <div class="card-price-qty">
+            <span class="card-price">¥ 195</span>
+            <span class="card-qty">1800 шт</span>
+          </div>
+          <div class="card-linked" style="margin-top:8px;font-size:11px;color:#0071e3;">🔗 Гант: Доставка #15</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-image-placeholder" style="--c1:#ffccbc;--c2:#ffab91;">Юбка «Закат»</div>
+        <div class="card-body">
+          <div class="card-name">Юбка «Закат»</div>
+          <div class="card-comment">Авто, в пути 18 дней</div>
+          <div class="card-fabric">🧵 Тэнсель</div>
+          <div class="card-price-qty">
+            <span class="card-price">¥ 160</span>
+            <span class="card-qty">1400 шт</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</main>
+
+</body>
+</html>
