@@ -542,9 +542,15 @@ function BarView({
   let stateClass = "";
   if (bar.state === "done") stateClass = "opacity-50";
   if (bar.state === "future") stateClass = "opacity-50";
+  // Обводку «просрочено / скоро дедлайн» показываем ТОЛЬКО на активной фазе —
+  // это то, что сейчас требует внимания. Если подсвечивать любую просроченную
+  // фазу (включая прошлые незакрытые), весь левый край Ганта становится красным
+  // и сигнал теряется.
   let borderClass = "";
-  if (bar.overdue) borderClass = "ring-2 ring-red-500";
-  else if (bar.nearlyDue) borderClass = "ring-2 ring-amber-500";
+  if (bar.state === "active") {
+    if (bar.overdue) borderClass = "ring-2 ring-red-500";
+    else if (bar.nearlyDue) borderClass = "ring-2 ring-amber-500";
+  }
 
   // ПРОСРОЧЕНО/СКОРО ДЕДЛАЙН в тултипе не дублируем — для этого уже есть
   // цветная обводка плашки и иконка 🔥/⚠️ в шапке строки.
