@@ -32,7 +32,8 @@ type Line = {
   sku: string;
   colorName: string;
   photoUrl: string | null;
-  quantity: number;
+  quantity: number;                       // План — сколько заказали
+  quantityActual: number | null;          // Факт — сколько получили после ОТК (null = не проставлено)
   sizeDistribution: Record<string, number> | null;
   sizeDistributionActual: Record<string, number> | null;
   batchCost: number;
@@ -123,12 +124,18 @@ function LineCard({
   onChanged: () => void;
 }) {
   const [plan, setPlan] = useState<Record<string, number>>(line.sizeDistribution ?? {});
+  // Факт количества — отдельное поле, появляется после ОТК. Используем строку
+  // в state чтобы юзер мог стереть до пустого (= null в БД, факт не проставлен).
+  const [factStr, setFactStr] = useState<string>(line.quantityActual?.toString() ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const qty = Object.values(plan).reduce((a, b) => a + (Number(b) || 0), 0);
+  const factNum = factStr.trim() === "" ? null : Number(factStr);
 
-  const dirty = JSON.stringify(plan) !== JSON.stringify(line.sizeDistribution ?? {});
+  const dirty =
+    JSON.stringify(plan) !== JSON.stringify(line.sizeDistribution ?? {}) ||
+    factNum !== line.quantityActual;
 
   async function save() {
     setSaving(true);
@@ -139,6 +146,7 @@ function LineCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           quantity: qty,
+          quantityActual: factNum,
           sizeDistribution: Object.keys(plan).length > 0 ? plan : null,
         }),
       });
@@ -204,8 +212,30 @@ function LineCard({
           )}
         </div>
         <div className="ml-auto flex shrink-0 flex-col items-end gap-0.5 pl-2 pr-6">
-          <div className="text-sm font-semibold text-slate-900">{qty} <span className="text-[11px] font-normal text-slate-500">шт</span></div>
-          <div className="text-[11px] text-slate-500">{formatCurrency(line.batchCost)}</div>
+          <div className="flex items-baseline gap-1">
+            <span className="text-[9px] uppercase text-slate-400">план</span>
+            <div className="text-sm font-semibold text-slate-900">{qty} <span className="text-[11px] font-normal text-slate-500">шт</span></div>
+          </div>
+          {/* Факт количества — проставляется после ОТК. Если пусто = факт ещё не известен */}
+          <label className="flex items-baseline gap-1 mt-0.5">
+            <span className="text-[9px] uppercase text-emerald-600">факт</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={factStr}
+              onChange={(e) => setFactStr(e.target.value.replace(/\D/g, ""))}
+              placeholder="—"
+              className={`h-6 w-16 rounded border bg-white px-1 text-right text-sm font-semibold tabular-nums ${
+                factNum !== null && factNum !== qty
+                  ? "border-amber-300 text-amber-700"
+                  : "border-slate-200 text-slate-900"
+              }`}
+              title={factNum !== null && factNum !== qty
+                ? `Расхождение с планом: ${factNum > qty ? "+" : ""}${factNum - qty} шт`
+                : "Введите фактическое количество после ОТК"}
+            />
+          </label>
+          <div className="text-[11px] text-slate-500 mt-0.5">{formatCurrency(line.batchCost)}</div>
           {dirty && (
             <button
               type="button"

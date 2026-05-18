@@ -50,6 +50,7 @@ export const orderUpdateSchema = orderCreateSchema.partial().omit({ lines: true,
 export const orderLineAddSchema = orderLineInputSchema;
 export const orderLineUpdateSchema = z.object({
   quantity: z.number().int().positive().optional(),
+  quantityActual: z.number().int().nonnegative().optional().nullable(),
   sizeDistribution: z.record(z.string(), z.number()).optional().nullable(),
   sizeDistributionActual: z.record(z.string(), z.number()).optional().nullable(),
 });

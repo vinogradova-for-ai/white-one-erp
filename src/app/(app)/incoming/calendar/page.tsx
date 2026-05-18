@@ -81,6 +81,7 @@ export default async function IncomingCalendarPage({
       lines: {
         select: {
           quantity: true,
+          quantityActual: true,
           productVariant: { select: { colorName: true, photoUrls: true } },
         },
         orderBy: { createdAt: "asc" },
@@ -96,6 +97,7 @@ export default async function IncomingCalendarPage({
     orderNumber: string;
     name: string;
     qty: number;
+    qtyIsFact: boolean;     // показываемое qty — это факт (true) или план (false)
     colors: string[];
     photo: string | null;
     status: typeof orders[number]["status"];
@@ -108,13 +110,17 @@ export default async function IncomingCalendarPage({
     if (!dateToUse) continue;
     const k = dayKey(dateToUse);
     if (!byDay[k]) byDay[k] = [];
-    const totalQty = o.lines.reduce((a, l) => a + l.quantity, 0);
+    // В Поставки уходит ФАКТ если он проставлен (фабрика накроила больше/
+    // меньше плана). Иначе план.
+    const hasAnyFact = o.lines.some((l) => l.quantityActual !== null);
+    const totalQty = o.lines.reduce((a, l) => a + (l.quantityActual ?? l.quantity), 0);
     const colors = [...new Set(o.lines.map((l) => l.productVariant.colorName))];
     byDay[k].push({
       id: o.id,
       orderNumber: o.orderNumber,
       name: o.productModel.name,
       qty: totalQty,
+      qtyIsFact: hasAnyFact,
       colors,
       photo: o.lines[0]?.productVariant?.photoUrls?.[0] ?? o.productModel.photoUrls?.[0] ?? null,
       status: o.status,
@@ -248,7 +254,9 @@ export default async function IncomingCalendarPage({
                           <div className="flex items-center gap-1 leading-tight">
                             <span className="font-mono text-slate-500 text-[9px]">{c.orderNumber.replace("ORD-", "")}</span>
                             <span className="text-slate-400">·</span>
-                            <span className="text-slate-700">{formatNumber(c.qty)}</span>
+                            <span className={c.qtyIsFact ? "text-emerald-700 font-semibold" : "text-slate-700"}>
+                              {formatNumber(c.qty)}{c.qtyIsFact ? " ф" : ""}
+                            </span>
                           </div>
                         </div>
                       </div>
