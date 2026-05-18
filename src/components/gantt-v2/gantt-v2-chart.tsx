@@ -522,11 +522,16 @@ function BarView({
     (startPendKey && pendingChanges[startPendKey])
   );
 
+  // Полностью вне видимого окна — не рендерим. Иначе клип к chartStart
+  // прижимает 1.2%-сливер к левому краю, и фазы, давно закончившиеся в
+  // прошлом, стопкой накладываются друг на друга (opacity-50 + opacity-50 +
+  // ... = месиво из 4 цветов в одной точке у заказов «На складе Москва»).
+  if (effEnd < chartStart) return null;
+  if (effStart > chartEnd) return null;
+
   // Клип к видимому диапазону
   let s = effStart;
   let e = effEnd;
-  if (s > chartEnd) s = chartEnd;
-  if (e < chartStart) e = chartStart;
   if (s < chartStart) s = chartStart;
   if (e > chartEnd) e = chartEnd;
   const left = posPct(s);
