@@ -16,7 +16,7 @@ const PHASES = [
 // Этапы разработки фасона. Бары рисуются между соседними датами;
 // «активная» (последняя) фаза тянется до plannedLaunchMonth-01 либо до сегодня+30 дн.
 const DEV_PHASES = [
-  { key: "patterns",  title: "Лекала",       color: "bg-rose-400",   fromKey: "createdAt",         toKey: "patternsDate",        doneAt: ["PATTERNS", "SAMPLE", "APPROVED", "IN_PRODUCTION"] },
+  { key: "patterns",  title: "Лекала",       color: "bg-indigo-400", fromKey: "createdAt",         toKey: "patternsDate",        doneAt: ["PATTERNS", "SAMPLE", "APPROVED", "IN_PRODUCTION"] },
   { key: "sample",    title: "Образец",      color: "bg-purple-500", fromKey: "patternsDate",      toKey: "sampleDate",          doneAt: ["SAMPLE", "APPROVED", "IN_PRODUCTION"] },
   { key: "approval",  title: "Утверждение",  color: "bg-teal-500",   fromKey: "sampleDate",        toKey: "approvedDate",        doneAt: ["APPROVED", "IN_PRODUCTION"] },
   { key: "prelaunch", title: "Подготовка",   color: "bg-emerald-500",fromKey: "approvedDate",      toKey: "productionStartDate", doneAt: ["IN_PRODUCTION"] },
