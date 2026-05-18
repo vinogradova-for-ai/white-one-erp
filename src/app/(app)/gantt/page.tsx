@@ -34,6 +34,13 @@ function iso(d: Date | null | undefined): string | null {
   return d ? d.toISOString().slice(0, 10) : null;
 }
 
+// Текущий московский день в формате YYYY-MM-DD (UTC+3 круглый год).
+function moscowToday(): string {
+  const now = new Date();
+  const mskMs = now.getTime() + 3 * 60 * 60 * 1000;
+  return new Date(mskMs).toISOString().slice(0, 10);
+}
+
 export default async function GanttPage({
   searchParams,
 }: {
@@ -105,9 +112,10 @@ export default async function GanttPage({
     }),
   ]);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayIso = iso(today)!;
+  // todayIso по МСК (UTC+3) — иначе ночью 0–3 МСК «сегодня» уезжает на день
+  // назад из-за серверного UTC.
+  const todayIso = moscowToday();
+  const today = new Date(`${todayIso}T00:00:00Z`);
 
   const rows: GanttRow[] = [];
 

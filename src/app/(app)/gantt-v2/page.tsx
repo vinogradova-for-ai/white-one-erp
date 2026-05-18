@@ -26,6 +26,14 @@ function iso(d: Date | null | undefined): string | null {
   return d ? d.toISOString().slice(0, 10) : null;
 }
 
+// Текущий московский день в формате YYYY-MM-DD. Сервер в UTC, поэтому
+// new Date() в ночь возвращает «вчера» по UTC. МСК = UTC+3 круглый год.
+function moscowToday(): string {
+  const now = new Date();
+  const mskMs = now.getTime() + 3 * 60 * 60 * 1000;
+  return new Date(mskMs).toISOString().slice(0, 10);
+}
+
 function getPhaseOwner(phaseKey: string, pmName: string | null | undefined, factoryName: string | null | undefined): string | undefined {
   switch (phaseKey) {
     case "production":
@@ -87,9 +95,13 @@ export default async function GanttV2Page() {
     }),
   ]);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayIso = iso(today)!;
+  // todayIso считаем по московскому времени: сервер крутится в UTC, и если
+  // делать new Date() + toISOString().slice(0,10), то ночью 0–3 часа МСК
+  // todayIso уезжает на день назад (для нас сегодня уже понедельник, для
+  // UTC ещё воскресенье). Алёна и команда работают по МСК — даты везде в БД
+  // тоже UTC-полночь нужного дня (через date-input). Берём день по МСК.
+  const todayIso = moscowToday();
+  const today = new Date(`${todayIso}T00:00:00Z`);
 
   const rows: GanttRowV2[] = [];
 
