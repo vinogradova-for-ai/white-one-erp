@@ -3,28 +3,33 @@ import { prisma } from "@/lib/prisma";
 import { BRAND_LABELS, ORDER_STATUS_ORDER } from "@/lib/constants";
 import { OrderStatus, ProductModelStatus, Brand } from "@prisma/client";
 
-// 8 колонок: 3 model-status + 5 order-status. По образу Лешиной канбан-доски,
-// адаптированы под наш домен. PATTERNS лежит в «Образце» (по словам Алёны,
-// отдельной стадии «Лекала» у нас нет, фактически это часть Образца).
+// 8 колонок: 4 под-этапа Разработки + 4 этапа после заказа.
+// Этапы Разработки видны ТОЛЬКО на канбане (не на Ганте) — их детализация
+// нужна для отслеживания процесса до создания заказа. После Производства
+// колонки синхронизированы с фазами Order на Ганте.
+// Группа "development" подсвечивается общей шапкой над первыми 4 колонками.
 const COLUMNS = [
-  { key: "idea",       title: "Идея",          dot: "#af52de" },
-  { key: "sample",     title: "Образец",       dot: "#5856d6" },
-  { key: "approved",   title: "Утверждён",     dot: "#0071e3" },
-  { key: "production", title: "В производстве", dot: "#34c759" },
-  { key: "qc",         title: "ОТК",           dot: "#a8d870" },
-  { key: "transit",    title: "В пути",        dot: "#ff9500" },
-  { key: "warehouse",  title: "На складе МСК", dot: "#ffcc00" },
-  { key: "on_sale",    title: "В продаже",     dot: "#30b0c7" },
+  { key: "idea",            title: "Идея",          dot: "#af52de", group: "development" as const },
+  { key: "sample",          title: "Образец",       dot: "#5856d6", group: "development" as const },
+  { key: "ideal_sample",    title: "Идеал. образец",dot: "#0071e3", group: "development" as const },
+  { key: "sizing_done",     title: "Размерная сетка",dot: "#30b0c7", group: "development" as const },
+  { key: "production",      title: "Производство",  dot: "#34c759", group: "post_order" as const },
+  { key: "qc",              title: "ОТК",           dot: "#a8d870", group: "post_order" as const },
+  { key: "delivery",        title: "Доставка",      dot: "#ff9500", group: "post_order" as const },
+  { key: "on_sale",         title: "В продаже",     dot: "#ffcc00", group: "post_order" as const },
 ] as const;
 type ColumnKey = typeof COLUMNS[number]["key"];
 
-const MODEL_STATUS_TO_COL: Record<ProductModelStatus, ColumnKey> = {
-  IDEA: "idea",
-  PATTERNS: "sample",
-  SAMPLE: "sample",
-  APPROVED: "approved",
-  IN_PRODUCTION: "production",
-};
+// Маппинг ProductModel.status → колонка (когда нет активного заказа).
+// PATTERNS — рудимент, схлопываем в Образец (Алёна не использует Лекала).
+// APPROVED делится на «Идеал. образец» и «Размерную сетку» по флагу sizeChartReady.
+function modelToColumn(status: ProductModelStatus, sizeChartReady: boolean): ColumnKey {
+  if (status === "IDEA") return "idea";
+  if (status === "PATTERNS" || status === "SAMPLE") return "sample";
+  if (status === "APPROVED") return sizeChartReady ? "sizing_done" : "ideal_sample";
+  // IN_PRODUCTION — попадает в production по дефолту, если активного заказа нет
+  return "production";
+}
 
 const ORDER_STATUS_TO_COL: Record<OrderStatus, ColumnKey> = {
   PREPARATION: "production",
@@ -32,10 +37,10 @@ const ORDER_STATUS_TO_COL: Record<OrderStatus, ColumnKey> = {
   SEWING: "production",
   QC: "qc",
   READY_SHIP: "qc",
-  IN_TRANSIT: "transit",
-  WAREHOUSE_MSK: "warehouse",
-  PACKING: "warehouse",
-  SHIPPED_WB: "warehouse",
+  IN_TRANSIT: "delivery",
+  WAREHOUSE_MSK: "delivery",
+  PACKING: "delivery",
+  SHIPPED_WB: "delivery",
   ON_SALE: "on_sale",
 };
 
@@ -104,17 +109,17 @@ function pickDeadline(col: ColumnKey, model: { sampleDate: Date | null; approved
   }
   if (col === "sample") return model.sampleDate
     ? { iso: isoDate(model.sampleDate)!, label: "образец" } : null;
-  if (col === "approved") return model.approvedDate
+  if (col === "ideal_sample") return model.approvedDate
     ? { iso: isoDate(model.approvedDate)!, label: "утв." } : null;
+  if (col === "sizing_done") return model.productionStartDate
+    ? { iso: isoDate(model.productionStartDate)!, label: "запуск" } : null;
   if (!order) return null;
   if (col === "production") return order.readyAtFactoryDate
     ? { iso: isoDate(order.readyAtFactoryDate)!, label: "готов на фабрике" } : null;
   if (col === "qc") return order.qcDate
     ? { iso: isoDate(order.qcDate)!, label: "ОТК" } : null;
-  if (col === "transit") return order.arrivalPlannedDate
+  if (col === "delivery") return order.arrivalPlannedDate
     ? { iso: isoDate(order.arrivalPlannedDate)!, label: "прибытие" } : null;
-  if (col === "warehouse") return order.saleStartDate
-    ? { iso: isoDate(order.saleStartDate)!, label: "старт продаж" } : null;
   if (col === "on_sale") return order.saleStartDate
     ? { iso: isoDate(order.saleStartDate)!, label: "продажи" } : null;
   return null;
@@ -151,6 +156,7 @@ export default async function ModelsKanbanPage({
       subcategory: true,
       photoUrls: true,
       status: true,
+      sizeChartReady: true,
       sampleDate: true,
       approvedDate: true,
       productionStartDate: true,
@@ -185,7 +191,7 @@ export default async function ModelsKanbanPage({
 
   for (const m of models) {
     const order = mostAdvanced(m.orders as OrderForKanban[]);
-    const column: ColumnKey = order ? ORDER_STATUS_TO_COL[order.status] : MODEL_STATUS_TO_COL[m.status];
+    const column: ColumnKey = order ? ORDER_STATUS_TO_COL[order.status] : modelToColumn(m.status, m.sizeChartReady);
     const deadline = pickDeadline(column, m, order);
     const qty = order ? order.lines.reduce((a, l) => a + l.quantity, 0) : 0;
     buckets[column].push({ model: m, order, column, deadline, qty });
@@ -202,7 +208,29 @@ export default async function ModelsKanbanPage({
         <p className="text-xs text-slate-500">всего: {models.length}</p>
       </div>
 
-      <div className="flex gap-3 overflow-x-auto pb-4 -mx-4 px-4">
+      <div className="overflow-x-auto pb-4 -mx-4 px-4">
+        {/* Групповые шапки: «Разработка» над первыми 4 колонками, «После заказа» над остальными */}
+        <div className="flex gap-3 mb-2 sticky top-0">
+          <div className="flex gap-3 shrink-0">
+            <div className="w-[210px] shrink-0 px-1">
+              <div className="text-[10px] uppercase tracking-wider font-semibold text-purple-600">Разработка</div>
+              <div className="text-[10px] text-slate-400">видна только на канбане</div>
+            </div>
+            <div className="w-[210px] shrink-0"></div>
+            <div className="w-[210px] shrink-0"></div>
+            <div className="w-[210px] shrink-0"></div>
+          </div>
+          <div className="flex gap-3 shrink-0">
+            <div className="w-[210px] shrink-0 px-1">
+              <div className="text-[10px] uppercase tracking-wider font-semibold text-green-600">После заказа</div>
+              <div className="text-[10px] text-slate-400">синхронизировано с Гантом</div>
+            </div>
+            <div className="w-[210px] shrink-0"></div>
+            <div className="w-[210px] shrink-0"></div>
+            <div className="w-[210px] shrink-0"></div>
+          </div>
+        </div>
+        <div className="flex gap-3">
         {COLUMNS.map((col) => {
           const cards = buckets[col.key];
           return (
@@ -278,6 +306,7 @@ export default async function ModelsKanbanPage({
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );
