@@ -130,26 +130,21 @@ export function GanttV2Client({
   }
 
   return (
-    <div className="space-y-3">
-      {/* Шапка */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">График Ганта</h1>
-          <div className="text-sm text-slate-500">
-            Видимо: {sorted.length} из {rows.length}
+    <div className="space-y-2">
+      {/* Компактная шапка: заголовок + count + кнопка + фильтры/зум в одной полосе */}
+      <div className="rounded-xl border border-slate-200 bg-white p-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-sm font-semibold text-slate-900">График Ганта</h1>
+            <span className="text-xs text-slate-500">{sorted.length}/{rows.length}</span>
           </div>
-        </div>
-        <Link
-          href="/orders/new"
-          className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
-        >
-          + Новый заказ
-        </Link>
-      </div>
-
-      {/* Панель: фильтры + зум */}
-      <div className="rounded-xl border border-slate-200 bg-white p-3">
-        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/orders/new"
+            className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-800"
+          >
+            + Заказ
+          </Link>
+          <span className="w-px h-5 bg-slate-200 mx-1" aria-hidden />
           <span className="text-xs uppercase tracking-wide text-slate-400">Фильтры:</span>
           <FilterDropdown label="Категория" options={filterOptions.categories} value={filters.category}
             onChange={(v) => setFilters((f) => ({ ...f, category: v }))} />
