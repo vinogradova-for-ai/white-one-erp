@@ -4,6 +4,7 @@ import { BRAND_LABELS, CATEGORIES, ORDER_STATUS_ORDER } from "@/lib/constants";
 import { OrderStatus, ProductModelStatus, Brand } from "@prisma/client";
 import { BoardClient, type KanbanCard, type KanbanColumn } from "@/components/models-kanban/board-client";
 import { colorHexFromName } from "@/lib/color-map";
+import { ModelsFilters, parseCategoryParam } from "@/components/models/models-filters";
 
 // 8 колонок: 4 под-этапа Разработки + 4 этапа после заказа.
 // Этапы Разработки видны ТОЛЬКО на канбане (не на Ганте) — детализация
@@ -120,16 +121,18 @@ export default async function ModelsKanbanPage({
   const sp = await searchParams;
   const todayIso = moscowToday();
 
+  const categoryList = parseCategoryParam(sp.category, CATEGORIES);
   const where: {
     deletedAt: null;
     activated: boolean;
     brand?: Brand;
-    category?: string;
+    category?: string | { in: string[] };
     ownerId?: string;
     OR?: Array<{ name: { contains: string; mode: "insensitive" } }>;
   } = { deletedAt: null, activated: true };
   if (sp.brand && sp.brand in BRAND_LABELS) where.brand = sp.brand as Brand;
-  if (sp.category) where.category = sp.category;
+  if (categoryList.length === 1) where.category = categoryList[0];
+  else if (categoryList.length > 1) where.category = { in: categoryList };
   if (sp.owner) where.ownerId = sp.owner;
   if (sp.q) where.OR = [{ name: { contains: sp.q, mode: "insensitive" } }];
 
@@ -224,36 +227,17 @@ export default async function ModelsKanbanPage({
         <p className="text-xs text-slate-500">всего: {models.length}</p>
       </div>
 
-      <form method="get" className="flex flex-wrap gap-2 items-center">
-        <input
-          name="q"
-          defaultValue={sp.q ?? ""}
-          placeholder="Поиск по названию…"
-          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm w-44"
-        />
-        <select name="brand" defaultValue={sp.brand ?? ""} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm">
-          <option value="">Все бренды</option>
-          {Object.entries(BRAND_LABELS).map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
-          ))}
-        </select>
-        <select name="category" defaultValue={sp.category ?? ""} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm">
-          <option value="">Все категории</option>
-          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select name="owner" defaultValue={sp.owner ?? ""} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm">
-          <option value="">Все ответственные</option>
-          {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-        </select>
-        <button type="submit" className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800">
-          Фильтр
-        </button>
-        {(sp.q || sp.brand || sp.category || sp.owner) && (
-          <Link href="/models/kanban" className="text-sm text-slate-500 hover:text-slate-700 underline">
-            сбросить
-          </Link>
-        )}
-      </form>
+      <ModelsFilters
+        brands={Object.entries(BRAND_LABELS).map(([key, label]) => ({ key, label }))}
+        categories={CATEGORIES}
+        owners={owners}
+        selected={{
+          q: sp.q ?? "",
+          brand: sp.brand ?? "",
+          categoryList,
+          owner: sp.owner ?? "",
+        }}
+      />
 
       <BoardClient columns={COLUMNS} buckets={buckets} />
     </div>

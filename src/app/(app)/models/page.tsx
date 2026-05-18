@@ -4,45 +4,59 @@ import { formatNumber } from "@/lib/format";
 import { CATEGORIES, BRAND_LABELS } from "@/lib/constants";
 import { PhotoThumb } from "@/components/common/photo-thumb";
 import { Brand } from "@prisma/client";
+import { ModelsFilters, parseCategoryParam } from "@/components/models/models-filters";
 
 export default async function ModelsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ brand?: string; category?: string; q?: string; show?: string }>;
+  searchParams: Promise<{ brand?: string; category?: string; owner?: string; q?: string; show?: string }>;
 }) {
   const sp = await searchParams;
   // По умолчанию показываем только активированные фасоны.
   // Черновики (созданные через образец, ещё не запущенные) — отдельным фильтром show=drafts.
   const showDrafts = sp.show === "drafts";
   const showAll = sp.show === "all";
+  const categoryList = parseCategoryParam(sp.category, CATEGORIES);
   const where: {
     deletedAt: null;
     brand?: Brand;
-    category?: string;
+    category?: string | { in: string[] };
+    ownerId?: string;
     activated?: boolean;
     OR?: Array<{ name?: { contains: string; mode: "insensitive" } }>;
   } = { deletedAt: null };
   if (showDrafts) where.activated = false;
   else if (!showAll) where.activated = true;
   if (sp.brand && sp.brand in BRAND_LABELS) where.brand = sp.brand as Brand;
-  if (sp.category) where.category = sp.category;
+  if (categoryList.length === 1) where.category = categoryList[0];
+  else if (categoryList.length > 1) where.category = { in: categoryList };
+  if (sp.owner) where.ownerId = sp.owner;
   if (sp.q) where.OR = [{ name: { contains: sp.q, mode: "insensitive" } }];
 
-  const draftCount = await prisma.productModel.count({
-    where: { deletedAt: null, activated: false },
-  });
-
-  const models = await prisma.productModel.findMany({
-    where,
-    orderBy: { updatedAt: "desc" },
-    take: 200,
-    include: {
-      owner: { select: { name: true } },
-      preferredFactory: { select: { name: true } },
-      sizeGrid: { select: { name: true } },
-      _count: { select: { variants: true } },
-    },
-  });
+  const [draftCount, models, owners] = await Promise.all([
+    prisma.productModel.count({
+      where: { deletedAt: null, activated: false },
+    }),
+    prisma.productModel.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      take: 200,
+      include: {
+        owner: { select: { name: true } },
+        preferredFactory: { select: { name: true } },
+        sizeGrid: { select: { name: true } },
+        _count: { select: { variants: true } },
+      },
+    }),
+    prisma.user.findMany({
+      where: {
+        isActive: true,
+        role: { in: ["OWNER", "PRODUCT_MANAGER", "ASSISTANT", "CONTENT_MANAGER"] },
+      },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   return (
     <div className="space-y-4">
@@ -95,27 +109,17 @@ export default async function ModelsPage({
         </Link>
       </div>
 
-      <form method="get" className="flex flex-wrap gap-2">
-        <input
-          name="q"
-          defaultValue={sp.q ?? ""}
-          placeholder="Поиск по названию…"
-          className="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-        />
-        <select name="brand" defaultValue={sp.brand ?? ""} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
-          <option value="">Все бренды</option>
-          {Object.entries(BRAND_LABELS).map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
-          ))}
-        </select>
-        <select name="category" defaultValue={sp.category ?? ""} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
-          <option value="">Все категории</option>
-          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <button type="submit" className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
-          Применить
-        </button>
-      </form>
+      <ModelsFilters
+        brands={Object.entries(BRAND_LABELS).map(([key, label]) => ({ key, label }))}
+        categories={CATEGORIES}
+        owners={owners}
+        selected={{
+          q: sp.q ?? "",
+          brand: sp.brand ?? "",
+          categoryList,
+          owner: sp.owner ?? "",
+        }}
+      />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {models.map((m) => (
