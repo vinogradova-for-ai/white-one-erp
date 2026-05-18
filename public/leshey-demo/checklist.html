@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Демо: Чек-лист — Project Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/leshey-demo/gantt.css">
+<link rel="stylesheet" href="/leshey-demo/pages.css">
+<style>
+:root { --cl-green: #34c759; --cl-green-bg: #e8f8ed; --cl-border: #e5e5ea; --cl-header-bg: #f5f5f7; }
+body { font-family: 'Inter', sans-serif; margin: 0; background: #f5f5f7; }
+.demo-banner { background: #fff8e1; border-bottom: 1px solid #ffe082; padding: 8px 16px; font-size: 13px; color: #8d6e00; text-align: center; }
+.demo-banner b { color: #5a4500; }
+.cl-page { padding: 24px; }
+.cl-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+.cl-tab { padding: 6px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; background: #f0f0f3; color: #48484a; border: none; }
+.cl-tab.active { background: #0071e3; color: #fff; }
+.cl-controls { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; font-size: 12px; color: #86868b; }
+.cl-table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--cl-border); background: #fff; max-width: 100%; }
+.cl-table { border-collapse: collapse; font-size: 13px; table-layout: auto; }
+.cl-table .cl-group-row th {
+  background: #1d1d1f; color: #fff; padding: 7px 10px; font-size: 12px; font-weight: 700;
+  letter-spacing: 0.2px; border: none; user-select: none; white-space: nowrap;
+  border-right: 1px solid rgba(255,255,255,0.1);
+}
+.cl-group-name { margin-right: 6px; }
+.cl-group-toggle { font-size: 10px; opacity: 0.5; margin-right: 4px; }
+.cl-group-pct { font-size: 10px; opacity: 0.5; }
+.cl-table .cl-item-row th {
+  background: var(--cl-header-bg); padding: 6px 6px 8px; text-align: center; vertical-align: bottom;
+  font-size: 10px; font-weight: 600; color: #48484a; border-bottom: 2px solid var(--cl-border);
+  border-right: 1px solid #f0f0f2; min-width: 70px; max-width: 100px;
+}
+.cl-th-text { line-height: 1.25; word-wrap: break-word; }
+.cl-corner {
+  background: var(--cl-header-bg) !important; color: #48484a !important; font-size: 12px !important;
+  font-weight: 600 !important; text-align: left !important; padding: 8px 10px !important;
+  position: sticky; left: 0; z-index: 5; min-width: 170px; border-right: 2px solid var(--cl-border) !important;
+  border-bottom: 2px solid var(--cl-border) !important;
+}
+.cl-corner-right {
+  background: var(--cl-header-bg) !important; color: #48484a !important; font-size: 11px !important;
+  font-weight: 600 !important; text-align: center !important; padding: 8px 6px !important;
+  min-width: 70px; border-bottom: 2px solid var(--cl-border) !important;
+  position: sticky; right: 0; z-index: 5; border-left: 2px solid var(--cl-border) !important;
+}
+.cl-table tbody td {
+  padding: 5px 4px; border-bottom: 1px solid #f0f0f2; text-align: center; vertical-align: middle;
+  border-right: 1px solid #f0f0f2;
+}
+.cl-table tbody td:first-child {
+  text-align: left; font-weight: 500; position: sticky; left: 0; background: #fff; z-index: 1;
+  min-width: 170px; padding: 5px 10px; border-right: 2px solid var(--cl-border);
+}
+.cl-table tbody td:last-child {
+  position: sticky; right: 0; background: #fff; z-index: 1;
+  border-left: 2px solid var(--cl-border); border-right: none;
+}
+.cl-table tbody tr:hover td { background: #fafafa; }
+.cl-model-cell { display: flex; align-items: center; gap: 8px; }
+.cl-img { width: 32px; height: 32px; border-radius: 5px; flex-shrink: 0; background: linear-gradient(135deg, var(--c1,#eee), var(--c2,#ddd)); display: flex; align-items: center; justify-content: center; font-size: 9px; color: rgba(0,0,0,0.4); }
+.cl-model-name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+.cl-check { width: 26px; height: 26px; border-radius: 5px; border: none; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.12s; }
+.cl-check.done { background: var(--cl-green-bg); }
+.cl-check.undone { background: #f0f0f2; }
+.cl-check svg { width: 14px; height: 14px; }
+.cl-check.done svg { color: var(--cl-green); }
+.cl-check.undone svg { color: #d1d1d6; }
+.cl-progress { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #86868b; }
+.cl-progress-bar { width: 40px; height: 5px; background: #e5e5ea; border-radius: 3px; overflow: hidden; }
+.cl-progress-fill { height: 100%; background: var(--cl-green); border-radius: 3px; }
+.cl-sec-border { border-left: 2px solid #d1d1d6 !important; }
+</style>
+</head>
+<body>
+
+<div class="demo-banner">
+  📸 <b>Статичная копия Чек-листа из приложения Леши</b> для предпросмотра. Кнопки/чекбоксы — декоративные. Источник: <code>github.com/AlexeyWOC/kanban</code>
+</div>
+
+<nav class="top-nav">
+  <div class="nav-left">
+    <a href="#" class="nav-link">Ганта</a>
+    <a href="/leshey-demo/index.html" class="nav-link">Канбан</a>
+    <a href="#" class="nav-link active">Чек-лист</a>
+    <a href="#" class="nav-link">Todo</a>
+    <a href="#" class="nav-link">Лог изменений</a>
+    <a href="#" class="nav-link">База знаний</a>
+  </div>
+  <div class="nav-right">
+    <div class="nav-user-wrap"><div class="nav-avatar">A</div><span class="nav-user-name">Алёна</span></div>
+    <a href="#" class="nav-link nav-logout">Выйти</a>
+  </div>
+</nav>
+
+<div class="cl-page">
+  <h1 style="margin:0 0 16px;font-size:20px;font-weight:700;">Чек-лист товаров</h1>
+
+  <div class="cl-tabs">
+    <button class="cl-tab active">Разработка товара</button>
+    <button class="cl-tab">Пошив и проверка</button>
+    <button class="cl-tab">Логистика</button>
+    <button class="cl-tab">Запуск товара</button>
+  </div>
+
+  <div class="cl-controls">
+    <span>Всего товаров: <b>6</b></span>
+    <span>Готовность стадии: <b style="color:var(--cl-green);">46%</b></span>
+    <span style="margin-left:auto;color:#aeaeb2;">Сортировка: По умолчанию · По прогрессу · По имени</span>
+  </div>
+
+  <div class="cl-table-wrap">
+    <table class="cl-table">
+      <thead>
+        <!-- Группы (стадии разработки) -->
+        <tr class="cl-group-row">
+          <th class="cl-corner" rowspan="2">Товар</th>
+          <th colspan="3">
+            <span class="cl-group-toggle">▼</span>
+            <span class="cl-group-name">Идея</span>
+            <span class="cl-group-pct">3/3</span>
+          </th>
+          <th colspan="4" class="cl-sec-border">
+            <span class="cl-group-toggle">▼</span>
+            <span class="cl-group-name">Образец</span>
+            <span class="cl-group-pct">2/4</span>
+          </th>
+          <th colspan="3" class="cl-sec-border">
+            <span class="cl-group-toggle">▼</span>
+            <span class="cl-group-name">Идеал. образец</span>
+            <span class="cl-group-pct">1/3</span>
+          </th>
+          <th colspan="3" class="cl-sec-border">
+            <span class="cl-group-toggle">▼</span>
+            <span class="cl-group-name">Размерная сетка</span>
+            <span class="cl-group-pct">0/3</span>
+          </th>
+          <th class="cl-corner-right" rowspan="2">Прогресс</th>
+        </tr>
+        <!-- Пункты внутри групп -->
+        <tr class="cl-item-row">
+          <th><div class="cl-th-text">Концепт согласован</div></th>
+          <th><div class="cl-th-text">Тех-задание готово</div></th>
+          <th><div class="cl-th-text">Фабрика выбрана</div></th>
+
+          <th class="cl-sec-border"><div class="cl-th-text">Заказ 1-го образца</div></th>
+          <th><div class="cl-th-text">Образец получен</div></th>
+          <th><div class="cl-th-text">Примерка</div></th>
+          <th><div class="cl-th-text">Правки отправлены</div></th>
+
+          <th class="cl-sec-border"><div class="cl-th-text">Финальный образец</div></th>
+          <th><div class="cl-th-text">Согласован цвет</div></th>
+          <th><div class="cl-th-text">Утверждён</div></th>
+
+          <th class="cl-sec-border"><div class="cl-th-text">Замеры сняты</div></th>
+          <th><div class="cl-th-text">Сетка построена</div></th>
+          <th><div class="cl-th-text">Лекала готовы</div></th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Платье Лотос: все идея done, образец 3/4, идеал 0/3, размер 0/3 — итого 6/13 -->
+        <tr>
+          <td>
+            <div class="cl-model-cell">
+              <div class="cl-img" style="--c1:#fce4ec;--c2:#f8bbd0;">Лот</div>
+              <span class="cl-model-name">Платье «Лотос»</span>
+            </div>
+          </td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td>
+            <div class="cl-progress">
+              <div class="cl-progress-bar"><div class="cl-progress-fill" style="width:46%"></div></div>
+              <span>6/13</span>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Юбка Карамель: 3 идея + 4 образец + 1 идеал = 8/13 -->
+        <tr>
+          <td>
+            <div class="cl-model-cell">
+              <div class="cl-img" style="--c1:#fff3e0;--c2:#ffe0b2;">Кар</div>
+              <span class="cl-model-name">Юбка «Карамель»</span>
+            </div>
+          </td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td>
+            <div class="cl-progress">
+              <div class="cl-progress-bar"><div class="cl-progress-fill" style="width:62%"></div></div>
+              <span>8/13</span>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Топ Морской: 3+2+0+0 = 5/13 -->
+        <tr>
+          <td>
+            <div class="cl-model-cell">
+              <div class="cl-img" style="--c1:#e0f2f1;--c2:#b2dfdb;">Мор</div>
+              <span class="cl-model-name">Топ «Морской»</span>
+            </div>
+          </td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td>
+            <div class="cl-progress">
+              <div class="cl-progress-bar"><div class="cl-progress-fill" style="width:38%"></div></div>
+              <span>5/13</span>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Платье Солнце: 13/13 -->
+        <tr>
+          <td>
+            <div class="cl-model-cell">
+              <div class="cl-img" style="--c1:#fffde7;--c2:#fff59d;">Сол</div>
+              <span class="cl-model-name">Платье «Солнце»</span>
+            </div>
+          </td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td>
+            <div class="cl-progress">
+              <div class="cl-progress-bar"><div class="cl-progress-fill" style="width:100%"></div></div>
+              <span style="color:var(--cl-green);font-weight:700;">13/13</span>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Брюки Зефир: 3+1+0+0 = 4/13 -->
+        <tr>
+          <td>
+            <div class="cl-model-cell">
+              <div class="cl-img" style="--c1:#f3e5f5;--c2:#e1bee7;">Зеф</div>
+              <span class="cl-model-name">Брюки «Зефир»</span>
+            </div>
+          </td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td>
+            <div class="cl-progress">
+              <div class="cl-progress-bar"><div class="cl-progress-fill" style="width:31%"></div></div>
+              <span>4/13</span>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Рубашка Минимал: 3+4+3+2 = 12/13 -->
+        <tr>
+          <td>
+            <div class="cl-model-cell">
+              <div class="cl-img" style="--c1:#e3f2fd;--c2:#bbdefb;">Мин</div>
+              <span class="cl-model-name">Рубашка «Минимал»</span>
+            </div>
+          </td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td class="cl-sec-border"><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check done"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td><span class="cl-check undone"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span></td>
+          <td>
+            <div class="cl-progress">
+              <div class="cl-progress-bar"><div class="cl-progress-fill" style="width:92%"></div></div>
+              <span style="color:var(--cl-green);font-weight:700;">12/13</span>
+            </div>
+          </td>
+        </tr>
+
+      </tbody>
+    </table>
+  </div>
+
+  <p style="margin-top:16px;font-size:12px;color:#86868b;">
+    💡 На реальной странице чекбоксы кликабельные. Заголовки чёрных секций можно сворачивать — тогда вместо столбцов с галочками показывается мини-прогресс «2/4».
+  </p>
+</div>
+
+</body>
+</html>
