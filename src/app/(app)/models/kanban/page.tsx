@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { BRAND_LABELS, ORDER_STATUS_ORDER } from "@/lib/constants";
+import { BRAND_LABELS, CATEGORIES, ORDER_STATUS_ORDER } from "@/lib/constants";
 import { OrderStatus, ProductModelStatus, Brand } from "@prisma/client";
 import { BoardClient, type KanbanCard, type KanbanColumn } from "@/components/models-kanban/board-client";
+import { colorHexFromName } from "@/lib/color-map";
 
 // 8 колонок: 4 под-этапа Разработки + 4 этапа после заказа.
 // Этапы Разработки видны ТОЛЬКО на канбане (не на Ганте) — детализация
@@ -114,7 +115,7 @@ function pickDeadline(col: string, model: { sampleDate: Date | null; approvedDat
 export default async function ModelsKanbanPage({
   searchParams,
 }: {
-  searchParams: Promise<{ brand?: string; category?: string; q?: string }>;
+  searchParams: Promise<{ brand?: string; category?: string; owner?: string; q?: string }>;
 }) {
   const sp = await searchParams;
   const todayIso = moscowToday();
@@ -124,32 +125,50 @@ export default async function ModelsKanbanPage({
     activated: boolean;
     brand?: Brand;
     category?: string;
+    ownerId?: string;
     OR?: Array<{ name: { contains: string; mode: "insensitive" } }>;
   } = { deletedAt: null, activated: true };
   if (sp.brand && sp.brand in BRAND_LABELS) where.brand = sp.brand as Brand;
   if (sp.category) where.category = sp.category;
+  if (sp.owner) where.ownerId = sp.owner;
   if (sp.q) where.OR = [{ name: { contains: sp.q, mode: "insensitive" } }];
 
-  const models = await prisma.productModel.findMany({
-    where,
-    orderBy: { updatedAt: "desc" },
-    take: 500,
-    select: {
-      id: true, name: true, brand: true, category: true, subcategory: true,
-      photoUrls: true, status: true, sizeChartReady: true,
-      sampleDate: true, approvedDate: true, productionStartDate: true, plannedLaunchMonth: true,
-      preferredFactory: { select: { name: true } },
-      orders: {
-        where: { deletedAt: null },
-        select: {
-          id: true, orderNumber: true, status: true,
-          readyAtFactoryDate: true, qcDate: true, arrivalPlannedDate: true, saleStartDate: true,
-          factory: { select: { name: true } },
-          lines: { select: { quantity: true } },
+  const [models, owners] = await Promise.all([
+    prisma.productModel.findMany({
+      where,
+      orderBy: { updatedAt: "desc" },
+      take: 500,
+      select: {
+        id: true, name: true, brand: true, category: true, subcategory: true,
+        photoUrls: true, status: true, sizeChartReady: true,
+        sampleDate: true, approvedDate: true, productionStartDate: true, plannedLaunchMonth: true,
+        preferredFactory: { select: { name: true } },
+        variants: {
+          where: { deletedAt: null },
+          select: { colorName: true },
+          orderBy: { createdAt: "asc" },
+          take: 8,
+        },
+        orders: {
+          where: { deletedAt: null },
+          select: {
+            id: true, orderNumber: true, status: true,
+            readyAtFactoryDate: true, qcDate: true, arrivalPlannedDate: true, saleStartDate: true,
+            factory: { select: { name: true } },
+            lines: { select: { quantity: true } },
+          },
         },
       },
-    },
-  });
+    }),
+    prisma.user.findMany({
+      where: {
+        isActive: true,
+        role: { in: ["OWNER", "PRODUCT_MANAGER", "ASSISTANT", "CONTENT_MANAGER"] },
+      },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
 
   // Раскидать карточки по колонкам
   const buckets: Record<string, KanbanCard[]> = Object.fromEntries(COLUMNS.map((c) => [c.key, []]));
@@ -166,6 +185,16 @@ export default async function ModelsKanbanPage({
       dlColor = diff < 0 ? "red" : diff <= 7 ? "amber" : "gray";
     }
 
+    // Уникальные цвета вариантов модели → дедуплицируем по hex.
+    const colorChips: Array<{ name: string; hex: string }> = [];
+    const seenHex = new Set<string>();
+    for (const v of m.variants ?? []) {
+      const hex = colorHexFromName(v.colorName);
+      if (seenHex.has(hex)) continue;
+      seenHex.add(hex);
+      colorChips.push({ name: v.colorName, hex });
+    }
+
     buckets[column].push({
       modelId: m.id,
       modelName: m.name,
@@ -177,8 +206,10 @@ export default async function ModelsKanbanPage({
       factoryName: order?.factory?.name ?? m.preferredFactory?.name ?? null,
       qty,
       orderNumber: order?.orderNumber ?? null,
+      orderId: order?.id ?? null,
       deadline,
       dlColor,
+      colorChips,
     });
   }
 
@@ -192,6 +223,37 @@ export default async function ModelsKanbanPage({
         </div>
         <p className="text-xs text-slate-500">всего: {models.length}</p>
       </div>
+
+      <form method="get" className="flex flex-wrap gap-2 items-center">
+        <input
+          name="q"
+          defaultValue={sp.q ?? ""}
+          placeholder="Поиск по названию…"
+          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm w-44"
+        />
+        <select name="brand" defaultValue={sp.brand ?? ""} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm">
+          <option value="">Все бренды</option>
+          {Object.entries(BRAND_LABELS).map(([k, v]) => (
+            <option key={k} value={k}>{v}</option>
+          ))}
+        </select>
+        <select name="category" defaultValue={sp.category ?? ""} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm">
+          <option value="">Все категории</option>
+          {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select name="owner" defaultValue={sp.owner ?? ""} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm">
+          <option value="">Все ответственные</option>
+          {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+        </select>
+        <button type="submit" className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800">
+          Фильтр
+        </button>
+        {(sp.q || sp.brand || sp.category || sp.owner) && (
+          <Link href="/models/kanban" className="text-sm text-slate-500 hover:text-slate-700 underline">
+            сбросить
+          </Link>
+        )}
+      </form>
 
       <BoardClient columns={COLUMNS} buckets={buckets} />
     </div>

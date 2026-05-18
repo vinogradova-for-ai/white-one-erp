@@ -20,8 +20,10 @@ export type KanbanCard = {
   factoryName: string | null;
   qty: number;
   orderNumber: string | null;
+  orderId: string | null;
   deadline: { iso: string; label: string } | null;
   dlColor: "red" | "amber" | "gray" | null;
+  colorChips: Array<{ name: string; hex: string }>;
 };
 
 export type KanbanColumn = {
@@ -191,6 +193,21 @@ export function BoardClient({
                           <div className="text-[11px] text-slate-500 truncate">
                             {c.brandLabel} · {c.category}
                           </div>
+                          {c.colorChips.length > 0 && (
+                            <div className="flex flex-wrap gap-1 items-center" title={c.colorChips.map((x) => x.name).join(", ")}>
+                              {c.colorChips.slice(0, 6).map((cc, i) => (
+                                <span
+                                  key={i}
+                                  className="inline-block h-3 w-3 rounded-full ring-1 ring-slate-200"
+                                  style={{ backgroundColor: cc.hex }}
+                                  aria-label={cc.name}
+                                />
+                              ))}
+                              {c.colorChips.length > 6 && (
+                                <span className="text-[10px] text-slate-400">+{c.colorChips.length - 6}</span>
+                              )}
+                            </div>
+                          )}
                           <div className="flex flex-wrap items-center gap-1">
                             {c.factoryName && (
                               <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded truncate max-w-[120px]">
@@ -208,11 +225,26 @@ export function BoardClient({
                               </span>
                             )}
                           </div>
-                          {c.orderNumber && (
-                            <div className="text-[10px] text-blue-600 truncate">#{c.orderNumber}</div>
-                          )}
                         </div>
                       </Link>
+                      {/* Ссылки в подвале карточки — только для пост-order (есть заказ) */}
+                      {c.orderId && (
+                        <div className="flex border-t border-slate-100 text-[10px]">
+                          <Link
+                            href={`/orders/${c.orderId}`}
+                            className="flex-1 px-2 py-1.5 text-blue-600 hover:bg-blue-50 truncate text-center border-r border-slate-100"
+                          >
+                            #{c.orderNumber}
+                          </Link>
+                          <Link
+                            href={`/gantt-v2`}
+                            className="px-2 py-1.5 text-slate-600 hover:bg-slate-50"
+                            title="Гант"
+                          >
+                            📊 Гант
+                          </Link>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
