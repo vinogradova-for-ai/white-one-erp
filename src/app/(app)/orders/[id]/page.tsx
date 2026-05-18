@@ -186,6 +186,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             colorName: l.productVariant.colorName,
             photoUrl: l.productVariant.photoUrls[0] ?? null,
             quantity: l.quantity,
+            quantityActual: l.quantityActual,
             sizeDistribution: (l.sizeDistribution as Record<string, number> | null) ?? null,
             sizeDistributionActual: (l.sizeDistributionActual as Record<string, number> | null) ?? null,
             batchCost: Number(l.batchCost ?? 0),

@@ -21,6 +21,7 @@ export default async function IncomingPage() {
       lines: {
         select: {
           quantity: true,
+          quantityActual: true,
           productVariant: { select: { sku: true, colorName: true, photoUrls: true } },
         },
         orderBy: { createdAt: "asc" },
@@ -29,6 +30,15 @@ export default async function IncomingPage() {
     },
     orderBy: { arrivalPlannedDate: "asc" },
   });
+
+  // В Поставки уходит ФАКТ количества (фабрика могла накроить больше/меньше).
+  // Если факт по линии не проставлен — используем план как fallback и помечаем.
+  function lineQty(l: { quantity: number; quantityActual: number | null }): number {
+    return l.quantityActual ?? l.quantity;
+  }
+  function orderHasFactual(lines: Array<{ quantityActual: number | null }>): boolean {
+    return lines.some((l) => l.quantityActual !== null);
+  }
 
   return (
     <div className="space-y-4">
@@ -46,7 +56,8 @@ export default async function IncomingPage() {
       {/* Мобильная версия */}
       <div className="space-y-2 md:hidden">
         {orders.map((o) => {
-          const totalQty = o.lines.reduce((a, l) => a + l.quantity, 0);
+          const totalQty = o.lines.reduce((a, l) => a + lineQty(l), 0);
+          const hasFact = orderHasFactual(o.lines);
           const colorNames = o.lines.map((l) => l.productVariant.colorName);
           const firstLine = o.lines[0];
           return (
@@ -75,7 +86,7 @@ export default async function IncomingPage() {
               </div>
               <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
                 <div>
-                  <div className="text-slate-400">Кол-во</div>
+                  <div className="text-slate-400">Кол-во · {hasFact ? <span className="text-emerald-700 font-semibold">факт</span> : <span>план</span>}</div>
                   <div className="font-semibold text-slate-900">{formatNumber(totalQty)}</div>
                 </div>
                 <div>
@@ -115,7 +126,8 @@ export default async function IncomingPage() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {orders.map((o) => {
-              const totalQty = o.lines.reduce((a, l) => a + l.quantity, 0);
+              const totalQty = o.lines.reduce((a, l) => a + lineQty(l), 0);
+          const hasFact = orderHasFactual(o.lines);
               const colorNames = o.lines.map((l) => l.productVariant.colorName);
               const firstLine = o.lines[0];
               return (
@@ -135,7 +147,14 @@ export default async function IncomingPage() {
                     {colorNames.length > 0 ? colorNames.map((c, i) => <ColorChip key={i} name={c} size={10} />) : "—"}
                   </div>
                 </td>
-                <td className="px-3 py-2 text-right">{formatNumber(totalQty)}</td>
+                <td className="px-3 py-2 text-right">
+                  {formatNumber(totalQty)}
+                  {hasFact ? (
+                    <span className="ml-1 text-[10px] uppercase font-semibold text-emerald-700" title="Фактическое количество после ОТК">факт</span>
+                  ) : (
+                    <span className="ml-1 text-[10px] uppercase text-slate-400" title="План — факт ещё не проставлен">план</span>
+                  )}
+                </td>
                 <td className="px-3 py-2 text-xs">
                   {o.factory?.name ?? "—"}
                   {o.factory?.country && <div className="text-slate-400">{o.factory.country}</div>}

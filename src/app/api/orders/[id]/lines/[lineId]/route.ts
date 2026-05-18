@@ -33,6 +33,13 @@ export async function PATCH(
       patch.plannedRevenue = eco.plannedRevenue;
       patch.plannedMargin = eco.plannedMargin;
     }
+    // Факт количества — заполняется на этапе ОТК, может прийти позже плана
+    // и независимо от него. На экономику плана не влияет (план остаётся
+    // как был — это «что мы заплатили»). Для пересчёта факт-экономики
+    // нужна отдельная история, пока её не делаем.
+    if (data.quantityActual !== undefined) {
+      patch.quantityActual = data.quantityActual;
+    }
 
     const updated = await prisma.orderLine.update({ where: { id: lineId }, data: patch });
     return NextResponse.json(updated);

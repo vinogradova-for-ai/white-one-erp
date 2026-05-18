@@ -499,7 +499,10 @@ model OrderLine {
   productVariantId String
   productVariant   ProductVariant  @relation("VariantOrderLines", fields: [productVariantId], references: [id])
 
-  quantity Int
+  quantity Int                            // План — сколько заказали с фабрики
+  quantityActual Int?                     // Факт — сколько реально получили после ОТК
+                                          // (фабрика накроила больше/меньше, или брак вылез).
+                                          // Заполняется на этапе QC/READY_SHIP. До этого null.
 
   // Размерная матрица — план и факт
   sizeDistribution       Json?   // { "42": 50, "44": 120, ... }
