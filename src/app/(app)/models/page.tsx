@@ -4,7 +4,8 @@ import { formatNumber } from "@/lib/format";
 import { CATEGORIES, BRAND_LABELS } from "@/lib/constants";
 import { PhotoThumb } from "@/components/common/photo-thumb";
 import { Brand } from "@prisma/client";
-import { ModelsFilters, parseCategoryParam } from "@/components/models/models-filters";
+import { ModelsFilters } from "@/components/models/models-filters";
+import { parseCategoryParam } from "@/components/models/models-filters-shared";
 
 export default async function ModelsPage({
   searchParams,

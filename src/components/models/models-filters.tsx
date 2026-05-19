@@ -145,11 +145,5 @@ export function ModelsFilters({
   );
 }
 
-// Helper: парсит ?category=A,B,C в массив
-export function parseCategoryParam(raw: string | undefined, valid: ReadonlyArray<string>): string[] {
-  if (!raw) return [];
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => valid.includes(s));
-}
+// parseCategoryParam вынесена в models-filters-shared.ts (без "use client"),
+// потому что она нужна и на сервере в page.tsx, и в клиентском компоненте.
