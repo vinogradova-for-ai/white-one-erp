@@ -7,7 +7,7 @@ export default async function NewModelPage() {
   const currentUserId = session?.user?.id ?? null;
   const [users, factories, sizeGrids, packagingItems] = await Promise.all([
     prisma.user.findMany({
-      where: { isActive: true, role: { in: ["OWNER", "DIRECTOR", "PRODUCT_MANAGER", "ASSISTANT", "CONTENT_MANAGER"] } },
+      where: { isActive: true },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

@@ -164,11 +164,10 @@ export default async function ModelsKanbanPage({
         },
       },
     }),
+    // Ответственный — кто угодно из команды. Не фильтруем по ролям,
+    // чтобы Настя/Катя/Дарья и пр. тоже были доступны.
     prisma.user.findMany({
-      where: {
-        isActive: true,
-        role: { in: ["OWNER", "PRODUCT_MANAGER", "ASSISTANT", "CONTENT_MANAGER"] },
-      },
+      where: { isActive: true },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
