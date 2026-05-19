@@ -4,7 +4,8 @@ import { BRAND_LABELS, CATEGORIES, ORDER_STATUS_ORDER } from "@/lib/constants";
 import { OrderStatus, ProductModelStatus, Brand } from "@prisma/client";
 import { BoardClient, type KanbanCard, type KanbanColumn } from "@/components/models-kanban/board-client";
 import { colorHexFromName } from "@/lib/color-map";
-import { ModelsFilters, parseCategoryParam } from "@/components/models/models-filters";
+import { ModelsFilters } from "@/components/models/models-filters";
+import { parseCategoryParam } from "@/components/models/models-filters-shared";
 
 // 8 колонок: 4 под-этапа Разработки + 4 этапа после заказа.
 // Этапы Разработки видны ТОЛЬКО на канбане (не на Ганте) — детализация
