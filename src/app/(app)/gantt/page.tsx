@@ -103,10 +103,7 @@ export default async function GanttPage({
     // Команда продуктового отдела — показываем всех 5, даже если у них пока
     // нет активных заказов (Алёна, Вера, Оля, Настя, Катя).
     prisma.user.findMany({
-      where: {
-        isActive: true,
-        role: { in: ["OWNER", "PRODUCT_MANAGER", "ASSISTANT", "CONTENT_MANAGER"] },
-      },
+      where: { isActive: true },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
