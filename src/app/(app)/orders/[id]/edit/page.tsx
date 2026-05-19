@@ -27,7 +27,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
     }),
     prisma.factory.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.user.findMany({
-      where: { isActive: true, role: { in: ["OWNER", "DIRECTOR", "PRODUCT_MANAGER"] } },
+      where: { isActive: true, role: { in: ["OWNER", "DIRECTOR", "PRODUCT_MANAGER", "ASSISTANT", "CONTENT_MANAGER"] } },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
