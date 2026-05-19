@@ -15,7 +15,9 @@ export default async function EditModelPage({ params }: { params: Promise<{ id: 
   const [model, users, factories, sizeGrids, packagingItems] = await Promise.all([
     prisma.productModel.findFirst({ where: { id, deletedAt: null } }),
     prisma.user.findMany({
-      where: { isActive: true, role: { in: ["OWNER", "DIRECTOR", "PRODUCT_MANAGER"] } },
+      // Ответственный за фасон — кто угодно из команды продуктового отдела.
+      // Настя/Катя/Дарья имеют роли ASSISTANT/CONTENT_MANAGER — раньше не попадали.
+      where: { isActive: true, role: { in: ["OWNER", "DIRECTOR", "PRODUCT_MANAGER", "ASSISTANT", "CONTENT_MANAGER"] } },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

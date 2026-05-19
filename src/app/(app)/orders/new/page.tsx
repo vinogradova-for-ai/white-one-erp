@@ -65,7 +65,7 @@ export default async function NewOrderPage({
       orderBy: { name: "asc" },
     }),
     prisma.user.findMany({
-      where: { isActive: true, role: { in: ["OWNER", "DIRECTOR", "PRODUCT_MANAGER"] } },
+      where: { isActive: true, role: { in: ["OWNER", "DIRECTOR", "PRODUCT_MANAGER", "ASSISTANT", "CONTENT_MANAGER"] } },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
