@@ -2,21 +2,11 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-const ROLES = [
-  { v: "ASSISTANT", l: "Ассистент" },
-  { v: "PRODUCT_MANAGER", l: "Продукт-менеджер" },
-  { v: "CONTENT_MANAGER", l: "Контент-менеджер" },
-  { v: "LOGISTICS", l: "Логистика" },
-  { v: "DIRECTOR", l: "Директор" },
-  { v: "OWNER", l: "Собственник" },
-];
-
 export function AddUserForm() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState("ASSISTANT");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -28,14 +18,14 @@ export function AddUserForm() {
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, role }),
+        body: JSON.stringify({ name, email }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
         setErr(j?.error?.message ?? "Не удалось создать");
         return;
       }
-      setName(""); setEmail(""); setRole("ASSISTANT"); setOpen(false);
+      setName(""); setEmail(""); setOpen(false);
       router.refresh();
     } finally {
       setBusy(false);
@@ -70,15 +60,6 @@ export function AddUserForm() {
           className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm w-56"
           placeholder="darya@whiteone.ru"
         />
-      </label>
-      <label className="flex flex-col text-xs text-slate-500">
-        Роль
-        <select
-          value={role} onChange={(e) => setRole(e.target.value)}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
-        >
-          {ROLES.map((r) => <option key={r.v} value={r.v}>{r.l}</option>)}
-        </select>
       </label>
       <button
         type="submit" disabled={busy}
