@@ -25,7 +25,9 @@ const MORE_NAV = [
   { href: "/factories", label: "Фабрики", icon: "⛭" },
 ];
 
-const ADMIN_NAV: Array<{ href: string; label: string; icon: string }> = [];
+const ADMIN_NAV: Array<{ href: string; label: string; icon: string }> = [
+  { href: "/admin/users", label: "Сотрудники", icon: "☉" },
+];
 
 export function Sidebar({ user }: { user: { name?: string | null; email?: string | null; role: Role } }) {
   const isAdmin = user.role === "OWNER" || user.role === "DIRECTOR";
