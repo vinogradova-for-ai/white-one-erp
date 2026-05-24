@@ -157,8 +157,9 @@ export function OrderTimeline({
   // Старт цепочки = decisionDate из таймлайна. Если decisionDate пуст — берём сегодня.
   const chainStart = initial.decisionDate || toISO(new Date());
   const railRef = useRef<HTMLDivElement>(null);
-  const [dragInfo, setDragInfo] = useState<{ left: number; label: string } | null>(null);
-  // Зум шкалы: "auto" (по фазам), "1w" / "1m" / "3m" — фиксированные диапазоны.
+  const [dragInfo, setDragInfo] = useState<{ leftPx: number; label: string } | null>(null);
+  // Зум = «сколько пикселей занимает один день». Большие значения = крупный масштаб,
+  // мелкие = можно охватить весь цикл взглядом. auto подбирает под viewport.
   const [zoom, setZoom] = useState<"auto" | "1w" | "1m" | "3m">("auto");
 
   useEffect(() => {
@@ -197,35 +198,31 @@ export function OrderTimeline({
   const earliestPhase = phaseEdges.reduce((a, b) => (daysBetween(a, b) < 0 ? b : a));
   const latestPhase = phaseEdges.reduce((a, b) => (daysBetween(a, b) > 0 ? b : a));
 
-  // chartStart = min(earliestPhase, today) — чтобы маркер «сегодня» влез,
-  // если фазы все в будущем; и чтобы фаза, начавшаяся в прошлом, попала на шкалу.
-  // daysBetween(earliestPhase, today) < 0 ⇔ today раньше earliestPhase → берём today.
+  // chartStart = min(earliestPhase, today) — фаза в прошлом не вылетает за левый край,
+  // маркер «сегодня» влезает, если все фазы в будущем.
   const chartStartRaw = daysBetween(earliestPhase, todayIsoForChart) < 0
     ? todayIsoForChart
     : earliestPhase;
-  const zoomDays = zoom === "1w" ? 7 : zoom === "1m" ? 30 : zoom === "3m" ? 90 : null;
-  // chartEnd: при auto — до самой поздней даты фаз, но не раньше «сегодня».
-  // Гарантируем минимум 7 дней ширины, чтоб шкала была визуально читаемой.
-  let chartEnd: string;
-  if (zoomDays != null) {
-    chartEnd = addDays(chartStartRaw, zoomDays);
-  } else {
-    // chartEnd = max(latestPhase, today) — чтобы маркер «сегодня» влез,
-    // если все фазы в прошлом. daysBetween(latestPhase, today) > 0 ⇔ today позже.
-    const latestWithToday = daysBetween(latestPhase, todayIsoForChart) > 0
-      ? todayIsoForChart
-      : latestPhase;
-    chartEnd = latestWithToday || addDays(chartStartRaw, 30);
-    if (daysBetween(chartStartRaw, chartEnd) < 7) {
-      chartEnd = addDays(chartStartRaw, 7);
-    }
-  }
+  // chartEnd = max(latestPhase, today) с запасом 3 дня справа,
+  // чтобы правая ручка не уехала впритык к краю.
+  const latestWithToday = daysBetween(latestPhase, todayIsoForChart) > 0
+    ? todayIsoForChart
+    : latestPhase;
+  const chartEndRaw = addDays(latestWithToday || addDays(chartStartRaw, 30), 3);
   const chartStart = chartStartRaw;
-  const totalDays = Math.max(1, daysBetween(chartStart, chartEnd));
+  const chartEnd = chartEndRaw;
+  const totalDays = Math.max(7, daysBetween(chartStart, chartEnd));
 
-  function posPct(iso: string): number {
-    const d = daysBetween(chartStart, iso);
-    return Math.max(0, Math.min(100, (d / totalDays) * 100));
+  // Сколько пикселей занимает один день. Это и есть зум — фикс. масштаб времени.
+  // 1 нед: 32 px/день (хорошо для коротких циклов), 1 мес: 16, 3 мес: 6.
+  // auto = 8 px/день для типового цикла (~90-120 дней влезает в широкий экран).
+  const dayWidth = zoom === "1w" ? 32 : zoom === "1m" ? 16 : zoom === "3m" ? 6 : 8;
+  const railWidthPx = totalDays * dayWidth;
+
+  // Позиция и ширина плашки — в пикселях. Никаких процентов и clamping'ов:
+  // если фаза честно длинная — она и нарисуется длинной, шкала прокрутится.
+  function posPx(iso: string): number {
+    return daysBetween(chartStart, iso) * dayWidth;
   }
 
   type DragState = {
@@ -248,10 +245,7 @@ export function OrderTimeline({
   // Drag через window-слушатели — pointer capture мешал ловить движение
   // когда курсор уходил с handle (был лаг между движением и обновлением).
   const onPointerDown = (e: React.PointerEvent, phase: Phase, mode: DragState["mode"]) => {
-    if (!railRef.current) return;
     e.preventDefault();
-    const rect = railRef.current.getBoundingClientRect();
-    const pxPerDay = rect.width / totalDays;
     const prevPhase = PHASES[PHASES.indexOf(phase) - 1];
     dragRef.current = {
       phase,
@@ -261,7 +255,7 @@ export function OrderTimeline({
       origEnd: getEndIso(phase),
       origPrevEnd: prevPhase ? getEndIso(prevPhase) : null,
       origChainStart: chainStart,
-      pxPerDay,
+      pxPerDay: dayWidth, // фикс. масштаб — нет зависимости от ширины контейнера
     };
 
     // Сохраняем оригинальные end-ы ВСЕХ фаз — чтобы каскад сдвигал
@@ -292,7 +286,7 @@ export function OrderTimeline({
           const nextPh = PHASES[j];
           next[nextPh.endField] = addDays(origAllEnds[nextPh.endField], deltaDays);
         }
-        setDragInfo({ left: posPct(newEnd), label: formatDM(newEnd) });
+        setDragInfo({ leftPx: posPx(newEnd), label: formatDM(newEnd) });
       } else if (s.mode === "resize-left") {
         if (idx === 0) {
           // Drag ◀ ПЕРВОЙ плашки (Разработка) = меняем decisionDate.
@@ -300,7 +294,7 @@ export function OrderTimeline({
           // По факту фиксируем что разработка фактически началась раньше/позже.
           const newStart = addDays(s.origChainStart, deltaDays);
           next.decisionDate = newStart;
-          setDragInfo({ left: posPct(newStart), label: formatDM(newStart) });
+          setDragInfo({ leftPx: posPx(newStart), label: formatDM(newStart) });
           commitChange(next);
           return;
         }
@@ -315,7 +309,7 @@ export function OrderTimeline({
           const nextPh = PHASES[j];
           next[nextPh.endField] = addDays(origAllEnds[nextPh.endField], deltaDays);
         }
-        setDragInfo({ left: posPct(newPrevEnd), label: formatDM(newPrevEnd) });
+        setDragInfo({ leftPx: posPx(newPrevEnd), label: formatDM(newPrevEnd) });
       } else {
         return;
       }
@@ -336,31 +330,32 @@ export function OrderTimeline({
   };
 
   const ticks = useMemo(() => {
-    const weekly: Array<{ iso: string; pct: number; label: string }> = [];
-    const monthly: Array<{ iso: string; pct: number; label: string }> = [];
+    const weekly: Array<{ iso: string; leftPx: number; label: string }> = [];
+    const monthly: Array<{ iso: string; leftPx: number; label: string }> = [];
     const start = parseISO(chartStart);
     if (!start) return { weekly, monthly };
     const cur = new Date(start);
     while (cur <= (parseISO(chartEnd) ?? cur)) {
       const iso = toISO(cur);
-      const pct = posPct(iso);
+      const leftPx = posPx(iso);
       if (cur.getUTCDay() === 1) {
-        weekly.push({ iso, pct, label: String(cur.getUTCDate()) });
+        weekly.push({ iso, leftPx, label: String(cur.getUTCDate()) });
       }
       if (cur.getUTCDate() === 1) {
-        monthly.push({ iso, pct, label: `${MONTH_SHORT[cur.getUTCMonth()]} ${String(cur.getUTCFullYear()).slice(2)}` });
+        monthly.push({ iso, leftPx, label: `${MONTH_SHORT[cur.getUTCMonth()]} ${String(cur.getUTCFullYear()).slice(2)}` });
       }
       cur.setUTCDate(cur.getUTCDate() + 1);
     }
     if (weekly.length === 0 || weekly[0].iso !== chartStart) {
-      weekly.unshift({ iso: chartStart, pct: 0, label: String(parseISO(chartStart)!.getUTCDate()) });
+      weekly.unshift({ iso: chartStart, leftPx: 0, label: String(parseISO(chartStart)!.getUTCDate()) });
     }
     return { weekly, monthly };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartStart, chartEnd, totalDays]);
+  }, [chartStart, chartEnd, dayWidth]);
 
   const todayIso = toISO(new Date());
-  const todayPct = posPct(todayIso);
+  const todayLeftPx = posPx(todayIso);
+  const todayInRange = todayLeftPx >= 0 && todayLeftPx <= railWidthPx;
 
   return (
     <fieldset className="space-y-3">
@@ -378,95 +373,98 @@ export function OrderTimeline({
         </div>
       </div>
 
+      {/* Контейнер шкалы — горизонтальный скролл при превышении ширины viewport.
+          Внутри — рейл фиксированной ширины (totalDays × dayWidth). Все плашки и
+          ручки лежат в этом рейле в абсолютных пикселях. */}
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 select-none">
-        <div className="relative mb-2 h-10" ref={railRef}>
-          <div className="absolute inset-x-0 top-0 h-4">
-            {ticks.monthly.map((m) => (
-              <div
-                key={"m" + m.iso}
-                className="absolute -translate-x-1/2 text-[11px] font-semibold text-slate-700"
-                style={{ left: `${m.pct}%` }}
-              >
-                {m.label}
-              </div>
-            ))}
-          </div>
-          <div className="absolute inset-x-0 top-4 h-4">
-            {ticks.weekly.map((w) => (
-              <div
-                key={"w" + w.iso}
-                className="absolute -translate-x-1/2 text-[10px] text-slate-400"
-                style={{ left: `${w.pct}%` }}
-              >
-                {w.label}
-              </div>
-            ))}
-          </div>
-          <div className="absolute inset-x-0 bottom-0 h-px bg-slate-300" />
-        </div>
-
-        <div className="relative">
-          {dragInfo && (
-            <div
-              className="pointer-events-none absolute -top-7 z-30 -translate-x-1/2 whitespace-nowrap rounded-md bg-emerald-600 px-2 py-1 text-xs font-bold text-white shadow-lg"
-              style={{ left: `${dragInfo.left}%` }}
-            >
-              {dragInfo.label}
-            </div>
-          )}
-          <div
-            className="pointer-events-none absolute inset-0"
-            style={{
-              backgroundImage: `linear-gradient(to right, rgba(148, 163, 184, 0.18) 1px, transparent 1px)`,
-              backgroundSize: `${100 / totalDays}% 100%`,
-            }}
-          >
-            {ticks.weekly.map((w) => (
-              <div key={"g" + w.iso} className="absolute top-0 bottom-0 border-l border-slate-300/80" style={{ left: `${w.pct}%` }} />
-            ))}
-            {ticks.monthly.map((m) => (
-              <div key={"gm" + m.iso} className="absolute top-0 bottom-0 border-l border-slate-400/60" style={{ left: `${m.pct}%` }} />
-            ))}
-          </div>
-
-          {todayPct > 0 && todayPct < 100 && (
-            <div
-              className="pointer-events-none absolute top-0 bottom-0 z-10 border-l-2 border-red-400"
-              style={{ left: `${todayPct}%` }}
-            >
-              <div className="absolute -top-2 left-1 rounded bg-red-500 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-white">
-                сегодня
-              </div>
-            </div>
-          )}
-
-          {/* Phase bars — стиль /gantt-v2: тонкие вертикальные ручки 3px на краях,
-              скрытые до hover плашки. На hover плашки появляется тултип снизу. */}
-          <div className="space-y-1">
-            {PHASES.map((ph) => {
-              const startIso = getStartIso(ph);
-              const endIso = getEndIso(ph);
-              const left = posPct(startIso);
-              const width = Math.max(0.5, posPct(endIso) - left);
-              const days = daysBetween(startIso, endIso);
-              return (
-                <div key={ph.key} className="relative h-9">
+        <div className="overflow-x-auto" ref={railRef}>
+          <div style={{ width: railWidthPx, minWidth: "100%" }}>
+            {/* Шапка шкалы — месяцы и недели */}
+            <div className="relative mb-2 h-10">
+              <div className="absolute inset-x-0 top-0 h-4">
+                {ticks.monthly.map((m) => (
                   <div
-                    // min-width 88px — короткая фаза не сжимается в дробинку,
-                    // две ручки уверенно тыкаются. -6px — gap между соседями.
-                    className="group absolute top-2 flex h-6 items-center rounded text-white shadow-sm transition-shadow hover:shadow-md"
-                    style={{ left: `${left}%`, width: `calc(max(${width}%, 88px) - 6px)`, backgroundColor: ph.color }}
+                    key={"m" + m.iso}
+                    className="absolute -translate-x-1/2 text-[11px] font-semibold text-slate-700"
+                    style={{ left: m.leftPx }}
                   >
-                    <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-3 text-[11px] font-medium whitespace-nowrap">
-                      <span>{ph.icon}</span>
-                      <span>{ph.title}</span>
-                      <span className="opacity-80">· {days} дн</span>
-                    </div>
+                    {m.label}
+                  </div>
+                ))}
+              </div>
+              <div className="absolute inset-x-0 top-4 h-4">
+                {ticks.weekly.map((w) => (
+                  <div
+                    key={"w" + w.iso}
+                    className="absolute -translate-x-1/2 text-[10px] text-slate-400"
+                    style={{ left: w.leftPx }}
+                  >
+                    {w.label}
+                  </div>
+                ))}
+              </div>
+              <div className="absolute inset-x-0 bottom-0 h-px bg-slate-300" />
+            </div>
 
-                    {/* Тултип под плашкой — появляется при hover. */}
-                    <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] text-white shadow-lg group-hover:block">
-                      {ph.title} · {formatDM(startIso)} → {formatDM(endIso)} · {days} дн
-                    </div>
+            {/* Полотно с плашками */}
+            <div className="relative">
+              {dragInfo && (
+                <div
+                  className="pointer-events-none absolute -top-7 z-30 -translate-x-1/2 whitespace-nowrap rounded-md bg-emerald-600 px-2 py-1 text-xs font-bold text-white shadow-lg"
+                  style={{ left: dragInfo.leftPx }}
+                >
+                  {dragInfo.label}
+                </div>
+              )}
+              {/* Сетка — вертикальные линии по понедельникам и 1-м числам */}
+              <div className="pointer-events-none absolute inset-0">
+                {ticks.weekly.map((w) => (
+                  <div key={"g" + w.iso} className="absolute top-0 bottom-0 border-l border-slate-300/80" style={{ left: w.leftPx }} />
+                ))}
+                {ticks.monthly.map((m) => (
+                  <div key={"gm" + m.iso} className="absolute top-0 bottom-0 border-l border-slate-400/60" style={{ left: m.leftPx }} />
+                ))}
+              </div>
+
+              {todayInRange && (
+                <div
+                  className="pointer-events-none absolute top-0 bottom-0 z-10 border-l-2 border-red-400"
+                  style={{ left: todayLeftPx }}
+                >
+                  <div className="absolute -top-2 left-1 rounded bg-red-500 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-white">
+                    сегодня
+                  </div>
+                </div>
+              )}
+
+              {/* Phase bars — стиль /gantt-v2: тонкие вертикальные ручки на краях,
+                  скрытые до hover. Позиция и ширина — в пикселях. */}
+              <div className="space-y-1">
+                {PHASES.map((ph) => {
+                  const startIso = getStartIso(ph);
+                  const endIso = getEndIso(ph);
+                  const leftPx = posPx(startIso);
+                  const rawWidthPx = posPx(endIso) - leftPx;
+                  // min-width 64px — две ручки 24px помещаются с зазором 16px.
+                  // Минус 4px — visual gap между соседними плашками.
+                  const widthPx = Math.max(64, rawWidthPx) - 4;
+                  const days = daysBetween(startIso, endIso);
+                  return (
+                    <div key={ph.key} className="relative h-9">
+                      <div
+                        className="group absolute top-2 flex h-6 items-center rounded text-white shadow-sm transition-shadow hover:shadow-md"
+                        style={{ left: leftPx, width: widthPx, backgroundColor: ph.color }}
+                      >
+                        <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-3 text-[11px] font-medium whitespace-nowrap">
+                          <span>{ph.icon}</span>
+                          <span>{ph.title}</span>
+                          <span className="opacity-80">· {days} дн</span>
+                        </div>
+
+                        {/* Тултип под плашкой — появляется при hover. */}
+                        <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] text-white shadow-lg group-hover:block">
+                          {ph.title} · {formatDM(startIso)} → {formatDM(endIso)} · {days} дн
+                        </div>
 
                     {/* Левая ручка — тонкая вертикальная полоска. Hit-area 10px,
                         видимая часть 3px белая. Скрыта до hover. */}
@@ -488,16 +486,19 @@ export function OrderTimeline({
                     >
                       <span className="pointer-events-none absolute left-1/2 top-1/2 h-[80%] w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.35)] transition-all hover:w-[5px] hover:bg-slate-900 hover:shadow-[0_0_0_1px_white]" />
                     </span>
-                  </div>
-                </div>
-              );
-            })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       <p className="text-xs text-slate-500">
         Наведи на фазу → потяни за левый или правый край. Соседние фазы поедут за ней с теми же длительностями.
+        Зум — справа сверху; шкала прокручивается, если цикл длинный.
       </p>
     </fieldset>
   );

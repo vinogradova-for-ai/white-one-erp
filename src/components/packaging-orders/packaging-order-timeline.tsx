@@ -77,7 +77,7 @@ export function PackagingOrderTimeline({
   const hasSavedDates = !!(initial.productionEndDate || initial.expectedDate);
   const [productionStart, setProductionStart] = useState(() => toISO(new Date()));
   const railRef = useRef<HTMLDivElement>(null);
-  const [dragInfo, setDragInfo] = useState<{ left: number; label: string } | null>(null);
+  const [dragInfo, setDragInfo] = useState<{ leftPx: number; label: string } | null>(null);
   const [zoom, setZoom] = useState<"auto" | "1w" | "1m" | "3m">("auto");
 
   // If no dates saved yet, initialize from defaults
@@ -112,25 +112,18 @@ export function PackagingOrderTimeline({
   const chartStartRaw = daysBetween(earliestPhase, todayIsoForChart) < 0
     ? todayIsoForChart
     : earliestPhase;
-  const zoomDays = zoom === "1w" ? 7 : zoom === "1m" ? 30 : zoom === "3m" ? 90 : null;
-  let chartEnd: string;
-  if (zoomDays != null) {
-    chartEnd = addDays(chartStartRaw, zoomDays);
-  } else {
-    const latestWithToday = daysBetween(latestPhase, todayIsoForChart) > 0
-      ? todayIsoForChart
-      : latestPhase;
-    chartEnd = latestWithToday || addDays(chartStartRaw, 60);
-    if (daysBetween(chartStartRaw, chartEnd) < 7) {
-      chartEnd = addDays(chartStartRaw, 7);
-    }
-  }
+  const latestWithToday = daysBetween(latestPhase, todayIsoForChart) > 0
+    ? todayIsoForChart
+    : latestPhase;
+  const chartEnd = addDays(latestWithToday || addDays(chartStartRaw, 60), 3);
   const chartStart = chartStartRaw;
-  const totalDays = Math.max(1, daysBetween(chartStart, chartEnd));
+  const totalDays = Math.max(7, daysBetween(chartStart, chartEnd));
 
-  function posPct(iso: string): number {
-    const d = daysBetween(chartStart, iso);
-    return Math.max(0, Math.min(100, (d / totalDays) * 100));
+  // Pixel-scale (см. order-timeline): зум = px/день, шкала прокручивается.
+  const dayWidth = zoom === "1w" ? 32 : zoom === "1m" ? 16 : zoom === "3m" ? 6 : 8;
+  const railWidthPx = totalDays * dayWidth;
+  function posPx(iso: string): number {
+    return daysBetween(chartStart, iso) * dayWidth;
   }
 
   type DragState = {
@@ -151,9 +144,7 @@ export function PackagingOrderTimeline({
   }, [onChange]);
 
   const onPointerDown = (e: React.PointerEvent, phase: Phase, mode: DragState["mode"]) => {
-    if (!railRef.current) return;
     e.preventDefault();
-    const rect = railRef.current.getBoundingClientRect();
     dragRef.current = {
       phase,
       mode,
@@ -163,7 +154,7 @@ export function PackagingOrderTimeline({
       origProductionStart: productionStart,
       origProductionEnd: value.productionEndDate,
       origExpectedDate: value.expectedDate,
-      pxPerDay: rect.width / totalDays,
+      pxPerDay: dayWidth,
     };
 
     function handleMove(ev: PointerEvent) {
@@ -185,7 +176,7 @@ export function PackagingOrderTimeline({
           const newExpected = addDays(s.origExpectedDate, deltaDays);
           setProductionStart(newStart);
           commitChange({ productionEndDate: newProdEnd, expectedDate: newExpected });
-          setDragInfo({ left: posPct(newStart), label: formatDM(newStart) });
+          setDragInfo({ leftPx: posPx(newStart), label: formatDM(newStart) });
           return;
         }
         if (s.mode === "resize-right") {
@@ -194,7 +185,7 @@ export function PackagingOrderTimeline({
           const newEnd = addDays(s.origEnd, deltaDays);
           const newExpected = addDays(s.origExpectedDate, deltaDays);
           commitChange({ productionEndDate: newEnd, expectedDate: newExpected });
-          setDragInfo({ left: posPct(newEnd), label: formatDM(newEnd) });
+          setDragInfo({ leftPx: posPx(newEnd), label: formatDM(newEnd) });
           return;
         }
         // move (drag за середину) — оставлен dead, не вызывается из UI.
@@ -207,14 +198,14 @@ export function PackagingOrderTimeline({
           const newProdEnd = addDays(s.origProductionEnd, deltaDays);
           const newExpected = addDays(newProdEnd, deliveryDuration);
           commitChange({ productionEndDate: newProdEnd, expectedDate: newExpected });
-          setDragInfo({ left: posPct(newProdEnd), label: formatDM(newProdEnd) });
+          setDragInfo({ leftPx: posPx(newProdEnd), label: formatDM(newProdEnd) });
           return;
         }
         if (s.mode === "resize-right") {
           // Drag ▶ Доставки = меняем длительность Доставки. Никого после неё.
           const newExpected = addDays(s.origExpectedDate, deltaDays);
           commitChange({ productionEndDate: s.origProductionEnd, expectedDate: newExpected });
-          setDragInfo({ left: posPct(newExpected), label: formatDM(newExpected) });
+          setDragInfo({ leftPx: posPx(newExpected), label: formatDM(newExpected) });
           return;
         }
         return;
@@ -235,29 +226,30 @@ export function PackagingOrderTimeline({
   };
 
   const ticks = useMemo(() => {
-    const weekly: Array<{ iso: string; pct: number; label: string }> = [];
-    const monthly: Array<{ iso: string; pct: number; label: string }> = [];
+    const weekly: Array<{ iso: string; leftPx: number; label: string }> = [];
+    const monthly: Array<{ iso: string; leftPx: number; label: string }> = [];
     const start = parseISO(chartStart);
     if (!start) return { weekly, monthly };
     const cur = new Date(start);
     const end = parseISO(chartEnd) ?? cur;
     while (cur <= end) {
       const iso = toISO(cur);
-      const pct = posPct(iso);
+      const leftPx = posPx(iso);
       if (cur.getUTCDay() === 1) {
-        weekly.push({ iso, pct, label: String(cur.getUTCDate()) });
+        weekly.push({ iso, leftPx, label: String(cur.getUTCDate()) });
       }
       if (cur.getUTCDate() === 1) {
-        monthly.push({ iso, pct, label: `${MONTH_SHORT[cur.getUTCMonth()]} ${String(cur.getUTCFullYear()).slice(2)}` });
+        monthly.push({ iso, leftPx, label: `${MONTH_SHORT[cur.getUTCMonth()]} ${String(cur.getUTCFullYear()).slice(2)}` });
       }
       cur.setUTCDate(cur.getUTCDate() + 1);
     }
     return { weekly, monthly };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartStart, chartEnd, totalDays]);
+  }, [chartStart, chartEnd, dayWidth]);
 
   const todayIso = toISO(new Date());
-  const todayPct = posPct(todayIso);
+  const todayLeftPx = posPx(todayIso);
+  const todayInRange = todayLeftPx >= 0 && todayLeftPx <= railWidthPx;
 
   return (
     <fieldset className="space-y-3">
@@ -269,123 +261,94 @@ export function PackagingOrderTimeline({
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 select-none">
-        {/* Scale header */}
-        <div className="relative mb-2 h-10" ref={railRef}>
-          <div className="absolute inset-x-0 top-0 h-4">
-            {ticks.monthly.map((m) => (
-              <div
-                key={"m" + m.iso}
-                className="absolute -translate-x-1/2 text-[11px] font-semibold text-slate-700"
-                style={{ left: `${m.pct}%` }}
-              >
-                {m.label}
+        <div className="overflow-x-auto" ref={railRef}>
+          <div style={{ width: railWidthPx, minWidth: "100%" }}>
+            {/* Шапка шкалы */}
+            <div className="relative mb-2 h-10">
+              <div className="absolute inset-x-0 top-0 h-4">
+                {ticks.monthly.map((m) => (
+                  <div key={"m" + m.iso} className="absolute -translate-x-1/2 text-[11px] font-semibold text-slate-700" style={{ left: m.leftPx }}>
+                    {m.label}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <div className="absolute inset-x-0 top-4 h-4">
-            {ticks.weekly.map((w) => (
-              <div
-                key={"w" + w.iso}
-                className="absolute -translate-x-1/2 text-[10px] text-slate-400"
-                style={{ left: `${w.pct}%` }}
-              >
-                {w.label}
+              <div className="absolute inset-x-0 top-4 h-4">
+                {ticks.weekly.map((w) => (
+                  <div key={"w" + w.iso} className="absolute -translate-x-1/2 text-[10px] text-slate-400" style={{ left: w.leftPx }}>
+                    {w.label}
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <div className="absolute inset-x-0 bottom-0 h-px bg-slate-300" />
-        </div>
-
-        {/* Bars area */}
-        <div className="relative">
-          {dragInfo && (
-            <div
-              className="pointer-events-none absolute -top-7 z-30 -translate-x-1/2 whitespace-nowrap rounded-md bg-emerald-600 px-2 py-1 text-xs font-bold text-white shadow-lg"
-              style={{ left: `${dragInfo.left}%` }}
-            >
-              {dragInfo.label}
+              <div className="absolute inset-x-0 bottom-0 h-px bg-slate-300" />
             </div>
-          )}
 
-          {/* Grid overlay */}
-          <div
-            className="pointer-events-none absolute inset-0"
-            style={{
-              backgroundImage: `linear-gradient(to right, rgba(148, 163, 184, 0.18) 1px, transparent 1px)`,
-              backgroundSize: `${100 / totalDays}% 100%`,
-            }}
-          >
-            {ticks.weekly.map((w) => (
-              <div key={"g" + w.iso} className="absolute top-0 bottom-0 border-l border-slate-300/80" style={{ left: `${w.pct}%` }} />
-            ))}
-            {ticks.monthly.map((m) => (
-              <div key={"gm" + m.iso} className="absolute top-0 bottom-0 border-l border-slate-400/60" style={{ left: `${m.pct}%` }} />
-            ))}
-          </div>
-
-          {/* Today marker */}
-          {todayPct > 0 && todayPct < 100 && (
-            <div
-              className="pointer-events-none absolute top-0 bottom-0 z-10 border-l-2 border-red-400"
-              style={{ left: `${todayPct}%` }}
-            >
-              <div className="absolute -top-2 left-1 rounded bg-red-500 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-white">
-                сегодня
+            <div className="relative">
+              {dragInfo && (
+                <div className="pointer-events-none absolute -top-7 z-30 -translate-x-1/2 whitespace-nowrap rounded-md bg-emerald-600 px-2 py-1 text-xs font-bold text-white shadow-lg" style={{ left: dragInfo.leftPx }}>
+                  {dragInfo.label}
+                </div>
+              )}
+              <div className="pointer-events-none absolute inset-0">
+                {ticks.weekly.map((w) => (
+                  <div key={"g" + w.iso} className="absolute top-0 bottom-0 border-l border-slate-300/80" style={{ left: w.leftPx }} />
+                ))}
+                {ticks.monthly.map((m) => (
+                  <div key={"gm" + m.iso} className="absolute top-0 bottom-0 border-l border-slate-400/60" style={{ left: m.leftPx }} />
+                ))}
               </div>
-            </div>
-          )}
 
-          {/* Phase bars */}
-          <div className="space-y-1">
-            {PHASES.map((ph) => {
-              const startIso = getStartIso(ph);
-              const endIso = getEndIso(ph);
-              const left = posPct(startIso);
-              const width = Math.max(0.5, posPct(endIso) - left);
-              const days = daysBetween(startIso, endIso);
-              // Phase bar — стиль /gantt-v2: тонкие вертикальные ручки 3px,
-              // скрытые до hover. Тултип под плашкой.
-              return (
-                <div key={ph.key} className="relative h-9">
-                  <div
-                    className="group absolute top-2 flex h-6 items-center rounded text-white shadow-sm transition-shadow hover:shadow-md"
-                    style={{ left: `${left}%`, width: `calc(max(${width}%, 88px) - 6px)`, backgroundColor: ph.color }}
-                  >
-                    <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-3 text-[11px] font-medium whitespace-nowrap">
-                      <span>{ph.icon}</span>
-                      <span>{ph.title}</span>
-                      <span className="opacity-80">· {days} дн</span>
-                    </div>
-
-                    <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] text-white shadow-lg group-hover:block">
-                      {ph.title} · {formatDM(startIso)} → {formatDM(endIso)} · {days} дн
-                    </div>
-
-                    <span
-                      onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-left"); }}
-                      title="Потянуть — изменить начало фазы"
-                      className="absolute left-0 top-0 z-20 h-full w-2.5 -translate-x-1/2 cursor-ew-resize opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100"
-                    >
-                      <span className="pointer-events-none absolute left-1/2 top-1/2 h-[80%] w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.35)] transition-all hover:w-[5px] hover:bg-slate-900 hover:shadow-[0_0_0_1px_white]" />
-                    </span>
-
-                    <span
-                      onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-right"); }}
-                      title="Потянуть — изменить конец фазы"
-                      className="absolute right-0 top-0 z-20 h-full w-2.5 translate-x-1/2 cursor-ew-resize opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100"
-                    >
-                      <span className="pointer-events-none absolute left-1/2 top-1/2 h-[80%] w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.35)] transition-all hover:w-[5px] hover:bg-slate-900 hover:shadow-[0_0_0_1px_white]" />
-                    </span>
+              {todayInRange && (
+                <div className="pointer-events-none absolute top-0 bottom-0 z-10 border-l-2 border-red-400" style={{ left: todayLeftPx }}>
+                  <div className="absolute -top-2 left-1 rounded bg-red-500 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-white">
+                    сегодня
                   </div>
                 </div>
-              );
-            })}
+              )}
+
+              <div className="space-y-1">
+                {PHASES.map((ph) => {
+                  const startIso = getStartIso(ph);
+                  const endIso = getEndIso(ph);
+                  const leftPx = posPx(startIso);
+                  const widthPx = Math.max(64, posPx(endIso) - leftPx) - 4;
+                  const days = daysBetween(startIso, endIso);
+                  return (
+                    <div key={ph.key} className="relative h-9">
+                      <div className="group absolute top-2 flex h-6 items-center rounded text-white shadow-sm transition-shadow hover:shadow-md" style={{ left: leftPx, width: widthPx, backgroundColor: ph.color }}>
+                        <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-3 text-[11px] font-medium whitespace-nowrap">
+                          <span>{ph.icon}</span>
+                          <span>{ph.title}</span>
+                          <span className="opacity-80">· {days} дн</span>
+                        </div>
+                        <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] text-white shadow-lg group-hover:block">
+                          {ph.title} · {formatDM(startIso)} → {formatDM(endIso)} · {days} дн
+                        </div>
+                        <span
+                          onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-left"); }}
+                          title="Потянуть — изменить начало фазы"
+                          className="absolute left-0 top-0 z-20 h-full w-2.5 -translate-x-1/2 cursor-ew-resize opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100"
+                        >
+                          <span className="pointer-events-none absolute left-1/2 top-1/2 h-[80%] w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.35)] transition-all hover:w-[5px] hover:bg-slate-900 hover:shadow-[0_0_0_1px_white]" />
+                        </span>
+                        <span
+                          onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-right"); }}
+                          title="Потянуть — изменить конец фазы"
+                          className="absolute right-0 top-0 z-20 h-full w-2.5 translate-x-1/2 cursor-ew-resize opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100"
+                        >
+                          <span className="pointer-events-none absolute left-1/2 top-1/2 h-[80%] w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.35)] transition-all hover:w-[5px] hover:bg-slate-900 hover:shadow-[0_0_0_1px_white]" />
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       <p className="text-xs text-slate-500">
-        Наведи на фазу → потяни за левый или правый край. Соседняя фаза поедет с её длительностью.
+        Наведи на фазу → потяни за левый или правый край. Шкала прокручивается, если цикл длинный.
       </p>
     </fieldset>
   );
