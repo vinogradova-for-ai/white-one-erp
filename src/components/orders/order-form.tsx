@@ -37,6 +37,9 @@ type ModelOption = {
   preferredFactoryId: string | null;
   customerPrice: string | null;
   fullCost: string | null;
+  purchasePriceRub: string | null;
+  purchasePriceCny: string | null;
+  cnyRubRate: string | null;
   plannedRedemptionPct: string | null;
   sizes: string[];
   defaultSizeProportion: Record<string, number> | null;
@@ -54,6 +57,25 @@ type LineInput = {
 // Сумма штук по размерам = «количество» строки
 function sumSizes(dist: Record<string, number>): number {
   return Object.values(dist).reduce((a, b) => a + (Number(b) || 0), 0);
+}
+
+// Дефолтная себестоимость в рублях из фасона. Приоритет:
+//   1) purchasePriceRub (закупка в ₽)
+//   2) purchasePriceCny × cnyRubRate (закупка в ¥ + курс)
+//   3) fullCost (legacy расчёт)
+// При отсутствии всего — пусто, Алёна введёт вручную.
+function modelDefaultUnitCost(m: {
+  purchasePriceRub: string | null;
+  purchasePriceCny: string | null;
+  cnyRubRate: string | null;
+  fullCost: string | null;
+}): string {
+  if (m.purchasePriceRub) return Number(m.purchasePriceRub).toString();
+  if (m.purchasePriceCny && m.cnyRubRate) {
+    return (Number(m.purchasePriceCny) * Number(m.cnyRubRate)).toFixed(2);
+  }
+  if (m.fullCost) return Number(m.fullCost).toString();
+  return "";
 }
 
 // Пустое распределение — все размеры по нулю, чтобы Алёна заполняла вручную
@@ -105,20 +127,27 @@ export function OrderForm({
     d.setMonth(d.getMonth() + 5);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   })();
+  // Фабрика по умолчанию — preferredFactoryId фасона. Алёна может перевыбрать
+  // другую фабрику в форме (например, тестово размещаем на другой) —
+  // переопределение действует только для этого заказа.
+  const initialFactoryId = (() => {
+    const pref = models.find((m) => m.id === (preselectedModelId ?? models[0]?.id))?.preferredFactoryId;
+    return pref && factories.some((f) => f.id === pref) ? pref : "";
+  })();
   const [common, setCommon] = useState({
     orderType: "SEASONAL",
     launchMonth: defaultLaunchMonth,
-    factoryId: "",
+    factoryId: initialFactoryId,
     ownerId: (defaultOwnerId && users.some((u) => u.id === defaultOwnerId)) ? defaultOwnerId : (users[0]?.id ?? ""),
     deliveryMethod: "CARGO_CN",
     paymentTerms: "30/70",
     notes: "",
   });
 
-  // Стоимость единицы: по умолчанию — fullCost фасона, редактируемая
-  const [unitCost, setUnitCost] = useState<string>(
-    model?.fullCost != null ? Number(model.fullCost).toString() : "",
-  );
+  // Стоимость единицы: по умолчанию подтягивается из «Себестоимости» фасона
+  // (purchasePriceRub > purchasePriceCny × курс > fullCost). Алёна может
+  // отредактировать в форме — это переопределение действует только для этого заказа.
+  const [unitCost, setUnitCost] = useState<string>(model ? modelDefaultUnitCost(model) : "");
 
   // Платежи — массив строк, пересчитывается из paymentTerms пока юзер не правил вручную
   type PaymentRow = { id: string; plannedDate: string; amount: number; label: string; paid: boolean };
@@ -141,7 +170,7 @@ export function OrderForm({
     arrivalPlannedDate: "",
   });
 
-  // Когда меняется модель — сбрасываем строки
+  // Когда меняется модель — сбрасываем строки, подтягиваем фабрику фасона по умолчанию
   function onModelChange(newId: string) {
     setModelId(newId);
     const m = models.find((x) => x.id === newId);
@@ -152,6 +181,12 @@ export function OrderForm({
       }]);
     } else {
       setLines([]);
+    }
+    // Если у новой модели есть preferredFactoryId и эта фабрика доступна —
+    // подставляем её, чтобы пользователю не приходилось выбирать вручную.
+    const pref = m?.preferredFactoryId;
+    if (pref && factories.some((f) => f.id === pref)) {
+      setCommon((c) => ({ ...c, factoryId: pref }));
     }
   }
 
@@ -211,10 +246,10 @@ export function OrderForm({
   }, [common.paymentTerms, common.launchMonth, totalBatchCost, paymentsTouched]);
 
   // При смене модели — подтягиваем unitCost с фасона.
-  // Если у новой модели fullCost пуст — очищаем, чтобы не оставалась цена предыдущей модели.
+  // Если у новой модели себестоимость пуста — очищаем, чтобы не оставалась цена предыдущей модели.
   useEffect(() => {
-    setUnitCost(model?.fullCost != null ? Number(model.fullCost).toString() : "");
-  }, [model?.id, model?.fullCost]);
+    setUnitCost(model ? modelDefaultUnitCost(model) : "");
+  }, [model?.id, model?.purchasePriceRub, model?.purchasePriceCny, model?.cnyRubRate, model?.fullCost, model]);
 
   // Синхронизируем launchMonth с датой прибытия партии (= месяц старта продаж).
   useEffect(() => {
@@ -432,14 +467,32 @@ export function OrderForm({
               inputMode="decimal"
               value={unitCost}
               onChange={(e) => setUnitCost(e.target.value.replace(/[^\d.,]/g, ""))}
-              placeholder={model.fullCost ? Number(model.fullCost).toString() : "0"}
+              placeholder={modelDefaultUnitCost(model) || "0"}
               className={inputCls}
             />
-            {model.fullCost != null && Math.abs(unitCostNum - Number(model.fullCost)) > 0.01 && (
-              <p className="mt-1 text-xs text-amber-700">
-                Отличается от фасона ({formatCurrency(Number(model.fullCost))}). Изменение только для этого заказа.
-              </p>
-            )}
+            {(() => {
+              const defaultCost = modelDefaultUnitCost(model);
+              if (!defaultCost) {
+                return (
+                  <p className="mt-1 text-xs text-slate-500">
+                    У фасона не задана себестоимость — введи цену вручную или поставь её на странице фасона.
+                  </p>
+                );
+              }
+              const diffsFromModel = Math.abs(unitCostNum - Number(defaultCost)) > 0.01;
+              if (diffsFromModel) {
+                return (
+                  <p className="mt-1 text-xs text-amber-700">
+                    Отличается от себестоимости фасона ({formatCurrency(Number(defaultCost))}). Изменение применится только к этому заказу.
+                  </p>
+                );
+              }
+              return (
+                <p className="mt-1 text-xs text-slate-500">
+                  Подтянуто из себестоимости фасона. Можно поправить под этот заказ.
+                </p>
+              );
+            })()}
           </Field>
           <div className="md:col-span-1 flex flex-col justify-end">
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
