@@ -25,11 +25,13 @@ type Phase = {
   startField: keyof Timeline;
 };
 
+// Цвета синхронизированы с /gantt-v2 (см. LegendItem в gantt-v2-chart.tsx):
+// Разработка — slate-400, Производство — blue-500, ОТК — amber-500, Доставка — emerald-500.
 const PHASES: Phase[] = [
-  { key: "preparation", title: "Разработка",   icon: "✎",  color: "#f43f5e", startField: "decisionDate",        endField: "handedToFactoryDate" },
+  { key: "preparation", title: "Разработка",   icon: "✎",  color: "#94a3b8", startField: "decisionDate",        endField: "handedToFactoryDate" },
   { key: "production",  title: "Производство", icon: "🪡", color: "#3b82f6", startField: "handedToFactoryDate", endField: "readyAtFactoryDate" },
   { key: "qc",          title: "ОТК",          icon: "✓",  color: "#f59e0b", startField: "readyAtFactoryDate",  endField: "qcDate" },
-  { key: "shipping",    title: "Доставка",     icon: "✈",  color: "#6366f1", startField: "qcDate",              endField: "arrivalPlannedDate" },
+  { key: "shipping",    title: "Доставка",     icon: "✈",  color: "#10b981", startField: "qcDate",              endField: "arrivalPlannedDate" },
 ];
 
 const AUTO_SHARES: Record<keyof Timeline, number> = {
@@ -413,6 +415,8 @@ export function OrderTimeline({
             </div>
           )}
 
+          {/* Phase bars — стиль /gantt-v2: тонкие вертикальные ручки 3px на краях,
+              скрытые до hover плашки. На hover плашки появляется тултип снизу. */}
           <div className="space-y-1">
             {PHASES.map((ph) => {
               const startIso = getStartIso(ph);
@@ -423,42 +427,42 @@ export function OrderTimeline({
               return (
                 <div key={ph.key} className="relative h-9">
                   <div
-                    // min-width 88px — две ручки 24px помещаются с зазором >40px,
-                    // короткая фаза не схлопывается в дробинку.
-                    // Минус 6px — визуальный gap между соседними плашками,
-                    // чтобы правая ручка фазы N и левая ручка N+1 не стояли в одной точке.
-                    className="absolute top-1 flex h-7 items-center rounded-md text-white shadow-sm"
+                    // min-width 88px — короткая фаза не сжимается в дробинку,
+                    // две ручки уверенно тыкаются. -6px — gap между соседями.
+                    className="group absolute top-2 flex h-6 items-center rounded text-white shadow-sm transition-shadow hover:shadow-md"
                     style={{ left: `${left}%`, width: `calc(max(${width}%, 88px) - 6px)`, backgroundColor: ph.color }}
-                    title={`${ph.title}: ${formatDM(startIso)} → ${formatDM(endIso)} (${days} дн). Тащите за ◀ или ▶ — соседние фазы поедут за ним с теми же длительностями.`}
                   >
-                    <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-7 text-[11px] font-medium whitespace-nowrap">
+                    <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-3 text-[11px] font-medium whitespace-nowrap">
                       <span>{ph.icon}</span>
                       <span>{ph.title}</span>
                       <span className="opacity-80">· {days} дн</span>
                     </div>
 
-                    <div className="pointer-events-none absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-slate-900/90 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm">
-                      {formatDM(startIso)} → {formatDM(endIso)} · {days} дн
+                    {/* Тултип под плашкой — появляется при hover. */}
+                    <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] text-white shadow-lg group-hover:block">
+                      {ph.title} · {formatDM(startIso)} → {formatDM(endIso)} · {days} дн
                     </div>
 
-                    {/* Левая ручка ◀ — край фазы (старт). Размер 24×24, чтобы хорошо
-                        тыкаться даже когда фаза короткая. */}
-                    <div
+                    {/* Левая ручка — тонкая вертикальная полоска. Hit-area 10px,
+                        видимая часть 3px белая. Скрыта до hover. */}
+                    <span
                       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-left"); }}
-                      className="absolute left-1 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white text-[11px] font-bold leading-none text-slate-900 shadow ring-1 ring-slate-300 hover:scale-110 hover:ring-2 hover:ring-slate-700"
-                      title={PHASES.indexOf(ph) === 0 ? "Тащить — сдвинуть старт производства (все фазы поедут вместе)" : "Тащить — изменить старт фазы (предыдущая фаза станет короче/длиннее, текущая и следующие поедут с длительностями)"}
+                      title={PHASES.indexOf(ph) === 0
+                        ? "Потянуть — сдвинуть старт производства (все фазы поедут вместе)"
+                        : "Потянуть — изменить начало фазы"}
+                      className="absolute left-0 top-0 z-20 h-full w-2.5 -translate-x-1/2 cursor-ew-resize opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100"
                     >
-                      ◀
-                    </div>
+                      <span className="pointer-events-none absolute left-1/2 top-1/2 h-[80%] w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.35)] transition-all hover:w-[5px] hover:bg-slate-900 hover:shadow-[0_0_0_1px_white]" />
+                    </span>
 
-                    {/* Правая ручка ▶ — дедлайн фазы. */}
-                    <div
+                    {/* Правая ручка. */}
+                    <span
                       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-right"); }}
-                      className="absolute right-1 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white text-[11px] font-bold leading-none text-slate-900 shadow ring-1 ring-slate-300 hover:scale-110 hover:ring-2 hover:ring-slate-700"
-                      title="Тащить — изменить дедлайн фазы (следующие фазы поедут с теми же длительностями)"
+                      title="Потянуть — изменить конец фазы"
+                      className="absolute right-0 top-0 z-20 h-full w-2.5 translate-x-1/2 cursor-ew-resize opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100"
                     >
-                      ▶
-                    </div>
+                      <span className="pointer-events-none absolute left-1/2 top-1/2 h-[80%] w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.35)] transition-all hover:w-[5px] hover:bg-slate-900 hover:shadow-[0_0_0_1px_white]" />
+                    </span>
                   </div>
                 </div>
               );
@@ -468,7 +472,7 @@ export function OrderTimeline({
       </div>
 
       <p className="text-xs text-slate-500">
-        Тащите за ◀ или ▶ на краю фазы. Соседние фазы поедут за ней с теми же длительностями.
+        Наведи на фазу → потяни за левый или правый край. Соседние фазы поедут за ней с теми же длительностями.
       </p>
     </fieldset>
   );
