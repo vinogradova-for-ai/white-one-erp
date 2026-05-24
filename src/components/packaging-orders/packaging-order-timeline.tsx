@@ -104,8 +104,10 @@ export function PackagingOrderTimeline({
     phaseEdges.push(getStartIso(ph));
     phaseEdges.push(getEndIso(ph));
   }
-  const earliestPhase = phaseEdges.reduce((a, b) => (daysBetween(a, b) < 0 ? a : b));
-  const latestPhase = phaseEdges.reduce((a, b) => (daysBetween(a, b) > 0 ? a : b));
+  // daysBetween(a, b) = b − a: <0 ⇔ b раньше a, >0 ⇔ b позже a.
+  // Берём min для earliest, max для latest.
+  const earliestPhase = phaseEdges.reduce((a, b) => (daysBetween(a, b) < 0 ? b : a));
+  const latestPhase = phaseEdges.reduce((a, b) => (daysBetween(a, b) > 0 ? b : a));
 
   const chartStartRaw = daysBetween(earliestPhase, todayIsoForChart) < 0
     ? todayIsoForChart
