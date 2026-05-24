@@ -18,9 +18,10 @@ type Phase = {
   color: string;
 };
 
+// Цвета синхронизированы с /gantt-v2: Производство — blue-500, Доставка — emerald-500.
 const PHASES: Phase[] = [
   { key: "production", title: "Производство", icon: "🪡", color: "#3b82f6" },
-  { key: "delivery",   title: "Доставка",     icon: "✈",  color: "#6366f1" },
+  { key: "delivery",   title: "Доставка",     icon: "✈",  color: "#10b981" },
 ];
 
 function parseISO(iso: string): Date | null {
@@ -340,42 +341,39 @@ export function PackagingOrderTimeline({
               const left = posPct(startIso);
               const width = Math.max(0.5, posPct(endIso) - left);
               const days = daysBetween(startIso, endIso);
+              // Phase bar — стиль /gantt-v2: тонкие вертикальные ручки 3px,
+              // скрытые до hover. Тултип под плашкой.
               return (
                 <div key={ph.key} className="relative h-9">
                   <div
-                    // min-width 88px — две ручки 24px помещаются с зазором >40px.
-                    // -6px справа — визуальный gap между соседними плашками.
-                    className="absolute top-1 flex h-7 items-center rounded-md text-white shadow-sm"
+                    className="group absolute top-2 flex h-6 items-center rounded text-white shadow-sm transition-shadow hover:shadow-md"
                     style={{ left: `${left}%`, width: `calc(max(${width}%, 88px) - 6px)`, backgroundColor: ph.color }}
-                    title={`${ph.title}: ${formatDM(startIso)} → ${formatDM(endIso)} (${days} дн). Тащите за ◀ или ▶ — соседняя фаза поедет за ней с её длительностью.`}
                   >
-                    <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-7 text-[11px] font-medium whitespace-nowrap">
+                    <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-3 text-[11px] font-medium whitespace-nowrap">
                       <span>{ph.icon}</span>
                       <span>{ph.title}</span>
                       <span className="opacity-80">· {days} дн</span>
                     </div>
 
-                    <div className="pointer-events-none absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-slate-900/90 px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-sm">
-                      {formatDM(startIso)} → {formatDM(endIso)} · {days} дн
+                    <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] text-white shadow-lg group-hover:block">
+                      {ph.title} · {formatDM(startIso)} → {formatDM(endIso)} · {days} дн
                     </div>
 
-                    {/* Левая ручка ◀ */}
-                    <div
+                    <span
                       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-left"); }}
-                      className="absolute left-1 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white text-[11px] font-bold leading-none text-slate-900 shadow ring-1 ring-slate-300 hover:scale-110 hover:ring-2 hover:ring-slate-700"
-                      title="Тащить — изменить старт фазы"
+                      title="Потянуть — изменить начало фазы"
+                      className="absolute left-0 top-0 z-20 h-full w-2.5 -translate-x-1/2 cursor-ew-resize opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100"
                     >
-                      ◀
-                    </div>
+                      <span className="pointer-events-none absolute left-1/2 top-1/2 h-[80%] w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.35)] transition-all hover:w-[5px] hover:bg-slate-900 hover:shadow-[0_0_0_1px_white]" />
+                    </span>
 
-                    {/* Правая ручка ▶ */}
-                    <div
+                    <span
                       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-right"); }}
-                      className="absolute right-1 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white text-[11px] font-bold leading-none text-slate-900 shadow ring-1 ring-slate-300 hover:scale-110 hover:ring-2 hover:ring-slate-700"
-                      title="Тащить — изменить дедлайн фазы"
+                      title="Потянуть — изменить конец фазы"
+                      className="absolute right-0 top-0 z-20 h-full w-2.5 translate-x-1/2 cursor-ew-resize opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100"
                     >
-                      ▶
-                    </div>
+                      <span className="pointer-events-none absolute left-1/2 top-1/2 h-[80%] w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.35)] transition-all hover:w-[5px] hover:bg-slate-900 hover:shadow-[0_0_0_1px_white]" />
+                    </span>
                   </div>
                 </div>
               );
@@ -385,7 +383,7 @@ export function PackagingOrderTimeline({
       </div>
 
       <p className="text-xs text-slate-500">
-        Тащите за ◀ или ▶ на краю фазы. Соседняя фаза поедет за ней с её длительностью.
+        Наведи на фазу → потяни за левый или правый край. Соседняя фаза поедет с её длительностью.
       </p>
     </fieldset>
   );
