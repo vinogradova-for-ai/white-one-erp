@@ -251,55 +251,11 @@ export function ModelEditForm({
         </Field>
       </Section>
 
-      <Section title="Этапы разработки">
-        <Field label="Лекала готовы">
-          <input
-            type="date"
-            value={form.patternsDate}
-            onChange={(e) => setForm({ ...form, patternsDate: e.target.value })}
-            className={inputCls}
-          />
-        </Field>
-        <Field label="Образец получен">
-          <input
-            type="date"
-            value={form.sampleDate}
-            onChange={(e) => setForm({ ...form, sampleDate: e.target.value })}
-            className={inputCls}
-          />
-        </Field>
-        <Field label="Утверждён">
-          <input
-            type="date"
-            value={form.approvedDate}
-            onChange={(e) => setForm({ ...form, approvedDate: e.target.value })}
-            className={inputCls}
-          />
-        </Field>
-        <Field label="Запуск производства">
-          <input
-            type="date"
-            value={form.productionStartDate}
-            onChange={(e) => setForm({ ...form, productionStartDate: e.target.value })}
-            className={inputCls}
-          />
-        </Field>
-        <Field label="Плановый месяц запуска (YYYYMM)" full>
-          <input
-            type="number"
-            min={202501}
-            max={203012}
-            value={form.plannedLaunchMonth ?? ""}
-            onChange={(e) => setForm({ ...form, plannedLaunchMonth: e.target.value ? Number(e.target.value) : null })}
-            className={inputCls}
-            placeholder="например, 202608"
-          />
-          <span className="mt-1 block text-xs text-slate-500">
-            До этой даты тянется активная фаза в Ганте, если конкретные даты этапов ещё не заполнены.
-          </span>
-        </Field>
-      </Section>
-
+      {/* Секция «Этапы разработки» убрана: даты этапов фасона теперь
+          отслеживаются через статус на канбане (колонки Идея → Образец →
+          Идеал. образец → Размерная сетка). Поля patternsDate/sampleDate/
+          approvedDate/productionStartDate/plannedLaunchMonth остаются в БД
+          и в payload (значения сохраняются как есть, без UI). */}
 
       {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
     </form>
