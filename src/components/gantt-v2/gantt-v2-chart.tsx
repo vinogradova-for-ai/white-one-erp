@@ -149,26 +149,51 @@ export function GanttV2Chart({
 
   const totalRows = groups.reduce((a, g) => a + g.rows.length, 0);
 
-  // Опорные линии шкалы — адаптивные (день/неделя/месяц)
+  // Опорные линии шкалы — адаптивные (день/неделя/месяц).
+  // isStrong = понедельник или 1-е число (видна в шапке + жирная вертикальная линия)
+  // isDay    = просто день (только тонкая бледная линия, без подписи; для зум 1м)
+  // isWeekend = выходной (Сб/Вс) — фон зеброй
   const marks = useMemo(() => {
-    const out: Array<{ iso: string; pct: number; label: string; isMonthStart: boolean; isStrong: boolean }> = [];
+    const out: Array<{ iso: string; pct: number; label: string; isMonthStart: boolean; isStrong: boolean; isDay?: boolean; isWeekend?: boolean }> = [];
     const start = parseISO(chartStart);
     if (zoom === "1w") {
       // дни с подписью «Пн 5», «Вт 6» — чтобы понятно какой это день недели.
       const cur = new Date(start);
       while (cur <= parseISO(chartEnd)) {
         const iso = toISO(cur);
+        const dow = cur.getUTCDay(); // 0=Вс, 6=Сб
         out.push({
           iso,
           pct: (dayDiff(chartStart, iso) / totalDays) * 100,
-          label: `${DAYS_RU[cur.getUTCDay()]} ${cur.getUTCDate()}`,
+          label: `${DAYS_RU[dow]} ${cur.getUTCDate()}`,
           isMonthStart: cur.getUTCDate() === 1,
-          isStrong: cur.getUTCDay() === 1,
+          isStrong: dow === 1,
+          isWeekend: dow === 0 || dow === 6,
         });
         cur.setUTCDate(cur.getUTCDate() + 1);
       }
-    } else if (zoom === "1m" || zoom === "3m") {
-      // недели по понедельникам
+    } else if (zoom === "1m") {
+      // 1m: и дни (тонкие линии, без подписей), и понедельники (жирные с датой).
+      // Зебра выходных — отмечаем Сб/Вс через isWeekend.
+      const cur = new Date(start);
+      while (cur <= parseISO(chartEnd)) {
+        const iso = toISO(cur);
+        const dow = cur.getUTCDay();
+        const isMon = dow === 1;
+        out.push({
+          iso,
+          pct: (dayDiff(chartStart, iso) / totalDays) * 100,
+          // Подписываем только понедельники, остальные дни — без надписи.
+          label: isMon ? formatDM(iso) : "",
+          isMonthStart: cur.getUTCDate() <= 7 && isMon,
+          isStrong: isMon,
+          isDay: !isMon,
+          isWeekend: dow === 0 || dow === 6,
+        });
+        cur.setUTCDate(cur.getUTCDate() + 1);
+      }
+    } else if (zoom === "3m") {
+      // 3m: дни рисовать перебор (~6px/день → линии сливаются). Только понедельники.
       const cur = new Date(start);
       const offset = (cur.getUTCDay() + 6) % 7;
       cur.setUTCDate(cur.getUTCDate() - offset);
@@ -264,23 +289,36 @@ export function GanttV2Chart({
                 />
               </div>
               <div className="relative h-9">
-                {marks.map((m) => (
-                  <div
-                    key={m.iso}
-                    className="absolute top-0 h-full"
-                    style={{ left: `${m.pct}%` }}
-                  >
-                    <div className={`h-full border-l ${m.isStrong ? "border-slate-300" : "border-slate-100"}`} />
+                {marks.map((m) => {
+                  const lineCls = m.isMonthStart
+                    ? "border-slate-400"
+                    : m.isStrong
+                      ? "border-slate-300"
+                      : "border-slate-100";
+                  return (
                     <div
-                      className={`absolute top-1 -translate-x-1/2 text-[10px] ${
-                        m.isStrong ? "font-semibold text-slate-700" : "text-slate-400"
-                      }`}
-                      style={{ left: 0 }}
+                      key={m.iso}
+                      className="absolute top-0 h-full"
+                      style={{ left: `${m.pct}%` }}
                     >
-                      {m.label}
+                      <div className={`h-full border-l ${lineCls}`} />
+                      {m.label && (
+                        <div
+                          className={`absolute top-1 -translate-x-1/2 text-[10px] ${
+                            m.isMonthStart
+                              ? "font-bold text-slate-900"
+                              : m.isStrong
+                                ? "font-semibold text-slate-700"
+                                : "text-slate-400"
+                          }`}
+                          style={{ left: 0 }}
+                        >
+                          {m.label}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 {todayPct >= 0 && todayPct <= 100 && (
                   <div
                     className="absolute -top-0.5 z-10 h-full border-l-2 border-red-500"
@@ -300,6 +338,7 @@ export function GanttV2Chart({
                 key={g.key}
                 group={g}
                 marks={marks}
+                totalDays={totalDays}
                 todayPct={todayPct}
                 posPct={posPct}
                 chartStart={chartStart}
@@ -337,10 +376,11 @@ export function GanttV2Chart({
 }
 
 function GroupBlock({
-  group, marks, todayPct, posPct, chartStart, chartEnd, density, showHeader, gridCols, onBarChange, pendingChanges,
+  group, marks, totalDays, todayPct, posPct, chartStart, chartEnd, density, showHeader, gridCols, onBarChange, pendingChanges,
 }: {
   group: GanttGroupView;
-  marks: Array<{ iso: string; pct: number; isStrong: boolean }>;
+  marks: Array<{ iso: string; pct: number; isStrong: boolean; isMonthStart?: boolean; isWeekend?: boolean }>;
+  totalDays: number;
   todayPct: number;
   posPct: (iso: string) => number;
   chartStart: string;
@@ -392,6 +432,7 @@ function GroupBlock({
           key={`${r.group}-${r.id}`}
           row={r}
           marks={marks}
+          totalDays={totalDays}
           todayPct={todayPct}
           posPct={posPct}
           chartStart={chartStart}
@@ -407,10 +448,11 @@ function GroupBlock({
 }
 
 function RowView({
-  row, marks, todayPct, posPct, chartStart, chartEnd, density, gridCols, onBarChange, pendingChanges,
+  row, marks, totalDays, todayPct, posPct, chartStart, chartEnd, density, gridCols, onBarChange, pendingChanges,
 }: {
   row: GanttRowV2;
-  marks: Array<{ iso: string; pct: number; isStrong: boolean }>;
+  marks: Array<{ iso: string; pct: number; isStrong: boolean; isMonthStart?: boolean; isWeekend?: boolean }>;
+  totalDays: number;
   todayPct: number;
   posPct: (iso: string) => number;
   chartStart: string;
@@ -447,14 +489,37 @@ function RowView({
         className="relative"
         style={{ height: density.rowH }}
       >
-        {/* Сетка */}
-        {marks.map((m) => (
-          <div
-            key={m.iso}
-            className={`absolute top-0 h-full border-l ${m.isStrong ? "border-slate-200" : "border-slate-100"}`}
-            style={{ left: `${m.pct}%` }}
-          />
-        ))}
+        {/* Сетка:
+            — дни (isDay): едва видимые тонкие линии (slate-50)
+            — понедельники (isStrong & !isMonthStart): средние (slate-200)
+            — 1-е числа месяца (isMonthStart): яркие (slate-400) */}
+        {marks.map((m) => {
+          const cls = m.isMonthStart
+            ? "border-slate-400"
+            : m.isStrong
+              ? "border-slate-200"
+              : "border-slate-100";
+          return (
+            <div
+              key={m.iso}
+              className={`absolute top-0 h-full border-l ${cls}`}
+              style={{ left: `${m.pct}%` }}
+            />
+          );
+        })}
+        {/* Зебра выходных — фон Сб/Вс едва заметнее, без переспама. */}
+        {marks.filter((m) => m.isWeekend).map((m) => {
+          // Каждый выходной — узкая полоса шириной 1 день. Считаем pct правой
+          // границы как pct + (1/totalDays)*100.
+          const widthPct = (1 / totalDays) * 100;
+          return (
+            <div
+              key={"we" + m.iso}
+              className="pointer-events-none absolute top-0 h-full bg-slate-100/40"
+              style={{ left: `${m.pct}%`, width: `${widthPct}%` }}
+            />
+          );
+        })}
         {/* Сегодня */}
         {todayPct >= 0 && todayPct <= 100 && (
           <div
@@ -807,12 +872,18 @@ function Thumb({ thumb, z, size }: { thumb: GanttThumbnail; z: number; size: num
   const isLight = colorHex ? isLightColor(colorHex) : false;
   if (thumb.photoUrl) {
     return (
-      <span className="relative shrink-0" style={{ zIndex: z }}>
+      // На hover превью увеличивается в 4 раза и поднимается над соседями (z-50).
+      // transform-origin: left bottom — превью раскрывается вниз-вправо, а не
+      // перекрывает остальные thumb'ы стопки.
+      <span
+        className="group/thumb relative shrink-0 transition-transform duration-150 ease-out hover:z-50 hover:scale-[4]"
+        style={{ zIndex: z, transformOrigin: "left bottom" }}
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={thumb.photoUrl}
           alt={thumb.colorName ?? ""}
-          className="rounded-md border-2 border-white object-cover shadow-sm"
+          className="rounded-md border-2 border-white object-cover shadow-sm transition-shadow group-hover/thumb:shadow-2xl group-hover/thumb:ring-1 group-hover/thumb:ring-slate-300"
           style={{ width: size, height: size }}
         />
         {colorHex && (
