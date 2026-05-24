@@ -343,11 +343,13 @@ export function PackagingOrderTimeline({
               return (
                 <div key={ph.key} className="relative h-9">
                   <div
+                    // min-width 88px — две ручки 24px помещаются с зазором >40px.
+                    // -6px справа — визуальный gap между соседними плашками.
                     className="absolute top-1 flex h-7 items-center rounded-md text-white shadow-sm"
-                    style={{ left: `${left}%`, width: `${width}%`, backgroundColor: ph.color }}
+                    style={{ left: `${left}%`, width: `calc(max(${width}%, 88px) - 6px)`, backgroundColor: ph.color }}
                     title={`${ph.title}: ${formatDM(startIso)} → ${formatDM(endIso)} (${days} дн). Тащите за ◀ или ▶ — соседняя фаза поедет за ней с её длительностью.`}
                   >
-                    <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-3 text-[11px] font-medium whitespace-nowrap">
+                    <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-7 text-[11px] font-medium whitespace-nowrap">
                       <span>{ph.icon}</span>
                       <span>{ph.title}</span>
                       <span className="opacity-80">· {days} дн</span>
@@ -357,19 +359,19 @@ export function PackagingOrderTimeline({
                       {formatDM(startIso)} → {formatDM(endIso)} · {days} дн
                     </div>
 
-                    {/* Левая стрелочка-ручка */}
+                    {/* Левая ручка ◀ */}
                     <div
                       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-left"); }}
-                      className="absolute left-0.5 top-1/2 z-20 flex h-5 w-5 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white text-[11px] font-bold leading-none text-slate-900 shadow ring-1 ring-slate-300 hover:scale-110 hover:ring-2 hover:ring-slate-700"
+                      className="absolute left-1 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white text-[11px] font-bold leading-none text-slate-900 shadow ring-1 ring-slate-300 hover:scale-110 hover:ring-2 hover:ring-slate-700"
                       title="Тащить — изменить старт фазы"
                     >
                       ◀
                     </div>
 
-                    {/* Правая стрелочка-ручка */}
+                    {/* Правая ручка ▶ */}
                     <div
                       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-right"); }}
-                      className="absolute right-0.5 top-1/2 z-20 flex h-5 w-5 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white text-[11px] font-bold leading-none text-slate-900 shadow ring-1 ring-slate-300 hover:scale-110 hover:ring-2 hover:ring-slate-700"
+                      className="absolute right-1 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white text-[11px] font-bold leading-none text-slate-900 shadow ring-1 ring-slate-300 hover:scale-110 hover:ring-2 hover:ring-slate-700"
                       title="Тащить — изменить дедлайн фазы"
                     >
                       ▶
