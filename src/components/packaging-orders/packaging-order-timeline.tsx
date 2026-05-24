@@ -84,18 +84,6 @@ export function PackagingOrderTimeline({
     ? initial
     : calcDefaults(deliveryMethod);
 
-  const chartStart = productionStart;
-  const zoomDays = zoom === "1w" ? 7 : zoom === "1m" ? 30 : zoom === "3m" ? 90 : null;
-  const chartEnd = zoomDays != null
-    ? addDays(chartStart, zoomDays)
-    : (value.expectedDate || addDays(chartStart, 60));
-  const totalDays = Math.max(1, daysBetween(chartStart, chartEnd));
-
-  function posPct(iso: string): number {
-    const d = daysBetween(chartStart, iso);
-    return Math.max(0, Math.min(100, (d / totalDays) * 100));
-  }
-
   function getStartIso(ph: Phase): string {
     if (ph.key === "production") return productionStart;
     return value.productionEndDate || productionStart;
@@ -104,6 +92,42 @@ export function PackagingOrderTimeline({
   function getEndIso(ph: Phase): string {
     if (ph.key === "production") return value.productionEndDate || productionStart;
     return value.expectedDate || productionStart;
+  }
+
+  // Шкала охватывает ВСЕ start/end фаз + сегодня. Иначе фаза, чей конец
+  // выходит за value.expectedDate, обрежется posPct'ом — и две фазы
+  // одинаковой длительности отрисуются с разной шириной.
+  const todayIsoForChart = toISO(new Date());
+  const phaseEdges: string[] = [productionStart];
+  for (const ph of PHASES) {
+    phaseEdges.push(getStartIso(ph));
+    phaseEdges.push(getEndIso(ph));
+  }
+  const earliestPhase = phaseEdges.reduce((a, b) => (daysBetween(a, b) < 0 ? a : b));
+  const latestPhase = phaseEdges.reduce((a, b) => (daysBetween(a, b) > 0 ? a : b));
+
+  const chartStartRaw = daysBetween(earliestPhase, todayIsoForChart) < 0
+    ? todayIsoForChart
+    : earliestPhase;
+  const zoomDays = zoom === "1w" ? 7 : zoom === "1m" ? 30 : zoom === "3m" ? 90 : null;
+  let chartEnd: string;
+  if (zoomDays != null) {
+    chartEnd = addDays(chartStartRaw, zoomDays);
+  } else {
+    const latestWithToday = daysBetween(latestPhase, todayIsoForChart) > 0
+      ? todayIsoForChart
+      : latestPhase;
+    chartEnd = latestWithToday || addDays(chartStartRaw, 60);
+    if (daysBetween(chartStartRaw, chartEnd) < 7) {
+      chartEnd = addDays(chartStartRaw, 7);
+    }
+  }
+  const chartStart = chartStartRaw;
+  const totalDays = Math.max(1, daysBetween(chartStart, chartEnd));
+
+  function posPct(iso: string): number {
+    const d = daysBetween(chartStart, iso);
+    return Math.max(0, Math.min(100, (d / totalDays) * 100));
   }
 
   type DragState = {
