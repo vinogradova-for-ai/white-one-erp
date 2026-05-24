@@ -150,15 +150,7 @@ export function OrderTimeline({
     onChange(calcTimeline(launchMonth, deliveryMethod));
   }
 
-  // Шкала: от старта Разработки (или сегодня, если он позже) до даты прибытия,
-  // либо фиксированный диапазон по выбранному зуму.
   const todayIsoForChart = toISO(new Date());
-  const chartStart = daysBetween(chainStart, todayIsoForChart) > 0 ? chainStart : todayIsoForChart;
-  const zoomDays = zoom === "1w" ? 7 : zoom === "1m" ? 30 : zoom === "3m" ? 90 : null;
-  const chartEnd = zoomDays != null
-    ? addDays(chartStart, zoomDays)
-    : (initial.arrivalPlannedDate || addDays(chartStart, 30));
-  const totalDays = Math.max(1, daysBetween(chartStart, chartEnd));
 
   const getStartIso = useCallback((ph: Phase): string => {
     return initial[ph.startField] || chainStart;
@@ -167,6 +159,42 @@ export function OrderTimeline({
   const getEndIso = useCallback((ph: Phase): string => {
     return initial[ph.endField] || chainStart;
   }, [initial, chainStart]);
+
+  // Шкала должна охватить ВСЕ start/end всех фаз — иначе фаза, чей старт
+  // раньше chainStart (например, после ручной правки или при аномалии вроде
+  // отрицательной Разработки), будет срезана posPct'ом и получит ширину,
+  // не соответствующую её реальной длительности в днях. Симптом: соседние
+  // 7-дневные плашки рисуются с разной шириной.
+  const phaseEdges: string[] = [chainStart];
+  for (const ph of PHASES) {
+    phaseEdges.push(getStartIso(ph));
+    phaseEdges.push(getEndIso(ph));
+  }
+  const earliestPhase = phaseEdges.reduce((a, b) => (daysBetween(a, b) < 0 ? a : b));
+  const latestPhase = phaseEdges.reduce((a, b) => (daysBetween(a, b) > 0 ? a : b));
+
+  // chartStart = самая ранняя из дат: фаз или «сегодня» (чтобы маркер «сегодня»
+  // влез на шкалу, если все фазы лежат в будущем).
+  const chartStartRaw = daysBetween(earliestPhase, todayIsoForChart) < 0
+    ? todayIsoForChart
+    : earliestPhase;
+  const zoomDays = zoom === "1w" ? 7 : zoom === "1m" ? 30 : zoom === "3m" ? 90 : null;
+  // chartEnd: при auto — до самой поздней даты фаз, но не раньше «сегодня».
+  // Гарантируем минимум 7 дней ширины, чтоб шкала была визуально читаемой.
+  let chartEnd: string;
+  if (zoomDays != null) {
+    chartEnd = addDays(chartStartRaw, zoomDays);
+  } else {
+    const latestWithToday = daysBetween(latestPhase, todayIsoForChart) > 0
+      ? todayIsoForChart
+      : latestPhase;
+    chartEnd = latestWithToday || addDays(chartStartRaw, 30);
+    if (daysBetween(chartStartRaw, chartEnd) < 7) {
+      chartEnd = addDays(chartStartRaw, 7);
+    }
+  }
+  const chartStart = chartStartRaw;
+  const totalDays = Math.max(1, daysBetween(chartStart, chartEnd));
 
   function posPct(iso: string): number {
     const d = daysBetween(chartStart, iso);
