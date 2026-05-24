@@ -42,6 +42,10 @@ export type GanttRowV2 = {
   brand?: "WHITE_ONE" | "SERDCEBIENIE" | null;
   factoryId?: string | null;
   factoryName?: string | null;
+  // Регион производства: "ru" (Россия) | "cn" (Китай) | "tyak" (Тяк, отдельно).
+  // Правило: если в имени фабрики встречается «тяк» (нечувств. к регистру) — "tyak";
+  // иначе по country: «Россия» → "ru", «Китай» → "cn"; всё прочее — null.
+  productionRegion?: "ru" | "cn" | "tyak" | null;
   ownerId?: string | null;
   ownerName?: string | null;
   launchMonth?: number | null; // YYYYMM
@@ -67,6 +71,7 @@ export type GanttFilters = {
   phase: FilterValue;       // preparation | production | qc | shipping | packaging | development
   ownerId: FilterValue;
   factoryId: FilterValue;
+  productionRegion: FilterValue; // ru | cn | tyak
   launchMonth: FilterValue; // YYYYMM
   status: FilterValue;
   category: FilterValue;
@@ -113,6 +118,7 @@ export type GanttFilterOptions = {
   phases: FilterOption[];
   owners: FilterOption[];
   factories: FilterOption[];
+  productionRegions: FilterOption[];
   launchMonths: FilterOption[];
   statuses: FilterOption[];
   categories: FilterOption[];

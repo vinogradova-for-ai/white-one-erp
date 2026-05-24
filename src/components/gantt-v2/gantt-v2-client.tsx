@@ -18,6 +18,7 @@ const initialFilters: GanttFilters = {
   phase: [],
   ownerId: [],
   factoryId: [],
+  productionRegion: [],
   launchMonth: [],
   status: [],
   category: [],
@@ -50,11 +51,12 @@ export function GanttV2Client({
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [, startTransition] = useTransition();
 
-  // ---------- Фильтрация: только Категория и Ответственный ----------
+  // ---------- Фильтрация: Категория, Ответственный, Производство (RU/CN/Тяк) ----------
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       if (filters.ownerId.length && (!r.ownerId || !filters.ownerId.includes(r.ownerId))) return false;
       if (filters.category.length && (!r.category || !filters.category.includes(r.category))) return false;
+      if (filters.productionRegion.length && (!r.productionRegion || !filters.productionRegion.includes(r.productionRegion))) return false;
       return true;
     });
   }, [rows, filters]);
@@ -151,6 +153,8 @@ export function GanttV2Client({
             onChange={(v) => setFilters((f) => ({ ...f, category: v }))} />
           <FilterDropdown label="Ответственный" options={filterOptions.owners} value={filters.ownerId}
             onChange={(v) => setFilters((f) => ({ ...f, ownerId: v }))} />
+          <FilterDropdown label="Производство" options={filterOptions.productionRegions} value={filters.productionRegion}
+            onChange={(v) => setFilters((f) => ({ ...f, productionRegion: v }))} />
 
           <span className="ml-3 text-xs uppercase tracking-wide text-slate-400">Зум:</span>
           <RadioGroup

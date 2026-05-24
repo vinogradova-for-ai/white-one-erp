@@ -34,6 +34,27 @@ function moscowToday(): string {
   return new Date(mskMs).toISOString().slice(0, 10);
 }
 
+// Разнесём заказы по регионам производства для фильтра «Производство».
+// «Тяк» — это особый сегмент китайских фабрик; идентифицируется по упоминанию
+// «тяк» в имени фабрики (любой регистр). Остальное классифицируется по стране.
+function productionRegionOf(
+  factory: { name: string | null; country: string | null } | null | undefined,
+): "ru" | "cn" | "tyak" | null {
+  if (!factory) return null;
+  const name = (factory.name ?? "").toLowerCase();
+  if (name.includes("тяк")) return "tyak";
+  const country = (factory.country ?? "").toLowerCase();
+  if (country.startsWith("росс")) return "ru";
+  if (country.startsWith("кит") || country === "cn") return "cn";
+  return null;
+}
+
+const PRODUCTION_REGION_LABEL: Record<"ru" | "cn" | "tyak", string> = {
+  ru: "Россия",
+  cn: "Китай",
+  tyak: "Тяк",
+};
+
 function getPhaseOwner(phaseKey: string, pmName: string | null | undefined, factoryName: string | null | undefined): string | undefined {
   switch (phaseKey) {
     case "production":
@@ -58,7 +79,7 @@ export default async function GanttV2Page() {
       include: {
         productModel: { select: { name: true, photoUrls: true, brand: true, category: true, subcategory: true } },
         owner: { select: { id: true, name: true } },
-        factory: { select: { id: true, name: true } },
+        factory: { select: { id: true, name: true, country: true } },
         lines: {
           select: { quantity: true, productVariant: { select: { colorName: true, photoUrls: true } } },
         },
@@ -71,7 +92,7 @@ export default async function GanttV2Page() {
       orderBy: { createdAt: "asc" },
       include: {
         owner: { select: { id: true, name: true } },
-        factory: { select: { id: true, name: true } },
+        factory: { select: { id: true, name: true, country: true } },
         lines: {
           select: { quantity: true, packagingItem: { select: { name: true, photoUrl: true } } },
         },
@@ -184,6 +205,7 @@ export default async function GanttV2Page() {
       brand: o.productModel.brand,
       factoryId: o.factory?.id ?? null,
       factoryName: o.factory?.name ?? null,
+      productionRegion: productionRegionOf(o.factory),
       ownerId: o.owner?.id ?? null,
       ownerName: o.owner?.name ?? null,
       launchMonth: o.launchMonth ?? null,
@@ -267,6 +289,9 @@ export default async function GanttV2Page() {
       brand: null,
       factoryId: po.factory?.id ?? null,
       factoryName: po.factory?.name ?? po.supplierName ?? null,
+      productionRegion: productionRegionOf(
+        po.factory ?? (po.supplierName ? { name: po.supplierName, country: null } : null),
+      ),
       ownerId: po.owner?.id ?? null,
       ownerName: po.owner?.name ?? null,
       launchMonth: null,
@@ -322,6 +347,17 @@ export default async function GanttV2Page() {
       value: f.id,
       label: `${f.name}${f.country ? ` (${f.country === "CN" ? "CN" : f.country})` : ""}`,
     })),
+    productionRegions: (() => {
+      const count: Record<"ru" | "cn" | "tyak", number> = { ru: 0, cn: 0, tyak: 0 };
+      for (const r of rows) {
+        if (r.productionRegion) count[r.productionRegion]++;
+      }
+      return (["ru", "cn", "tyak"] as const).map((v) => ({
+        value: v,
+        label: PRODUCTION_REGION_LABEL[v],
+        count: count[v],
+      }));
+    })(),
     launchMonths,
     statuses: Array.from(statusMap.entries())
       .map(([v, count]) => ({
