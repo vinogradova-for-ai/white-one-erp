@@ -21,6 +21,7 @@ const MORE_LINKS = [
   { href: "/payments", label: "Платежи", icon: "₽" },
   { href: "/content-schedule", label: "Артикулы для фотосессии", icon: "✿" },
   { href: "/incoming", label: "Поставки", icon: "▣" },
+  { href: "/warehouse", label: "Склад", icon: "▩" },
   { href: "/plan-vs-fact", label: "План / Факт", icon: "⎋" },
   { href: "/factories", label: "Фабрики", icon: "⛭" },
 ];
