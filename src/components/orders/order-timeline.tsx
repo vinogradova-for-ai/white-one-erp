@@ -34,13 +34,20 @@ const PHASES: Phase[] = [
   { key: "shipping",    title: "Доставка",     icon: "✈",  color: "#10b981", startField: "qcDate",              endField: "arrivalPlannedDate" },
 ];
 
-const AUTO_SHARES: Record<keyof Timeline, number> = {
-  decisionDate:        0.00,
-  handedToFactoryDate: 0.15,
-  readyAtFactoryDate:  0.85,
-  qcDate:              0.95,
-  arrivalPlannedDate:  1.00,
-};
+// Авто-расчёт фаз через ФИКСИРОВАННЫЕ длительности, а не пропорции.
+// Пропорции (15% / 70% / 15%) давали нереалистично длинную Разработку и ОТК
+// для длинных циклов и слишком короткие для коротких — мы перестали верить расчёту.
+//
+// Логика:
+//   1. arrivalPlannedDate (прибытие на склад) = 1-е число launchMonth.
+//   2. qcDate            = arrival − DELIVERY_DURATION (по способу доставки).
+//   3. readyAtFactoryDate = qcDate − AUTO_QC_DAYS.
+//   4. handedToFactoryDate = readyAtFactoryDate − Производство (= что осталось до сегодня).
+//   5. decisionDate       = handedToFactoryDate − AUTO_PREP_DAYS.
+// Если по факту места под Производство не остаётся (Разработка + ОТК + Доставка
+// больше всего цикла), просто прижимаем Разработку к сегодня — Алёна вручную поправит.
+const AUTO_PREP_DAYS = 14;  // Разработка по умолчанию
+const AUTO_QC_DAYS   = 5;   // ОТК по умолчанию
 
 function parseISO(iso: string): Date | null {
   if (!iso) return null;
@@ -81,36 +88,50 @@ function calcTimeline(launchMonth: string, deliveryMethod?: DeliveryMethod | nul
   if (!y || !m) return empty;
   const t0 = new Date();
   t0.setHours(0, 0, 0, 0);
-  const t1 = new Date(Date.UTC(y, m - 1, 1));
-  const totalMs = t1.getTime() - t0.getTime();
-  if (totalMs <= 0) return empty;
+  const t0Iso = toISO(t0);
+  const arrival = new Date(Date.UTC(y, m - 1, 1));
+  const arrivalIso = toISO(arrival);
 
-  // Если есть способ доставки — фаза доставки берёт ровно столько дней, сколько прописано
-  // в DELIVERY_DURATION_DAYS, остальное идёт под Разработку + Производство + ОТК.
-  const deliveryDays = deliveryMethod ? DELIVERY_DURATION_DAYS[deliveryMethod] : null;
-  if (deliveryDays != null) {
-    const arrival = t1;
-    const qcDate = new Date(arrival.getTime() - deliveryDays * 86400000);
-    const totalPreShipMs = qcDate.getTime() - t0.getTime();
-    if (totalPreShipMs <= 0) return empty;
-    // Распределение до отгрузки: 15% Разработка, 70% Производство, 15% ОТК.
-    const handed = new Date(t0.getTime() + totalPreShipMs * 0.15);
-    const ready = new Date(t0.getTime() + totalPreShipMs * 0.85);
+  // Способ доставки → фикс. количество дней. Без способа — 0.
+  const deliveryDays = deliveryMethod ? DELIVERY_DURATION_DAYS[deliveryMethod] : 0;
+
+  // Раскрутка от прибытия назад: arrival → qc → ready → handed → decision.
+  const qcIso = addDays(arrivalIso, -deliveryDays);
+  const readyIso = addDays(qcIso, -AUTO_QC_DAYS);
+
+  // Производство = что между «передал на фабрику» и «готов на фабрике».
+  // Передачу ставим за AUTO_PREP_DAYS до «готов» назад? Нет — Производство
+  // должно быть длинным, и Разработка отдельно. Делаем так:
+  //   handed = max(t0 + AUTO_PREP_DAYS, ready − 30)  // хотя бы 30 дн на пошив
+  //   decision = handed − AUTO_PREP_DAYS = t0 (если запустились сразу)
+  const minProductionDays = 30;
+  let handedIso = addDays(readyIso, -minProductionDays);
+  const tentativeDecisionIso = addDays(handedIso, -AUTO_PREP_DAYS);
+  // Если получилось decision раньше сегодня — двигаем всю Разработку к сегодня,
+  // чтобы пользователь видел что-то осмысленное, а не «началось 2 недели назад».
+  if (daysBetween(t0Iso, tentativeDecisionIso) < 0) {
+    // tentativeDecision раньше today → перегон цикла: жмём Разработку к сегодня.
     return {
-      decisionDate: toISO(t0),
-      handedToFactoryDate: toISO(handed),
-      readyAtFactoryDate: toISO(ready),
-      qcDate: toISO(qcDate),
-      arrivalPlannedDate: toISO(arrival),
+      decisionDate: t0Iso,
+      handedToFactoryDate: addDays(t0Iso, AUTO_PREP_DAYS),
+      readyAtFactoryDate: readyIso,
+      qcDate: qcIso,
+      arrivalPlannedDate: arrivalIso,
     };
   }
-
-  const result: Timeline = { ...empty };
-  (Object.keys(AUTO_SHARES) as (keyof Timeline)[]).forEach((k) => {
-    const d = new Date(t0.getTime() + totalMs * AUTO_SHARES[k]);
-    result[k] = toISO(d);
-  });
-  return result;
+  // Иначе ставим всё как раскрутили; Производство получит ≥ 30 дней.
+  if (daysBetween(t0Iso, handedIso) > AUTO_PREP_DAYS) {
+    // Между сегодня и «передал на фабрику» больше 14 дней — растягиваем
+    // Производство, чтобы покрыть всё свободное время. Разработка остаётся 14 дней.
+    handedIso = addDays(t0Iso, AUTO_PREP_DAYS);
+  }
+  return {
+    decisionDate: t0Iso,
+    handedToFactoryDate: handedIso,
+    readyAtFactoryDate: readyIso,
+    qcDate: qcIso,
+    arrivalPlannedDate: arrivalIso,
+  };
 }
 
 const MONTH_SHORT = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
@@ -162,21 +183,23 @@ export function OrderTimeline({
     return initial[ph.endField] || chainStart;
   }, [initial, chainStart]);
 
-  // Шкала должна охватить ВСЕ start/end всех фаз — иначе фаза, чей старт
-  // раньше chainStart (например, после ручной правки или при аномалии вроде
-  // отрицательной Разработки), будет срезана posPct'ом и получит ширину,
-  // не соответствующую её реальной длительности в днях. Симптом: соседние
-  // 7-дневные плашки рисуются с разной шириной.
+  // Шкала охватывает ВСЕ start/end всех фаз — иначе фаза, чей край лежит
+  // за пределами «номинальной» шкалы, схлопнется posPct'ом в 0%/100%
+  // и потеряет реальную пропорцию по дням.
+  // daysBetween(a, b) = b − a в днях:
+  //   < 0  ⇔ b раньше a (b — раньше) → для min берём b
+  //   > 0  ⇔ b позже a              (b — позже) → для max берём b
   const phaseEdges: string[] = [chainStart];
   for (const ph of PHASES) {
     phaseEdges.push(getStartIso(ph));
     phaseEdges.push(getEndIso(ph));
   }
-  const earliestPhase = phaseEdges.reduce((a, b) => (daysBetween(a, b) < 0 ? a : b));
-  const latestPhase = phaseEdges.reduce((a, b) => (daysBetween(a, b) > 0 ? a : b));
+  const earliestPhase = phaseEdges.reduce((a, b) => (daysBetween(a, b) < 0 ? b : a));
+  const latestPhase = phaseEdges.reduce((a, b) => (daysBetween(a, b) > 0 ? b : a));
 
-  // chartStart = самая ранняя из дат: фаз или «сегодня» (чтобы маркер «сегодня»
-  // влез на шкалу, если все фазы лежат в будущем).
+  // chartStart = min(earliestPhase, today) — чтобы маркер «сегодня» влез,
+  // если фазы все в будущем; и чтобы фаза, начавшаяся в прошлом, попала на шкалу.
+  // daysBetween(earliestPhase, today) < 0 ⇔ today раньше earliestPhase → берём today.
   const chartStartRaw = daysBetween(earliestPhase, todayIsoForChart) < 0
     ? todayIsoForChart
     : earliestPhase;
@@ -187,6 +210,8 @@ export function OrderTimeline({
   if (zoomDays != null) {
     chartEnd = addDays(chartStartRaw, zoomDays);
   } else {
+    // chartEnd = max(latestPhase, today) — чтобы маркер «сегодня» влез,
+    // если все фазы в прошлом. daysBetween(latestPhase, today) > 0 ⇔ today позже.
     const latestWithToday = daysBetween(latestPhase, todayIsoForChart) > 0
       ? todayIsoForChart
       : latestPhase;
