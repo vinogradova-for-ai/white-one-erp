@@ -12,8 +12,7 @@ const NAV = [
   { href: "/orders", label: "Заказы", icon: "⬡" },
   { href: "/packaging", label: "Упаковка", icon: "▯" },
   { href: "/packaging-orders", label: "Заказы упаковки", icon: "▥" },
-  { href: "/gantt", label: "Гант", icon: "▤" },
-  { href: "/gantt-v2", label: "Гант v2", icon: "▦" },
+  { href: "/gantt-v2", label: "График Ганта", icon: "▦" },
   { href: "/payments", label: "Платежи", icon: "₽" },
 ];
 
