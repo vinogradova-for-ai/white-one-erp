@@ -91,16 +91,23 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   const sizes = order.productModel.sizeGrid?.sizes ?? [];
   const totalQty = order.lines.reduce((a, l) => a + l.quantity, 0);
-  // Fallback на лету: если у линии не сохранён batchCost, но у фасона
-  // есть fullCost / purchasePriceRub / purchasePriceCny×rate — пересчитаем.
-  // Иначе показывали бы прочерк, даже когда данные у фасона есть.
-  const modelFullCost = order.productModel.fullCost != null
-    ? Number(order.productModel.fullCost)
-    : (order.productModel.purchasePriceRub != null
-        ? Number(order.productModel.purchasePriceRub)
-        : (order.productModel.purchasePriceCny != null && order.productModel.cnyRubRate != null
-            ? Number(order.productModel.purchasePriceCny) * Number(order.productModel.cnyRubRate)
-            : 0));
+  // Fallback на лету: если у линии не сохранён batchCost, ищем себестоимость
+  // в фасоне по приоритету: purchasePriceRub > purchasePriceCny × курс >
+  // fullCost > targetCostRub > targetCostCny. Последние два — legacy «Таргет»,
+  // нужны чтобы старые фасоны (созданные до перехода на purchasePrice)
+  // продолжали корректно подтягивать стоимость в заказ.
+  const m = order.productModel;
+  const modelFullCost = m.purchasePriceRub != null
+    ? Number(m.purchasePriceRub)
+    : (m.purchasePriceCny != null && m.cnyRubRate != null
+        ? Number(m.purchasePriceCny) * Number(m.cnyRubRate)
+        : (m.fullCost != null
+            ? Number(m.fullCost)
+            : (m.targetCostRub != null
+                ? Number(m.targetCostRub)
+                : (m.targetCostCny != null && m.cnyRubRate != null
+                    ? Number(m.targetCostCny) * Number(m.cnyRubRate)
+                    : 0))));
   const totalBatchCost = order.lines.reduce((a, l) => {
     const lc = Number(l.batchCost ?? 0);
     if (lc > 0) return a + lc;

@@ -40,6 +40,8 @@ type ModelOption = {
   purchasePriceRub: string | null;
   purchasePriceCny: string | null;
   cnyRubRate: string | null;
+  targetCostRub: string | null;
+  targetCostCny: string | null;
   plannedRedemptionPct: string | null;
   sizes: string[];
   defaultSizeProportion: Record<string, number> | null;
@@ -63,18 +65,27 @@ function sumSizes(dist: Record<string, number>): number {
 //   1) purchasePriceRub (закупка в ₽)
 //   2) purchasePriceCny × cnyRubRate (закупка в ¥ + курс)
 //   3) fullCost (legacy расчёт)
+//   4) targetCostRub (legacy «Таргет» — нужно для старых фасонов до
+//      перехода на purchasePrice; иначе они подтягивались бы пустыми)
+//   5) targetCostCny × cnyRubRate
 // При отсутствии всего — пусто, Алёна введёт вручную.
 function modelDefaultUnitCost(m: {
   purchasePriceRub: string | null;
   purchasePriceCny: string | null;
   cnyRubRate: string | null;
   fullCost: string | null;
+  targetCostRub: string | null;
+  targetCostCny: string | null;
 }): string {
   if (m.purchasePriceRub) return Number(m.purchasePriceRub).toString();
   if (m.purchasePriceCny && m.cnyRubRate) {
     return (Number(m.purchasePriceCny) * Number(m.cnyRubRate)).toFixed(2);
   }
   if (m.fullCost) return Number(m.fullCost).toString();
+  if (m.targetCostRub) return Number(m.targetCostRub).toString();
+  if (m.targetCostCny && m.cnyRubRate) {
+    return (Number(m.targetCostCny) * Number(m.cnyRubRate)).toFixed(2);
+  }
   return "";
 }
 
@@ -249,7 +260,7 @@ export function OrderForm({
   // Если у новой модели себестоимость пуста — очищаем, чтобы не оставалась цена предыдущей модели.
   useEffect(() => {
     setUnitCost(model ? modelDefaultUnitCost(model) : "");
-  }, [model?.id, model?.purchasePriceRub, model?.purchasePriceCny, model?.cnyRubRate, model?.fullCost, model]);
+  }, [model?.id, model?.purchasePriceRub, model?.purchasePriceCny, model?.cnyRubRate, model?.fullCost, model?.targetCostRub, model?.targetCostCny, model]);
 
   // Синхронизируем launchMonth с датой прибытия партии (= месяц старта продаж).
   useEffect(() => {

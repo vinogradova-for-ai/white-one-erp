@@ -60,7 +60,18 @@ export function ModelEditForm({
   sizeGrids: SizeGridOption[];
 }) {
   const router = useRouter();
-  const [form, setForm] = useState(model);
+  // При первой загрузке мигрируем legacy targetCost* в purchasePrice* —
+  // если новое поле пустое, а старое заполнено. Так Алёна сразу видит
+  // свою цену в едином поле «Себестоимость», а при сохранении она
+  // запишется в правильное поле БД.
+  const [form, setForm] = useState(() => {
+    const next = { ...model };
+    if (!next.purchasePriceRub && !next.purchasePriceCny) {
+      if (model.targetCostRub) next.purchasePriceRub = model.targetCostRub;
+      else if (model.targetCostCny) next.purchasePriceCny = model.targetCostCny;
+    }
+    return next;
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isChina = form.countryOfOrigin === "Китай";
