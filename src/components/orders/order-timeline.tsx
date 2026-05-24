@@ -423,11 +423,15 @@ export function OrderTimeline({
               return (
                 <div key={ph.key} className="relative h-9">
                   <div
+                    // min-width 88px — две ручки 24px помещаются с зазором >40px,
+                    // короткая фаза не схлопывается в дробинку.
+                    // Минус 6px — визуальный gap между соседними плашками,
+                    // чтобы правая ручка фазы N и левая ручка N+1 не стояли в одной точке.
                     className="absolute top-1 flex h-7 items-center rounded-md text-white shadow-sm"
-                    style={{ left: `${left}%`, width: `${width}%`, backgroundColor: ph.color }}
+                    style={{ left: `${left}%`, width: `calc(max(${width}%, 88px) - 6px)`, backgroundColor: ph.color }}
                     title={`${ph.title}: ${formatDM(startIso)} → ${formatDM(endIso)} (${days} дн). Тащите за ◀ или ▶ — соседние фазы поедут за ним с теми же длительностями.`}
                   >
-                    <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-3 text-[11px] font-medium whitespace-nowrap">
+                    <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-7 text-[11px] font-medium whitespace-nowrap">
                       <span>{ph.icon}</span>
                       <span>{ph.title}</span>
                       <span className="opacity-80">· {days} дн</span>
@@ -437,19 +441,20 @@ export function OrderTimeline({
                       {formatDM(startIso)} → {formatDM(endIso)} · {days} дн
                     </div>
 
-                    {/* Левая стрелочка-ручка — внутри плашки, чтобы фазы оставались встык */}
+                    {/* Левая ручка ◀ — край фазы (старт). Размер 24×24, чтобы хорошо
+                        тыкаться даже когда фаза короткая. */}
                     <div
                       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-left"); }}
-                      className="absolute left-0.5 top-1/2 z-20 flex h-5 w-5 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white text-[11px] font-bold leading-none text-slate-900 shadow ring-1 ring-slate-300 hover:scale-110 hover:ring-2 hover:ring-slate-700"
+                      className="absolute left-1 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white text-[11px] font-bold leading-none text-slate-900 shadow ring-1 ring-slate-300 hover:scale-110 hover:ring-2 hover:ring-slate-700"
                       title={PHASES.indexOf(ph) === 0 ? "Тащить — сдвинуть старт производства (все фазы поедут вместе)" : "Тащить — изменить старт фазы (предыдущая фаза станет короче/длиннее, текущая и следующие поедут с длительностями)"}
                     >
                       ◀
                     </div>
 
-                    {/* Правая стрелочка-ручка */}
+                    {/* Правая ручка ▶ — дедлайн фазы. */}
                     <div
                       onPointerDown={(e) => { e.stopPropagation(); onPointerDown(e, ph, "resize-right"); }}
-                      className="absolute right-0.5 top-1/2 z-20 flex h-5 w-5 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white text-[11px] font-bold leading-none text-slate-900 shadow ring-1 ring-slate-300 hover:scale-110 hover:ring-2 hover:ring-slate-700"
+                      className="absolute right-1 top-1/2 z-20 flex h-6 w-6 -translate-y-1/2 cursor-ew-resize items-center justify-center rounded-full bg-white text-[11px] font-bold leading-none text-slate-900 shadow ring-1 ring-slate-300 hover:scale-110 hover:ring-2 hover:ring-slate-700"
                       title="Тащить — изменить дедлайн фазы (следующие фазы поедут с теми же длительностями)"
                     >
                       ▶
