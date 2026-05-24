@@ -67,6 +67,8 @@ export function ModelForm({
     ownerId: (defaultOwnerId && users.some((u) => u.id === defaultOwnerId)) ? defaultOwnerId : (users[0]?.id ?? ""),
     notes: "",
     hsCode: "",
+    // Себестоимость теперь хранится в purchasePriceRub/Cny — одно из двух полей
+    // (по выбору пользователя). targetCost* оставлены legacy, не используются в UI.
     targetCostCny: defaultTargetCostCny,
     targetCostRub: defaultTargetCostRub,
     targetCostNote: "",
@@ -128,6 +130,8 @@ export function ModelForm({
         targetCostCny: form.targetCostCny ? Number(form.targetCostCny) : null,
         targetCostRub: form.targetCostRub ? Number(form.targetCostRub) : null,
         targetCostNote: form.targetCostNote || null,
+        purchasePriceRub: form.purchasePriceRub ? Number(form.purchasePriceRub) : null,
+        purchasePriceCny: form.purchasePriceCny ? Number(form.purchasePriceCny) : null,
       };
       const res = await fetch("/api/models", {
         method: "POST",
@@ -227,40 +231,42 @@ export function ModelForm({
         </Field>
       </Section>
 
-      <Section title="Целевая себестоимость (план на момент разработки)">
-        <Field label="Таргет">
+      <Section title="Себестоимость">
+        <Field label="Цена за единицу" full>
           <div className="flex items-stretch gap-2">
             <input
               type="number"
               step="0.01"
-              value={form.targetCostRub}
-              onChange={(e) => update("targetCostRub", e.target.value)}
+              value={form.purchasePriceRub || form.purchasePriceCny}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (form.purchasePriceCny && !form.purchasePriceRub) {
+                  setForm((f) => ({ ...f, purchasePriceCny: v, purchasePriceRub: "" }));
+                } else {
+                  setForm((f) => ({ ...f, purchasePriceRub: v, purchasePriceCny: "" }));
+                }
+              }}
               className={`${inputCls} flex-1`}
-              placeholder="₽"
+              placeholder="например, 920"
             />
-            <span className="self-center text-sm text-slate-400">₽</span>
-            <span className="self-center text-sm text-slate-300">/</span>
-            <input
-              type="number"
-              step="0.01"
-              value={form.targetCostCny}
-              onChange={(e) => update("targetCostCny", e.target.value)}
-              className={`${inputCls} flex-1`}
-              placeholder="¥"
-            />
-            <span className="self-center text-sm text-slate-400">¥</span>
+            <select
+              value={form.purchasePriceCny ? "CNY" : "RUB"}
+              onChange={(e) => {
+                const cur = e.target.value;
+                const num = form.purchasePriceRub || form.purchasePriceCny;
+                if (cur === "CNY") setForm((f) => ({ ...f, purchasePriceCny: num, purchasePriceRub: "" }));
+                else setForm((f) => ({ ...f, purchasePriceRub: num, purchasePriceCny: "" }));
+              }}
+              className={inputCls}
+              style={{ flexBasis: "5.5rem", flexGrow: 0 }}
+            >
+              <option value="RUB">₽</option>
+              <option value="CNY">¥</option>
+            </select>
           </div>
           <span className="mt-1 block text-xs text-slate-500">
-            Введи в той валюте, в которой удобно. Можно обе. Прикидка до согласования с фабрикой.
+            Закупочная цена у фабрики. При создании заказа автоматически подтянется в стоимость единицы (можно поправить под конкретный заказ).
           </span>
-        </Field>
-        <Field label="Комментарий к таргету">
-          <input
-            value={form.targetCostNote}
-            onChange={(e) => update("targetCostNote", e.target.value)}
-            className={inputCls}
-            placeholder="например, без учёта упаковки"
-          />
         </Field>
       </Section>
 

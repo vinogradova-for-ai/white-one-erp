@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { formatCurrency, formatNumber } from "@/lib/format";
+import { formatNumber } from "@/lib/format";
 import {
   PRODUCT_VARIANT_STATUS_LABELS,
   PRODUCT_VARIANT_STATUS_COLORS,
@@ -48,10 +48,18 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
     { label: "Ответственный", value: model.owner.name },
   ].filter((f) => f.value != null) as Array<{ label: string; value: string }>;
 
-  const target = model.targetCostCny ?? model.targetCostRub ?? null;
-  const targetCur = model.targetCostCny ? "¥" : "₽";
-  const purchase = model.purchasePriceCny ?? model.purchasePriceRub ?? null;
-  const purchaseCur = model.purchasePriceCny ? "¥" : "₽";
+  // Себестоимость — одно поле в UI. Источник по приоритету:
+  //   1) purchasePriceRub / purchasePriceCny (закупка у фабрики — самое точное)
+  //   2) fullCost                              (расчёт со всеми составляющими)
+  //   3) targetCostRub / targetCostCny         (legacy «таргет»)
+  const cost = (() => {
+    if (model.purchasePriceRub != null) return { value: model.purchasePriceRub, cur: "₽" };
+    if (model.purchasePriceCny != null) return { value: model.purchasePriceCny, cur: "¥" };
+    if (model.fullCost != null)         return { value: model.fullCost, cur: "₽" };
+    if (model.targetCostRub != null)    return { value: model.targetCostRub, cur: "₽" };
+    if (model.targetCostCny != null)    return { value: model.targetCostCny, cur: "¥" };
+    return null;
+  })();
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -96,23 +104,12 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
         </div>
 
         <div className="space-y-3">
-          {/* Себестоимость как KPI */}
-          <div className="grid grid-cols-3 gap-3">
-            <KpiCard
-              label="Таргет"
-              value={target != null ? `${targetCur}${formatNumber(target.toString())}` : "—"}
-              hint={model.targetCostNote ?? undefined}
-            />
-            <KpiCard
-              label="Закуп"
-              value={purchase != null ? `${purchaseCur}${formatNumber(purchase.toString())}` : "—"}
-            />
-            <KpiCard
-              label="Себестоимость"
-              value={model.fullCost != null ? formatCurrency(model.fullCost.toString()) : "—"}
-              accent
-            />
-          </div>
+          {/* Себестоимость — одна плитка, во всю ширину */}
+          <KpiCard
+            label="Себестоимость"
+            value={cost != null ? `${cost.cur}${formatNumber(cost.value.toString())}` : "—"}
+            accent
+          />
 
           {/* Факты — одной плиткой */}
           <div className="rounded-2xl bg-white p-5">
