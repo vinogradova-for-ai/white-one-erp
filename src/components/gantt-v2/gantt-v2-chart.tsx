@@ -661,13 +661,19 @@ function BarView({
         if (deltaDays === 0) return;
         // ▶ фазы N: меняем endField фазы N. Хвост едет вправо/влево с сохранением длительностей.
         onBarChange(bar.orderId, bar.endField, newEndIso, rowGroup);
+        // Safety-net: после сдвига end каждой следующей фазы не должен уехать
+        // левее её start (= end предыдущей). Если уехал — подтягиваем end к
+        // start, чтобы фаза не перевернулась поверх соседа.
+        let prevEndIso = newEndIso;
         for (let j = barIndex + 1; j < allBars.length; j++) {
           const nb = allBars[j];
           if (!nb.orderId || !nb.endField) continue;
           const nbKey = `${rowGroup}:${nb.orderId}:${nb.endField}`;
           const nbCur = pendingChanges[nbKey] ?? nb.end;
-          const shifted = toISO(addDays(parseISO(nbCur), deltaDays));
+          let shifted = toISO(addDays(parseISO(nbCur), deltaDays));
+          if (shifted < prevEndIso) shifted = prevEndIso;
           onBarChange(nb.orderId, nb.endField, shifted, rowGroup);
+          prevEndIso = shifted;
         }
       }}
       onCommitStart={
@@ -692,13 +698,16 @@ function BarView({
                 const deltaDays = Math.round(deltaMs / 86400000);
                 if (deltaDays === 0) return;
                 onBarChange(prev.orderId, prev.endField, newStartIso, rowGroup);
+                let prevEndIso2 = newStartIso;
                 for (let j = barIndex; j < allBars.length; j++) {
                   const nb = allBars[j];
                   if (!nb.orderId || !nb.endField) continue;
                   const nbKey = `${rowGroup}:${nb.orderId}:${nb.endField}`;
                   const nbCur = pendingChanges[nbKey] ?? nb.end;
-                  const shifted = toISO(addDays(parseISO(nbCur), deltaDays));
+                  let shifted = toISO(addDays(parseISO(nbCur), deltaDays));
+                  if (shifted < prevEndIso2) shifted = prevEndIso2;
                   onBarChange(nb.orderId, nb.endField, shifted, rowGroup);
+                  prevEndIso2 = shifted;
                 }
               } else if (bar.startField) {
                 // ◀ ПЕРВОЙ фазы (Разработка): меняем ТОЛЬКО startField.

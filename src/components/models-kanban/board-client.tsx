@@ -18,6 +18,10 @@ export type KanbanCard = {
   photo: string | null;
   palette: [string, string];
   factoryName: string | null;
+  // Поля для клиентской фильтрации (KanbanFiltersClient).
+  // Не используются в самом рендере карточки.
+  ownerId?: string | null;
+  productionRegion?: "ru" | "cn" | "tyak" | null;
   qty: number;
   orderNumber: string | null;
   orderId: string | null;

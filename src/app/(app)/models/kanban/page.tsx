@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { BRAND_LABELS, CATEGORIES, ORDER_STATUS_ORDER } from "@/lib/constants";
-import { OrderStatus, ProductModelStatus, Brand } from "@prisma/client";
-import { BoardClient, type KanbanCard, type KanbanColumn } from "@/components/models-kanban/board-client";
+import { ORDER_STATUS_ORDER } from "@/lib/constants";
+import { OrderStatus, ProductModelStatus } from "@prisma/client";
+import { type KanbanCard, type KanbanColumn } from "@/components/models-kanban/board-client";
+import { KanbanFiltersClient, type KanbanFilterOptions } from "@/components/models-kanban/kanban-filters-client";
 import { colorHexFromName } from "@/lib/color-map";
-import { ModelsFilters } from "@/components/models/models-filters";
-import { parseCategoryParam } from "@/components/models/models-filters-shared";
 
 // 8 колонок: 4 под-этапа Разработки + 4 этапа после заказа.
 // Этапы Разработки видны ТОЛЬКО на канбане (не на Ганте) — детализация
@@ -79,7 +78,7 @@ type OrderForKanban = {
   qcDate: Date | null;
   arrivalPlannedDate: Date | null;
   saleStartDate: Date | null;
-  factory: { name: string } | null;
+  factory: { name: string; country: string | null } | null;
   lines: Array<{ quantity: number }>;
 };
 
@@ -114,64 +113,55 @@ function pickDeadline(col: string, model: { sampleDate: Date | null; approvedDat
   return null;
 }
 
-export default async function ModelsKanbanPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ brand?: string; category?: string; owner?: string; q?: string }>;
-}) {
-  const sp = await searchParams;
+// Регион производства (см. /gantt-v2): по preferredFactory фасона.
+// Имя содержит «тяк» → tyak. Иначе по стране: «Росс…» → ru, «Кит…» / «CN» → cn.
+function productionRegionOf(
+  factory: { name: string | null; country: string | null } | null | undefined,
+): "ru" | "cn" | "tyak" | null {
+  if (!factory) return null;
+  const name = (factory.name ?? "").toLowerCase();
+  if (name.includes("тяк")) return "tyak";
+  const country = (factory.country ?? "").toLowerCase();
+  if (country.startsWith("росс")) return "ru";
+  if (country.startsWith("кит") || country === "cn") return "cn";
+  return null;
+}
+const PRODUCTION_REGION_LABEL: Record<"ru" | "cn" | "tyak", string> = {
+  ru: "Россия", cn: "Китай", tyak: "Тяк",
+};
+
+export default async function ModelsKanbanPage() {
   const todayIso = moscowToday();
 
-  const categoryList = parseCategoryParam(sp.category, CATEGORIES);
-  const where: {
-    deletedAt: null;
-    activated: boolean;
-    brand?: Brand;
-    category?: string | { in: string[] };
-    ownerId?: string;
-    OR?: Array<{ name: { contains: string; mode: "insensitive" } }>;
-  } = { deletedAt: null, activated: true };
-  if (sp.brand && sp.brand in BRAND_LABELS) where.brand = sp.brand as Brand;
-  if (categoryList.length === 1) where.category = categoryList[0];
-  else if (categoryList.length > 1) where.category = { in: categoryList };
-  if (sp.owner) where.ownerId = sp.owner;
-  if (sp.q) where.OR = [{ name: { contains: sp.q, mode: "insensitive" } }];
-
-  const [models, owners] = await Promise.all([
-    prisma.productModel.findMany({
-      where,
-      orderBy: { updatedAt: "desc" },
-      take: 500,
-      select: {
-        id: true, name: true, brand: true, category: true, subcategory: true,
-        photoUrls: true, status: true, sizeChartReady: true,
-        sampleDate: true, approvedDate: true, productionStartDate: true, plannedLaunchMonth: true,
-        preferredFactory: { select: { name: true } },
-        variants: {
-          where: { deletedAt: null },
-          select: { colorName: true },
-          orderBy: { createdAt: "asc" },
-          take: 8,
-        },
-        orders: {
-          where: { deletedAt: null },
-          select: {
-            id: true, orderNumber: true, status: true,
-            readyAtFactoryDate: true, qcDate: true, arrivalPlannedDate: true, saleStartDate: true,
-            factory: { select: { name: true } },
-            lines: { select: { quantity: true } },
-          },
+  // Грузим все активированные фасоны без фильтрации в where — фильтрация
+  // выполняется на клиенте multi-select dropdown'ами (как на /gantt-v2).
+  const models = await prisma.productModel.findMany({
+    where: { deletedAt: null, activated: true },
+    orderBy: { updatedAt: "desc" },
+    take: 500,
+    select: {
+      id: true, name: true, brand: true, category: true, subcategory: true,
+      photoUrls: true, status: true, sizeChartReady: true, ownerId: true,
+      sampleDate: true, approvedDate: true, productionStartDate: true, plannedLaunchMonth: true,
+      preferredFactory: { select: { name: true, country: true } },
+      owner: { select: { id: true, name: true } },
+      variants: {
+        where: { deletedAt: null },
+        select: { colorName: true },
+        orderBy: { createdAt: "asc" },
+        take: 8,
+      },
+      orders: {
+        where: { deletedAt: null },
+        select: {
+          id: true, orderNumber: true, status: true,
+          readyAtFactoryDate: true, qcDate: true, arrivalPlannedDate: true, saleStartDate: true,
+          factory: { select: { name: true, country: true } },
+          lines: { select: { quantity: true } },
         },
       },
-    }),
-    // Ответственный — кто угодно из команды. Не фильтруем по ролям,
-    // чтобы Настя/Катя/Дарья и пр. тоже были доступны.
-    prisma.user.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    }),
-  ]);
+    },
+  });
 
   // Раскидать карточки по колонкам
   const buckets: Record<string, KanbanCard[]> = Object.fromEntries(COLUMNS.map((c) => [c.key, []]));
@@ -201,12 +191,14 @@ export default async function ModelsKanbanPage({
     buckets[column].push({
       modelId: m.id,
       modelName: m.name,
-      brandLabel: BRAND_LABELS[m.brand],
+      brandLabel: m.brand,
       category: m.category,
       subcategory: m.subcategory,
       photo: m.photoUrls?.[0] ?? null,
       palette: pickPalette(m.id),
       factoryName: order?.factory?.name ?? m.preferredFactory?.name ?? null,
+      ownerId: m.ownerId,
+      productionRegion: productionRegionOf(order?.factory ?? m.preferredFactory),
       qty,
       orderNumber: order?.orderNumber ?? null,
       orderId: order?.id ?? null,
@@ -216,30 +208,49 @@ export default async function ModelsKanbanPage({
     });
   }
 
+  // Опции фильтров — считаются по реальным карточкам с count'ами.
+  const allCards = COLUMNS.flatMap((c) => buckets[c.key]);
+  const categoryCount = new Map<string, number>();
+  const ownerMap = new Map<string, { name: string; count: number }>();
+  const regionCount: Record<"ru" | "cn" | "tyak", number> = { ru: 0, cn: 0, tyak: 0 };
+  for (const c of allCards) {
+    categoryCount.set(c.category, (categoryCount.get(c.category) ?? 0) + 1);
+    if (c.ownerId) {
+      const own = ownerMap.get(c.ownerId);
+      const m = models.find((m) => m.ownerId === c.ownerId);
+      ownerMap.set(c.ownerId, { name: m?.owner?.name ?? "", count: (own?.count ?? 0) + 1 });
+    }
+    if (c.productionRegion) regionCount[c.productionRegion]++;
+  }
+  const filterOptions: KanbanFilterOptions = {
+    categories: [...categoryCount.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([value, count]) => ({ value, label: value, count })),
+    owners: [...ownerMap.entries()]
+      .sort((a, b) => a[1].name.localeCompare(b[1].name))
+      .map(([value, { name, count }]) => ({ value, label: name, count })),
+    productionRegions: (["ru", "cn", "tyak"] as const).map((v) => ({
+      value: v,
+      label: PRODUCTION_REGION_LABEL[v],
+      count: regionCount[v],
+    })),
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-4 flex-wrap">
-        <h1 className="text-xl font-semibold">Канбан фасонов</h1>
         <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5">
           <Link href="/models" className="px-3 py-1 text-sm rounded-md text-slate-600 hover:bg-white">Список</Link>
           <span className="px-3 py-1 text-sm rounded-md bg-white text-slate-900 font-medium shadow-sm">Канбан</span>
         </div>
-        <p className="text-xs text-slate-500">всего: {models.length}</p>
       </div>
 
-      <ModelsFilters
-        brands={Object.entries(BRAND_LABELS).map(([key, label]) => ({ key, label }))}
-        categories={CATEGORIES}
-        owners={owners}
-        selected={{
-          q: sp.q ?? "",
-          brand: sp.brand ?? "",
-          categoryList,
-          owner: sp.owner ?? "",
-        }}
+      <KanbanFiltersClient
+        columns={COLUMNS}
+        buckets={buckets}
+        filterOptions={filterOptions}
+        total={models.length}
       />
-
-      <BoardClient columns={COLUMNS} buckets={buckets} />
     </div>
   );
 }
