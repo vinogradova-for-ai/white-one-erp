@@ -168,16 +168,19 @@ export default async function ModelsKanbanPage() {
 
   for (const m of models) {
     const order = mostAdvanced(m.orders as OrderForKanban[]);
-    // ВАЖНО: если сам ФАСОН ещё в разработке (IDEA / PATTERNS / SAMPLE),
-    // колонка определяется по статусу ФАСОНА, даже если у него уже есть
-    // заказ. Заказы могут существовать параллельно с дизайном (тестовый
-    // пошив, пилотная партия), но фасон остаётся в колонке разработки,
-    // пока его не утвердили (status >= APPROVED).
-    // Без этого пилотный заказ на статусе SEWING тянул фасон в колонку
-    // «Производство», хотя сам фасон ещё «Идея».
-    const isStillInDevelopment = m.status === "IDEA" || m.status === "PATTERNS" || m.status === "SAMPLE";
-    const column = (order && !isStillInDevelopment)
-      ? ORDER_STATUS_TO_COL[order.status]
+    // Если у фасона есть «живой» заказ (продвинулся дальше PREPARATION) —
+    // колонка определяется по статусу заказа. Если заказ ещё в PREPARATION
+    // (или заказа нет) — колонка по статусу фасона.
+    //
+    // Старая защита (#88) пыталась удержать в колонке разработки фасоны
+    // со статусом IDEA/PATTERNS/SAMPLE, у которых уже есть «пилотный»
+    // заказ. На практике это привело к тому, что 36 фасонов с реальными
+    // заказами в производстве/доставке висели в «Идея», потому что
+    // никто формально не переводил статус фасона дальше IDEA. Правильнее
+    // отдавать колонку заказу — он отражает реальное положение дел.
+    const hasLiveOrder = !!order && order.status !== "PREPARATION";
+    const column = hasLiveOrder
+      ? ORDER_STATUS_TO_COL[order!.status]
       : modelToColumn(m.status, m.sizeChartReady);
     const deadline = pickDeadline(column, m, order);
     const qty = order ? order.lines.reduce((a, l) => a + l.quantity, 0) : 0;
