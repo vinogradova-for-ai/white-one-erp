@@ -27,6 +27,7 @@ const MORE_NAV = [
 
 const ADMIN_NAV: Array<{ href: string; label: string; icon: string }> = [
   { href: "/admin/users", label: "Сотрудники", icon: "☉" },
+  { href: "/admin/size-grids", label: "Размерные сетки", icon: "#" },
 ];
 
 export function Sidebar({ user }: { user: { name?: string | null; email?: string | null; role: Role } }) {
