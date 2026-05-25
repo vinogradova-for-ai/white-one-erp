@@ -21,7 +21,7 @@ export type KanbanCard = {
   // Поля для клиентской фильтрации (KanbanFiltersClient).
   // Не используются в самом рендере карточки.
   ownerId?: string | null;
-  productionRegion?: "ru" | "cn" | "tyak" | null;
+  columnKey?: string;
   qty: number;
   orderNumber: string | null;
   orderId: string | null;
