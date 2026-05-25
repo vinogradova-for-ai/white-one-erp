@@ -19,10 +19,6 @@ export type Action =
   | "order.delete"
   | "order.updateStatus"
   | "order.rollbackStatus"
-  | "order.updateLogistics" // даты доставки, способ, ВЭД
-  | "order.updateContent"   // wbCardReady
-  | "order.updateWB"        // factRedemption, actualRevenue
-  | "order.updatePacking"   // packagingOrdered, packing dates
   // Plans & Factories
   | "plan.read"
   | "plan.manage"
@@ -39,6 +35,9 @@ export type Action =
   | "user.manage"
   | "import.run"
   | "audit.read";
+
+// Поля-специфичные права (order.updateLogistics/Content/WB/Packing) удалены:
+// сервис только для отдела Продукт, остальные роли — read-only витрина.
 
 export type RoleCan = (action: Action, resourceOwnerId?: string, actorId?: string) => boolean;
 
@@ -107,16 +106,6 @@ export function can(
     case "product.delete":
     case "order.delete":
       return false;
-
-    // Поле-специфичные действия
-    case "order.updateLogistics":
-      return role === "LOGISTICS" || role === "CUSTOMS" || isOwner || PM.includes(role);
-    case "order.updateContent":
-      return role === "CONTENT_MANAGER" || isOwner || PM.includes(role);
-    case "order.updateWB":
-      return role === "WB_MANAGER" || isOwner || PM.includes(role);
-    case "order.updatePacking":
-      return role === "ASSISTANT" || isOwner || PM.includes(role);
 
     // Справочники и импорт
     case "plan.manage":
