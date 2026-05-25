@@ -174,6 +174,7 @@ model User {
   ownedPackagingItems PackagingItem[]    @relation("PackagingOwner")
   packagingStatusLogs PackagingItemStatusLog[] @relation("PackagingStatusActor")
   ownedPackagingOrders PackagingOrder[]  @relation("PackagingOrderOwner")
+  ownedPlans          MonthlyPlan[]      @relation("PlanOwner")
 
   @@index([role])
   @@index([isActive])
@@ -562,19 +563,30 @@ model OrderStatusLog {
 // MONTHLY PLAN
 // ======================================================
 
+// План выпуска (не план продаж и не в рублях).
+// Алёна: «планирование продуктовое должно идти от количества фасонов и выпущенных
+// штук на них предварительно закрепляя ответственных».
+//
+// Ключ — (yearMonth, ownerId, category). Категория опциональна:
+// при null — это «общий план ответственного на месяц».
+// plannedRevenue остаётся для исторических данных, но новые планы её не пишут.
 model MonthlyPlan {
-  id              String  @id @default(cuid())
-  yearMonth       Int
-  category        String
-  plannedRevenue  Decimal @db.Decimal(14, 2)
-  plannedQuantity Int?
-  notes           String?
+  id                String   @id @default(cuid())
+  yearMonth         Int
+  ownerId           String?
+  owner             User?    @relation("PlanOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  category          String?
+  plannedModelCount Int?     // План по количеству фасонов
+  plannedQuantity   Int?     // План по штукам (выпущенных единиц)
+  plannedRevenue    Decimal? @db.Decimal(14, 2) // legacy, не используется в новых планах
+  notes             String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([yearMonth, category])
+  @@unique([yearMonth, ownerId, category])
   @@index([yearMonth])
+  @@index([ownerId])
 }
 
 // ======================================================

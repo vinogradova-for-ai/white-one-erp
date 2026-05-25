@@ -3,10 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { z } from "zod";
 
+// План = «выпуск продуктов»: количество фасонов + штук, привязка к ответственному.
+// Не выручка и не рубли (Алёна явно).
 const upsertSchema = z.object({
   yearMonth: z.number().int().min(202001).max(203012),
-  category: z.string().min(1).max(100),
-  plannedRevenue: z.union([z.number(), z.string()]).transform((v) => Number(v)).pipe(z.number().nonnegative()),
+  ownerId: z.string().nullable().optional(),
+  category: z.string().nullable().optional(),
+  plannedModelCount: z.number().int().nonnegative().nullable().optional(),
   plannedQuantity: z.number().int().nonnegative().nullable().optional(),
   notes: z.string().nullable().optional(),
 });
@@ -18,7 +21,8 @@ export async function GET(req: NextRequest) {
     const year = Number(req.nextUrl.searchParams.get("year") ?? new Date().getFullYear());
     const items = await prisma.monthlyPlan.findMany({
       where: { yearMonth: { gte: year * 100 + 1, lte: year * 100 + 12 } },
-      orderBy: [{ yearMonth: "asc" }, { category: "asc" }],
+      orderBy: [{ yearMonth: "asc" }, { ownerId: "asc" }],
+      include: { owner: { select: { id: true, name: true } } },
     });
     return NextResponse.json({ items });
   } catch (e) {
@@ -26,7 +30,8 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST — upsert по (yearMonth, category). plannedRevenue=0 = удаление записи.
+// POST — upsert по (yearMonth, ownerId, category).
+// Если plannedModelCount и plannedQuantity обе пусты/0 — удаляем запись.
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth();
@@ -35,29 +40,53 @@ export async function POST(req: NextRequest) {
     }
     const data = upsertSchema.parse(await req.json());
 
-    if (data.plannedRevenue === 0) {
+    const isEmpty =
+      (data.plannedModelCount == null || data.plannedModelCount === 0) &&
+      (data.plannedQuantity == null || data.plannedQuantity === 0);
+
+    if (isEmpty) {
       await prisma.monthlyPlan.deleteMany({
-        where: { yearMonth: data.yearMonth, category: data.category },
+        where: {
+          yearMonth: data.yearMonth,
+          ownerId: data.ownerId ?? null,
+          category: data.category ?? null,
+        },
       });
       return NextResponse.json({ deleted: true });
     }
 
-    const result = await prisma.monthlyPlan.upsert({
-      where: { yearMonth_category: { yearMonth: data.yearMonth, category: data.category } },
-      create: {
+    // upsert по составному ключу не работает с NULL — делаем findFirst + create/update.
+    const existing = await prisma.monthlyPlan.findFirst({
+      where: {
         yearMonth: data.yearMonth,
-        category: data.category,
-        plannedRevenue: data.plannedRevenue,
+        ownerId: data.ownerId ?? null,
+        category: data.category ?? null,
+      },
+    });
+
+    if (existing) {
+      const updated = await prisma.monthlyPlan.update({
+        where: { id: existing.id },
+        data: {
+          plannedModelCount: data.plannedModelCount ?? null,
+          plannedQuantity: data.plannedQuantity ?? null,
+          notes: data.notes ?? undefined,
+        },
+      });
+      return NextResponse.json(updated);
+    }
+
+    const created = await prisma.monthlyPlan.create({
+      data: {
+        yearMonth: data.yearMonth,
+        ownerId: data.ownerId ?? null,
+        category: data.category ?? null,
+        plannedModelCount: data.plannedModelCount ?? null,
         plannedQuantity: data.plannedQuantity ?? null,
         notes: data.notes ?? null,
       },
-      update: {
-        plannedRevenue: data.plannedRevenue,
-        plannedQuantity: data.plannedQuantity ?? undefined,
-        notes: data.notes ?? undefined,
-      },
     });
-    return NextResponse.json(result);
+    return NextResponse.json(created);
   } catch (e) {
     return apiError(e);
   }
