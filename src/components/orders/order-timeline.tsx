@@ -449,16 +449,21 @@ export function OrderTimeline({
                   // Минус 4px — visual gap между соседними плашками.
                   const widthPx = Math.max(64, rawWidthPx) - 4;
                   const days = daysBetween(startIso, endIso);
+                  // Узкая плашка (≤80px) — только иконка, без названия и дней.
+                  // Средняя (≤140px) — иконка + название, без дней.
+                  // Шире — полный текст.
+                  const isVeryNarrow = widthPx <= 80;
+                  const isNarrow = widthPx <= 140;
                   return (
                     <div key={ph.key} className="relative h-9">
                       <div
                         className="group absolute top-2 flex h-6 items-center rounded text-white shadow-sm transition-shadow hover:shadow-md"
                         style={{ left: leftPx, width: widthPx, backgroundColor: ph.color }}
                       >
-                        <div className="flex h-full w-full items-center gap-1.5 overflow-hidden px-3 text-[11px] font-medium whitespace-nowrap">
+                        <div className="flex h-full w-full items-center justify-center gap-1.5 overflow-hidden px-2 text-[11px] font-medium whitespace-nowrap">
                           <span>{ph.icon}</span>
-                          <span>{ph.title}</span>
-                          <span className="opacity-80">· {days} дн</span>
+                          {!isVeryNarrow && <span>{ph.title}</span>}
+                          {!isNarrow && <span className="opacity-80">· {days} дн</span>}
                         </div>
 
                         {/* Тултип под плашкой — появляется при hover. */}
