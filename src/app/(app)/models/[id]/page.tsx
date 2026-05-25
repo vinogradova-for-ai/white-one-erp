@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, formatDate } from "@/lib/format";
 import {
   PRODUCT_VARIANT_STATUS_LABELS,
   PRODUCT_VARIANT_STATUS_COLORS,
+  ORDER_STATUS_LABELS,
+  ORDER_STATUS_COLORS,
   BRAND_LABELS,
 } from "@/lib/constants";
 import { PhotoGallery } from "@/components/common/photo-thumb";
@@ -32,6 +34,18 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
       packagingItems: {
         include: { packagingItem: { select: { id: true, name: true, type: true, photoUrl: true } } },
         orderBy: { createdAt: "asc" },
+      },
+      orders: {
+        where: { deletedAt: null },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        select: {
+          id: true,
+          orderNumber: true,
+          status: true,
+          arrivalPlannedDate: true,
+          lines: { select: { quantity: true } },
+        },
       },
     },
   });
@@ -190,6 +204,42 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
                 </div>
               </Link>
             ))}
+          </div>
+        )}
+      </section>
+
+      {/* Заказы — компактный список (как на странице цветомодели) */}
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-base font-semibold text-slate-900">Заказы</h2>
+          <Link
+            href={`/orders/new?modelId=${model.id}`}
+            className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+          >
+            + Заказ
+          </Link>
+        </div>
+        {model.orders.length === 0 ? (
+          <div className="rounded-2xl bg-white p-8 text-center text-sm text-slate-400">Заказов нет</div>
+        ) : (
+          <div className="overflow-hidden rounded-2xl bg-white">
+            <ul className="divide-y divide-slate-100">
+              {model.orders.map((o) => {
+                const totalQty = o.lines.reduce((a, l) => a + l.quantity, 0);
+                return (
+                  <li key={o.id}>
+                    <Link href={`/orders/${o.id}`} className="flex items-center gap-3 px-4 py-3 transition hover:bg-slate-50">
+                      <span className="font-mono text-xs text-slate-500">{o.orderNumber}</span>
+                      <span className="flex-1 text-sm text-slate-700">{formatNumber(totalQty)} шт</span>
+                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${ORDER_STATUS_COLORS[o.status]}`}>
+                        {ORDER_STATUS_LABELS[o.status]}
+                      </span>
+                      <span className="shrink-0 text-xs text-slate-400">{formatDate(o.arrivalPlannedDate)}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         )}
       </section>
