@@ -1,41 +1,18 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { calculateOrderEconomics } from "@/lib/calculations/product-cost";
+import { resolveModelCost } from "@/lib/calculations/resolve-model-cost";
 
 /**
  * Идемпотентный авто-бэкфилл: для линий заказа, у которых snapshotFullCost
  * = null, проставляет себестоимость из фасона и пересчитывает batchCost /
  * plannedRevenue / plannedMargin.
  *
- * Приоритет источника себестоимости фасона:
- *   1) model.fullCost
- *   2) model.purchasePriceRub
- *   3) model.purchasePriceCny × cnyRubRate
- *   4) model.targetCostRub  (legacy «Таргет»)
- *   5) model.targetCostCny × cnyRubRate
+ * Источник себестоимости — единый helper resolveModelCost (тот же приоритет,
+ * что в форме заказа и на странице /orders/[id]).
  *
- * Используется из страницы /orders/[id] и из массового скрипта-прогона.
  * Возвращает количество обновлённых линий.
  */
-function resolveModelCost(m: {
-  fullCost: Prisma.Decimal | null;
-  purchasePriceRub: Prisma.Decimal | null;
-  purchasePriceCny: Prisma.Decimal | null;
-  cnyRubRate: Prisma.Decimal | null;
-  targetCostRub: Prisma.Decimal | null;
-  targetCostCny: Prisma.Decimal | null;
-}): Prisma.Decimal | null {
-  if (m.fullCost != null) return m.fullCost;
-  if (m.purchasePriceRub != null) return m.purchasePriceRub;
-  if (m.purchasePriceCny != null && m.cnyRubRate != null) {
-    return new Prisma.Decimal(Number(m.purchasePriceCny) * Number(m.cnyRubRate));
-  }
-  if (m.targetCostRub != null) return m.targetCostRub;
-  if (m.targetCostCny != null && m.cnyRubRate != null) {
-    return new Prisma.Decimal(Number(m.targetCostCny) * Number(m.cnyRubRate));
-  }
-  return null;
-}
 
 export async function backfillOrderEconomicsFromModel(orderId: string): Promise<number> {
   const order = await prisma.order.findUnique({
@@ -59,8 +36,9 @@ export async function backfillOrderEconomicsFromModel(orderId: string): Promise<
   if (!order || order.deletedAt) return 0;
   if (order.lines.length === 0) return 0;
 
-  const effectiveFullCost = resolveModelCost(order.productModel);
-  if (effectiveFullCost == null) return 0;
+  const costNumber = resolveModelCost(order.productModel);
+  if (costNumber == null) return 0;
+  const effectiveFullCost = new Prisma.Decimal(costNumber);
 
   let updated = 0;
   for (const l of order.lines) {

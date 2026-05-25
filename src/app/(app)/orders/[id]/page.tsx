@@ -14,6 +14,7 @@ import { OrderLinesSection } from "@/components/orders/order-lines-section";
 import { OrderTimelineEditor } from "@/components/orders/order-timeline-editor";
 import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
 import { backfillOrderEconomicsFromModel } from "@/server/backfill-order-economics";
+import { resolveModelCost } from "@/lib/calculations/resolve-model-cost";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -92,22 +93,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const sizes = order.productModel.sizeGrid?.sizes ?? [];
   const totalQty = order.lines.reduce((a, l) => a + l.quantity, 0);
   // Fallback на лету: если у линии не сохранён batchCost, ищем себестоимость
-  // в фасоне по приоритету: purchasePriceRub > purchasePriceCny × курс >
-  // fullCost > targetCostRub > targetCostCny. Последние два — legacy «Таргет»,
-  // нужны чтобы старые фасоны (созданные до перехода на purchasePrice)
-  // продолжали корректно подтягивать стоимость в заказ.
-  const m = order.productModel;
-  const modelFullCost = m.purchasePriceRub != null
-    ? Number(m.purchasePriceRub)
-    : (m.purchasePriceCny != null && m.cnyRubRate != null
-        ? Number(m.purchasePriceCny) * Number(m.cnyRubRate)
-        : (m.fullCost != null
-            ? Number(m.fullCost)
-            : (m.targetCostRub != null
-                ? Number(m.targetCostRub)
-                : (m.targetCostCny != null && m.cnyRubRate != null
-                    ? Number(m.targetCostCny) * Number(m.cnyRubRate)
-                    : 0))));
+  // в фасоне через общий хелпер (тот же приоритет, что в форме и backfill).
+  const modelFullCost = resolveModelCost(order.productModel) ?? 0;
   const totalBatchCost = order.lines.reduce((a, l) => {
     const lc = Number(l.batchCost ?? 0);
     if (lc > 0) return a + lc;
