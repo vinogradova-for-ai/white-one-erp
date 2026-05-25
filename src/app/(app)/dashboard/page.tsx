@@ -133,31 +133,48 @@ export default async function DashboardPage() {
     .slice(0, 5);
 
   // ===== План vs Факт за текущий месяц =====
+  // План — выпуск штук (не выручка в рублях). Факт — сумма quantity по заказам с launchMonth.
   const [plansThisMonth, ordersThisMonth] = await Promise.all([
     prisma.monthlyPlan.findMany({ where: { yearMonth: currentYearMonth } }),
     prisma.order.findMany({
       where: { deletedAt: null, launchMonth: currentYearMonth },
       select: {
-        productModel: { select: { category: true } },
-        lines: { select: { plannedRevenue: true } },
+        ownerId: true,
+        owner: { select: { name: true } },
+        lines: { select: { quantity: true } },
       },
     }),
   ]);
 
-  const planByCat = new Map(plansThisMonth.map((p) => [p.category, Number(p.plannedRevenue)]));
-  const factByCat = new Map<string, number>();
-  for (const o of ordersThisMonth) {
-    const cat = o.productModel.category;
-    const orderRevenue = o.lines.reduce((a, l) => a + Number(l.plannedRevenue ?? 0), 0);
-    factByCat.set(cat, (factByCat.get(cat) ?? 0) + orderRevenue);
+  const planUnitsByOwner = new Map<string | null, number>();
+  for (const p of plansThisMonth) {
+    const key = p.ownerId ?? null;
+    planUnitsByOwner.set(key, (planUnitsByOwner.get(key) ?? 0) + (p.plannedQuantity ?? 0));
   }
-  const categories = Array.from(new Set([...planByCat.keys(), ...factByCat.keys()])).sort();
-  const planVsFact = categories.map((cat) => {
-    const plan = planByCat.get(cat) ?? 0;
-    const fact = factByCat.get(cat) ?? 0;
-    return { cat, plan, fact, gap: plan - fact };
-  });
-  const totalGap = planVsFact.reduce((s, r) => s + Math.max(0, r.gap), 0);
+  const factUnitsByOwner = new Map<string | null, { name: string; units: number }>();
+  for (const o of ordersThisMonth) {
+    const key = o.ownerId;
+    const cur = factUnitsByOwner.get(key) ?? { name: o.owner?.name ?? "—", units: 0 };
+    cur.units += o.lines.reduce((s, l) => s + l.quantity, 0);
+    factUnitsByOwner.set(key, cur);
+  }
+  const ownersWithGap: Array<{ name: string; planUnits: number; factUnits: number; gap: number }> = [];
+  const allOwnerKeys = new Set<string | null>([...planUnitsByOwner.keys(), ...factUnitsByOwner.keys()]);
+  for (const k of allOwnerKeys) {
+    const plan = planUnitsByOwner.get(k) ?? 0;
+    const fact = factUnitsByOwner.get(k)?.units ?? 0;
+    if (plan === 0) continue;
+    const gap = plan - fact;
+    if (gap > 0) {
+      ownersWithGap.push({
+        name: factUnitsByOwner.get(k)?.name ?? "Без ответственного",
+        planUnits: plan,
+        factUnits: fact,
+        gap,
+      });
+    }
+  }
+  const totalGap = ownersWithGap.reduce((s, r) => s + r.gap, 0);
 
   // ===== Платежи текущего месяца =====
   const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
@@ -352,22 +369,18 @@ export default async function DashboardPage() {
           {totalGap > 0 && (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
               <div className="text-sm font-semibold text-amber-900">
-                Разрыв плана этого месяца: {formatCurrency(totalGap.toString())}
+                Разрыв плана выпуска этого месяца: {formatNumber(totalGap)} шт
               </div>
               <div className="mt-2 space-y-1 text-xs text-amber-900">
-                {planVsFact
-                  .filter((r) => r.gap > 0)
-                  .map((r) => (
-                    <div key={r.cat} className="flex justify-between gap-3">
-                      <span>{r.cat}</span>
-                      <span>
-                        факт {formatCurrency(r.fact.toString())} из {formatCurrency(r.plan.toString())}
-                        <span className="ml-2 font-semibold">
-                          (−{formatCurrency(r.gap.toString())})
-                        </span>
-                      </span>
-                    </div>
-                  ))}
+                {ownersWithGap.map((r) => (
+                  <div key={r.name} className="flex justify-between gap-3">
+                    <span>{r.name}</span>
+                    <span>
+                      факт {formatNumber(r.factUnits)} из {formatNumber(r.planUnits)} шт
+                      <span className="ml-2 font-semibold">(−{formatNumber(r.gap)})</span>
+                    </span>
+                  </div>
+                ))}
               </div>
               <Link
                 href="/plan-vs-fact"

@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { formatCurrency, yearMonthToLabel } from "@/lib/format";
+import { yearMonthToLabel } from "@/lib/format";
 
+/**
+ * План/Факт — НЕ продажи и НЕ рубли (Алёна).
+ * План — это «выпуск продуктов»: сколько фасонов и штук каждый ответственный
+ * должен выпустить за месяц. Факт — заказы с launchMonth=ym, owner=X:
+ *   фасоны (count distinct productModelId) и штуки (sum of OrderLine.quantity).
+ */
 export default async function PlanVsFactPage({
   searchParams,
 }: {
@@ -10,10 +16,10 @@ export default async function PlanVsFactPage({
   const sp = await searchParams;
   const year = Number(sp.year ?? new Date().getFullYear());
 
-  const [plans, orders] = await Promise.all([
+  const [plans, orders, users] = await Promise.all([
     prisma.monthlyPlan.findMany({
       where: { yearMonth: { gte: year * 100 + 1, lte: year * 100 + 12 } },
-      orderBy: [{ yearMonth: "asc" }, { category: "asc" }],
+      include: { owner: { select: { id: true, name: true } } },
     }),
     prisma.order.findMany({
       where: {
@@ -22,46 +28,92 @@ export default async function PlanVsFactPage({
       },
       select: {
         launchMonth: true,
-        productModel: { select: { category: true } },
-        lines: { select: { plannedRevenue: true } },
+        ownerId: true,
+        productModelId: true,
+        lines: { select: { quantity: true } },
       },
+    }),
+    prisma.user.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
     }),
   ]);
 
-  const actualMap = new Map<string, number>();
+  // Считаем факт: (ym, ownerId) → { uniqueModels, totalUnits }
+  type Fact = { uniqueModels: Set<string>; totalUnits: number };
+  const factMap = new Map<string, Fact>();
   for (const o of orders) {
-    const key = `${o.launchMonth}|${o.productModel.category}`;
-    const orderRevenue = o.lines.reduce((a, l) => a + Number(l.plannedRevenue ?? 0), 0);
-    actualMap.set(key, (actualMap.get(key) ?? 0) + orderRevenue);
+    const key = `${o.launchMonth}|${o.ownerId ?? ""}`;
+    const f = factMap.get(key) ?? { uniqueModels: new Set<string>(), totalUnits: 0 };
+    f.uniqueModels.add(o.productModelId);
+    for (const l of o.lines) f.totalUnits += l.quantity;
+    factMap.set(key, f);
   }
 
-  const months = Array.from(new Set(plans.map((p) => p.yearMonth))).sort();
-  const rows = months.map((ym) => {
-    const plansForMonth = plans.filter((p) => p.yearMonth === ym);
-    const totalPlan = plansForMonth.reduce((s, p) => s + Number(p.plannedRevenue), 0);
-    const totalFact = plansForMonth.reduce((s, p) => {
-      const key = `${p.yearMonth}|${p.category}`;
-      return s + (actualMap.get(key) ?? 0);
-    }, 0);
-    const gap = totalFact - totalPlan;
-    const gapPct = totalPlan > 0 ? (gap / totalPlan) * 100 : 0;
-    return {
-      ym, totalPlan, totalFact, gap, gapPct,
-      details: plansForMonth.map((p) => {
-        const key = `${p.yearMonth}|${p.category}`;
-        const fact = actualMap.get(key) ?? 0;
-        const plan = Number(p.plannedRevenue);
-        return { ...p, fact, plan, gap: fact - plan };
-      }),
-    };
-  });
+  // Список месяцев, по которым есть план или факт
+  const months = new Set<number>();
+  for (const p of plans) months.add(p.yearMonth);
+  for (const o of orders) months.add(o.launchMonth);
+  const sortedMonths = Array.from(months).sort();
+
+  // Группируем планы по месяцу и ответственному
+  type PlanRow = {
+    ym: number;
+    ownerId: string | null;
+    ownerName: string;
+    planModels: number;
+    planUnits: number;
+    factModels: number;
+    factUnits: number;
+  };
+  const rows: PlanRow[] = [];
+  for (const ym of sortedMonths) {
+    const ymPlans = plans.filter((p) => p.yearMonth === ym);
+    // Все ответственные, по которым есть план или факт за этот месяц
+    const ownerIds = new Set<string | null>();
+    for (const p of ymPlans) ownerIds.add(p.ownerId);
+    for (const o of orders) if (o.launchMonth === ym) ownerIds.add(o.ownerId);
+
+    for (const ownerId of ownerIds) {
+      const owner = users.find((u) => u.id === ownerId);
+      const planForOwner = ymPlans.filter((p) => p.ownerId === ownerId);
+      const planModels = planForOwner.reduce((s, p) => s + (p.plannedModelCount ?? 0), 0);
+      const planUnits = planForOwner.reduce((s, p) => s + (p.plannedQuantity ?? 0), 0);
+      const f = factMap.get(`${ym}|${ownerId ?? ""}`);
+      rows.push({
+        ym,
+        ownerId,
+        ownerName: owner?.name ?? (ownerId ? "—" : "Без ответственного"),
+        planModels,
+        planUnits,
+        factModels: f ? f.uniqueModels.size : 0,
+        factUnits: f ? f.totalUnits : 0,
+      });
+    }
+  }
+
+  // Группируем для отображения по месяцу
+  const byMonth = new Map<number, PlanRow[]>();
+  for (const r of rows) {
+    const arr = byMonth.get(r.ym) ?? [];
+    arr.push(r);
+    byMonth.set(r.ym, arr);
+  }
+  // Сортируем строки по имени ответственного
+  for (const arr of byMonth.values()) {
+    arr.sort((a, b) => a.ownerName.localeCompare(b.ownerName));
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">План / Факт {year}</h1>
-          <p className="text-sm text-slate-500">Агрегация заказов по месяцу начала продаж против плана</p>
+          <h1 className="text-2xl font-semibold text-slate-900">План / Факт выпуска {year}</h1>
+          <p className="text-sm text-slate-500">
+            Сколько фасонов и штук выпустил каждый ответственный относительно плана.
+            Факт = заказы по месяцу запуска (launchMonth).
+          </p>
         </div>
         <Link
           href="/admin/plans"
@@ -86,75 +138,75 @@ export default async function PlanVsFactPage({
         ))}
       </div>
 
-      {rows.length === 0 ? (
+      {sortedMonths.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">
-          На {year} год план не задан.{" "}
+          На {year} год план и факт пустые.{" "}
           <Link href="/admin/plans" className="underline">
             Завести план
           </Link>
           .
         </div>
       ) : (
-        <>
-          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Месяц</th>
-                  <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">План</th>
-                  <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Факт (из заказов)</th>
-                  <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Разрыв</th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Статус</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rows.map((r) => {
-                  const status =
-                    r.totalPlan === 0 ? "ok"
-                    : r.gapPct >= 0 ? "ok"
-                    : Math.abs(r.gapPct) > 20 ? "critical"
-                    : "warning";
-                  return (
-                    <tr key={r.ym}>
-                      <td className="px-3 py-2 font-medium capitalize">{yearMonthToLabel(r.ym)}</td>
-                      <td className="px-3 py-2 text-right">{formatCurrency(r.totalPlan)}</td>
-                      <td className="px-3 py-2 text-right">{formatCurrency(r.totalFact)}</td>
-                      <td className={`px-3 py-2 text-right ${r.gap < 0 ? "text-red-600" : "text-emerald-600"}`}>
-                        {r.gap >= 0 ? "+" : ""}{formatCurrency(r.gap)}
-                      </td>
-                      <td className="px-3 py-2">
-                        {status === "critical" && <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">🔴 Разрыв {Math.round(Math.abs(r.gapPct))}%</span>}
-                        {status === "warning" && <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">⚠ Нужно ещё заказов</span>}
-                        {status === "ok" && <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">✓ ОК</span>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          <div>
-            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Детализация по категориям</h2>
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {rows.filter((r) => r.totalPlan > 0).map((r) => (
-                <div key={r.ym} className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <div className="mb-2 text-sm font-medium capitalize text-slate-900">{yearMonthToLabel(r.ym)}</div>
-                  <div className="space-y-1 text-xs">
-                    {r.details.map((d) => (
-                      <div key={d.id} className="flex justify-between">
-                        <span className="text-slate-600">{d.category}</span>
-                        <span className={d.gap < 0 ? "text-red-600" : "text-slate-900"}>
-                          {formatCurrency(d.fact)} / {formatCurrency(d.plan)}
-                        </span>
-                      </div>
-                    ))}
+        <div className="space-y-4">
+          {sortedMonths.map((ym) => {
+            const arr = byMonth.get(ym) ?? [];
+            const totalPlanModels = arr.reduce((s, r) => s + r.planModels, 0);
+            const totalPlanUnits = arr.reduce((s, r) => s + r.planUnits, 0);
+            const totalFactModels = arr.reduce((s, r) => s + r.factModels, 0);
+            const totalFactUnits = arr.reduce((s, r) => s + r.factUnits, 0);
+            return (
+              <div key={ym} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                <div className="flex items-baseline justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2">
+                  <div className="text-sm font-semibold capitalize text-slate-900">
+                    {yearMonthToLabel(ym)}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    Итого: фасонов <b className="text-slate-900">{totalFactModels}/{totalPlanModels || "—"}</b>{" · "}
+                    штук <b className="text-slate-900">{totalFactUnits.toLocaleString("ru-RU")}/{totalPlanUnits ? totalPlanUnits.toLocaleString("ru-RU") : "—"}</b>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        </>
+                <table className="min-w-full text-sm">
+                  <thead className="bg-white">
+                    <tr>
+                      <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase text-slate-500">Ответственный</th>
+                      <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase text-slate-500">Фасоны (факт/план)</th>
+                      <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase text-slate-500">Штуки (факт/план)</th>
+                      <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase text-slate-500">Статус</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {arr.map((r) => {
+                      const modelsGap = r.factModels - r.planModels;
+                      const unitsGap = r.factUnits - r.planUnits;
+                      const hasPlan = r.planModels > 0 || r.planUnits > 0;
+                      const status = !hasPlan ? "no-plan"
+                        : modelsGap >= 0 && unitsGap >= 0 ? "ok"
+                        : (r.planUnits > 0 && Math.abs(unitsGap / r.planUnits) > 0.2) ? "critical"
+                        : "warning";
+                      return (
+                        <tr key={`${r.ym}-${r.ownerId ?? "_"}`}>
+                          <td className="px-3 py-2 font-medium text-slate-900">{r.ownerName}</td>
+                          <td className="px-3 py-2 text-right text-slate-700">
+                            {r.factModels} / {r.planModels || "—"}
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-700">
+                            {r.factUnits.toLocaleString("ru-RU")} / {r.planUnits ? r.planUnits.toLocaleString("ru-RU") : "—"}
+                          </td>
+                          <td className="px-3 py-2">
+                            {status === "ok" && <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">✓ ОК</span>}
+                            {status === "warning" && <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">⚠ Нужно ещё</span>}
+                            {status === "critical" && <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">🔴 Разрыв</span>}
+                            {status === "no-plan" && <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">план не задан</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
