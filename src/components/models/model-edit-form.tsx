@@ -109,13 +109,10 @@ export function ModelEditForm({
         purchasePriceCny: form.purchasePriceCny ? Number(form.purchasePriceCny) : null,
         purchasePriceRub: form.purchasePriceRub ? Number(form.purchasePriceRub) : null,
         cnyRubRate: form.cnyRubRate ? Number(form.cnyRubRate) : null,
-        packagingCost: Number(form.packagingCost || 0),
-        wbLogisticsCost: Number(form.wbLogisticsCost || 0),
-        wbPrice: form.wbPrice ? Number(form.wbPrice) : null,
-        customerPrice: form.customerPrice ? Number(form.customerPrice) : null,
-        wbCommissionPct: Number(form.wbCommissionPct || 0),
-        drrPct: Number(form.drrPct || 0),
-        plannedRedemptionPct: form.plannedRedemptionPct ? Number(form.plannedRedemptionPct) : null,
+        // wbPrice, customerPrice, wbCommissionPct, drrPct, plannedRedemptionPct,
+        // packagingCost, wbLogisticsCost — больше не редактируются в UI.
+        // Алёна явно убрала расчёт маржи из скоупа. Поля остаются в БД для
+        // исторических данных, но новые фасоны их не пишут.
         targetCostCny: form.targetCostCny ? Number(form.targetCostCny) : null,
         targetCostRub: form.targetCostRub ? Number(form.targetCostRub) : null,
         targetCostNote: form.targetCostNote || null,

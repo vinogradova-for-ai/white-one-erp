@@ -4,6 +4,7 @@ import { formatCurrency } from "@/lib/format";
 import { VariantVisual } from "@/components/common/variant-visual";
 import { ColorChip } from "@/components/common/color-chip";
 import { NewVariantButton } from "@/components/variants/new-variant-button";
+import { resolveModelCost } from "@/lib/calculations/resolve-model-cost";
 
 export default async function VariantsPage({
   searchParams,
@@ -33,10 +34,13 @@ export default async function VariantsPage({
             id: true,
             name: true,
             category: true,
-            fullCost: true,
-            wbPrice: true,
-            roi: true,
             photoUrls: true,
+            fullCost: true,
+            purchasePriceRub: true,
+            purchasePriceCny: true,
+            cnyRubRate: true,
+            targetCostRub: true,
+            targetCostCny: true,
           },
         },
         _count: { select: { orderLines: true } },
@@ -94,7 +98,7 @@ export default async function VariantsPage({
               <div className="mt-1 truncate font-mono text-[11px] text-slate-400">{v.sku}</div>
             </div>
             <div className="shrink-0 text-right text-xs text-slate-500">
-              {formatCurrency(v.productModel.fullCost?.toString())}
+              {(() => { const c = resolveModelCost(v.productModel); return c != null ? formatCurrency(c) : "—"; })()}
             </div>
           </Link>
         ))}
@@ -136,7 +140,7 @@ export default async function VariantsPage({
                   <div className="text-xs text-slate-500">{v.productModel.category}</div>
                 </td>
                 <td className="px-3 py-2 text-slate-700"><ColorChip name={v.colorName} /></td>
-                <td className="px-3 py-2 text-right text-xs">{formatCurrency(v.productModel.fullCost?.toString())}</td>
+                <td className="px-3 py-2 text-right text-xs">{(() => { const c = resolveModelCost(v.productModel); return c != null ? formatCurrency(c) : "—"; })()}</td>
               </tr>
             ))}
           </tbody>

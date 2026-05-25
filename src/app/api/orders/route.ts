@@ -70,7 +70,6 @@ export async function POST(req: NextRequest) {
         snapshotRedemptionPct: model.plannedRedemptionPct,
         batchCost: eco.batchCost,
         plannedRevenue: eco.plannedRevenue,
-        plannedMargin: eco.plannedMargin,
       };
     });
 

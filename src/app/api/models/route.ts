@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { modelCreateSchema } from "@/lib/validators/model";
-import { calculateModelEconomics } from "@/lib/calculations/product-cost";
 import { Prisma } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
@@ -42,17 +41,12 @@ export async function POST(req: NextRequest) {
     assertCan(session.user.role, "product.create");
     const body = await req.json();
     const data = modelCreateSchema.parse(body);
-    const eco = calculateModelEconomics(data);
 
+    // Маржу/ROI/наценку не считаем — Алёна явно убрала это из скоупа сервиса.
     const model = await prisma.productModel.create({
       data: {
         ...data,
         patternsUrl: data.patternsUrl || null,
-        fullCost: eco.fullCost ?? null,
-        marginBeforeDrr: eco.marginBeforeDrr ?? null,
-        marginAfterDrrPct: eco.marginAfterDrrPct ?? null,
-        roi: eco.roi ?? null,
-        markupPct: eco.markupPct ?? null,
       } as Prisma.ProductModelUncheckedCreateInput,
     });
     await prisma.productModelStatusLog.create({

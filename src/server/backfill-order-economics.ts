@@ -6,10 +6,12 @@ import { resolveModelCost } from "@/lib/calculations/resolve-model-cost";
 /**
  * Идемпотентный авто-бэкфилл: для линий заказа, у которых snapshotFullCost
  * = null, проставляет себестоимость из фасона и пересчитывает batchCost /
- * plannedRevenue / plannedMargin.
+ * plannedRevenue.
  *
  * Источник себестоимости — единый helper resolveModelCost (тот же приоритет,
  * что в форме заказа и на странице /orders/[id]).
+ *
+ * Маржу не считаем — Алёна явно убрала это из скоупа сервиса.
  *
  * Возвращает количество обновлённых линий.
  */
@@ -57,7 +59,6 @@ export async function backfillOrderEconomicsFromModel(orderId: string): Promise<
         snapshotRedemptionPct: order.productModel.plannedRedemptionPct,
         batchCost: eco.batchCost != null ? new Prisma.Decimal(eco.batchCost) : null,
         plannedRevenue: eco.plannedRevenue != null ? new Prisma.Decimal(eco.plannedRevenue) : null,
-        plannedMargin: eco.plannedMargin != null ? new Prisma.Decimal(eco.plannedMargin) : null,
       },
     });
     updated += 1;
