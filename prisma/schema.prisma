@@ -81,20 +81,6 @@ enum DeliveryMethod {
   TK_CN
 }
 
-enum IdeaStatus {
-  NEW
-  CONSIDERING
-  PROMOTED
-  REJECTED
-}
-
-enum IdeaPriority {
-  HIGH
-  MEDIUM
-  LOW
-}
-
-
 enum NotificationChannel {
   TELEGRAM
   IN_APP
@@ -181,7 +167,6 @@ model User {
   modelLogs         ProductModelStatusLog[] @relation("ModelStatusActor")
   variantLogs       ProductVariantStatusLog[] @relation("VariantStatusActor")
   orderLogs         OrderStatusLog[]     @relation("OrderStatusActor")
-  ideasCreated      Idea[]               @relation("IdeaCreator")
   auditLogs         AuditLog[]
   notifications     Notification[]
   createdPayments   Payment[]            @relation("PaymentCreator")
@@ -336,7 +321,6 @@ model ProductModel {
   variants    ProductVariant[]
   orders      Order[]                                         @relation("ModelOrders")
   statusLogs  ProductModelStatusLog[]
-  promotedFromIdea Idea?                                       @relation("IdeaPromoted")
   packagingItems   ModelPackaging[]
 
   @@index([status])
@@ -591,34 +575,6 @@ model MonthlyPlan {
 
   @@unique([yearMonth, category])
   @@index([yearMonth])
-}
-
-// ======================================================
-// IDEA (пул идей)
-// ======================================================
-
-model Idea {
-  id          String       @id @default(cuid())
-  title       String
-  description String?
-  tags        String[]
-  imageUrls   String[]                                    // Вдохновляющие фото (Pinterest, скриншоты)
-  priority    IdeaPriority @default(MEDIUM)
-  status      IdeaStatus   @default(NEW)
-
-  createdById String
-  createdBy   User         @relation("IdeaCreator", fields: [createdById], references: [id])
-
-  rejectedReason   String?
-  promotedToModelId String?       @unique
-  promotedToModel   ProductModel? @relation("IdeaPromoted", fields: [promotedToModelId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([status])
-  @@index([priority])
-  @@index([createdById])
 }
 
 // ======================================================
