@@ -8,8 +8,6 @@ import {
   OrderStatus,
   DeliveryMethod,
   NotificationType,
-  IdeaStatus,
-  IdeaPriority,
   Currency,
   PackagingType,
 } from "@prisma/client";
@@ -143,32 +141,6 @@ export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
   PACKING: "bg-orange-100 text-orange-700",
   SHIPPED_WB: "bg-lime-100 text-lime-700",
   ON_SALE: "bg-emerald-100 text-emerald-800",
-};
-
-export const IDEA_STATUS_LABELS: Record<IdeaStatus, string> = {
-  NEW: "Новая",
-  CONSIDERING: "Рассматривается",
-  PROMOTED: "В разработке",
-  REJECTED: "Отклонена",
-};
-
-export const IDEA_STATUS_COLORS: Record<IdeaStatus, string> = {
-  NEW: "bg-blue-100 text-blue-700",
-  CONSIDERING: "bg-amber-100 text-amber-700",
-  PROMOTED: "bg-emerald-100 text-emerald-700",
-  REJECTED: "bg-gray-100 text-gray-500",
-};
-
-export const IDEA_PRIORITY_LABELS: Record<IdeaPriority, string> = {
-  HIGH: "Высокий",
-  MEDIUM: "Средний",
-  LOW: "Низкий",
-};
-
-export const IDEA_PRIORITY_COLORS: Record<IdeaPriority, string> = {
-  HIGH: "bg-red-100 text-red-700",
-  MEDIUM: "bg-amber-100 text-amber-700",
-  LOW: "bg-slate-100 text-slate-500",
 };
 
 export const DELIVERY_METHOD_LABELS: Record<DeliveryMethod, string> = {
