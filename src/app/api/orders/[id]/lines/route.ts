@@ -47,7 +47,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         snapshotRedemptionPct: order.productModel.plannedRedemptionPct,
         batchCost: eco.batchCost,
         plannedRevenue: eco.plannedRevenue,
-        plannedMargin: eco.plannedMargin,
       },
     });
     return NextResponse.json(line, { status: 201 });

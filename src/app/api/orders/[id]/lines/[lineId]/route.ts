@@ -31,7 +31,6 @@ export async function PATCH(
       patch.quantity = data.quantity;
       patch.batchCost = eco.batchCost;
       patch.plannedRevenue = eco.plannedRevenue;
-      patch.plannedMargin = eco.plannedMargin;
     }
     // Факт количества — заполняется на этапе ОТК, может прийти позже плана
     // и независимо от него. На экономику плана не влияет (план остаётся

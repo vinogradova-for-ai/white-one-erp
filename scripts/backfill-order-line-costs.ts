@@ -79,7 +79,6 @@ async function main() {
           snapshotRedemptionPct: l.order.productModel.plannedRedemptionPct,
           batchCost: eco.batchCost != null ? new Prisma.Decimal(eco.batchCost) : null,
           plannedRevenue: eco.plannedRevenue != null ? new Prisma.Decimal(eco.plannedRevenue) : null,
-          plannedMargin: eco.plannedMargin != null ? new Prisma.Decimal(eco.plannedMargin) : null,
         },
       });
     }
