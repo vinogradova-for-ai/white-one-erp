@@ -1,8 +1,15 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, yearMonthToLabel } from "@/lib/format";
 
-export default async function PlanVsFactPage() {
-  const year = 2026;
+export default async function PlanVsFactPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string }>;
+}) {
+  const sp = await searchParams;
+  const year = Number(sp.year ?? new Date().getFullYear());
+
   const [plans, orders] = await Promise.all([
     prisma.monthlyPlan.findMany({
       where: { yearMonth: { gte: year * 100 + 1, lte: year * 100 + 12 } },
@@ -51,69 +58,104 @@ export default async function PlanVsFactPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">План / Факт {year}</h1>
-        <p className="text-sm text-slate-500">Агрегация заказов по месяцу начала продаж против плана</p>
-      </div>
-
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50">
-            <tr>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Месяц</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">План</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Факт (из заказов)</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Разрыв</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Статус</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {rows.map((r) => {
-              const status =
-                r.totalPlan === 0 ? "ok"
-                : r.gapPct >= 0 ? "ok"
-                : Math.abs(r.gapPct) > 20 ? "critical"
-                : "warning";
-              return (
-                <tr key={r.ym}>
-                  <td className="px-3 py-2 font-medium capitalize">{yearMonthToLabel(r.ym)}</td>
-                  <td className="px-3 py-2 text-right">{formatCurrency(r.totalPlan)}</td>
-                  <td className="px-3 py-2 text-right">{formatCurrency(r.totalFact)}</td>
-                  <td className={`px-3 py-2 text-right ${r.gap < 0 ? "text-red-600" : "text-emerald-600"}`}>
-                    {r.gap >= 0 ? "+" : ""}{formatCurrency(r.gap)}
-                  </td>
-                  <td className="px-3 py-2">
-                    {status === "critical" && <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">🔴 Разрыв {Math.round(Math.abs(r.gapPct))}%</span>}
-                    {status === "warning" && <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">⚠ Нужно ещё заказов</span>}
-                    {status === "ok" && <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">✓ ОК</span>}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      <div>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Детализация по категориям</h2>
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {rows.filter((r) => r.totalPlan > 0).map((r) => (
-            <div key={r.ym} className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="mb-2 text-sm font-medium capitalize text-slate-900">{yearMonthToLabel(r.ym)}</div>
-              <div className="space-y-1 text-xs">
-                {r.details.map((d) => (
-                  <div key={d.id} className="flex justify-between">
-                    <span className="text-slate-600">{d.category}</span>
-                    <span className={d.gap < 0 ? "text-red-600" : "text-slate-900"}>
-                      {formatCurrency(d.fact)} / {formatCurrency(d.plan)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">План / Факт {year}</h1>
+          <p className="text-sm text-slate-500">Агрегация заказов по месяцу начала продаж против плана</p>
         </div>
+        <Link
+          href="/admin/plans"
+          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+        >
+          Редактировать план →
+        </Link>
       </div>
+
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-slate-500">Год:</span>
+        {[year - 1, year, year + 1].map((y) => (
+          <Link
+            key={y}
+            href={`/plan-vs-fact?year=${y}`}
+            className={`rounded-full px-3 py-1 text-xs font-medium ${
+              y === year ? "bg-slate-900 text-white" : "bg-white text-slate-700 border border-slate-300"
+            }`}
+          >
+            {y}
+          </Link>
+        ))}
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">
+          На {year} год план не задан.{" "}
+          <Link href="/admin/plans" className="underline">
+            Завести план
+          </Link>
+          .
+        </div>
+      ) : (
+        <>
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Месяц</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">План</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Факт (из заказов)</th>
+                  <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Разрыв</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Статус</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((r) => {
+                  const status =
+                    r.totalPlan === 0 ? "ok"
+                    : r.gapPct >= 0 ? "ok"
+                    : Math.abs(r.gapPct) > 20 ? "critical"
+                    : "warning";
+                  return (
+                    <tr key={r.ym}>
+                      <td className="px-3 py-2 font-medium capitalize">{yearMonthToLabel(r.ym)}</td>
+                      <td className="px-3 py-2 text-right">{formatCurrency(r.totalPlan)}</td>
+                      <td className="px-3 py-2 text-right">{formatCurrency(r.totalFact)}</td>
+                      <td className={`px-3 py-2 text-right ${r.gap < 0 ? "text-red-600" : "text-emerald-600"}`}>
+                        {r.gap >= 0 ? "+" : ""}{formatCurrency(r.gap)}
+                      </td>
+                      <td className="px-3 py-2">
+                        {status === "critical" && <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">🔴 Разрыв {Math.round(Math.abs(r.gapPct))}%</span>}
+                        {status === "warning" && <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">⚠ Нужно ещё заказов</span>}
+                        {status === "ok" && <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">✓ ОК</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div>
+            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Детализация по категориям</h2>
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {rows.filter((r) => r.totalPlan > 0).map((r) => (
+                <div key={r.ym} className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="mb-2 text-sm font-medium capitalize text-slate-900">{yearMonthToLabel(r.ym)}</div>
+                  <div className="space-y-1 text-xs">
+                    {r.details.map((d) => (
+                      <div key={d.id} className="flex justify-between">
+                        <span className="text-slate-600">{d.category}</span>
+                        <span className={d.gap < 0 ? "text-red-600" : "text-slate-900"}>
+                          {formatCurrency(d.fact)} / {formatCurrency(d.plan)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
