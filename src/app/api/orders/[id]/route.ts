@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { orderUpdateSchema } from "@/lib/validators/order";
 import { computeOrderStatus } from "@/lib/order-auto-status";
+import { logAudit } from "@/server/audit";
 import { z } from "zod";
 
 // Универсальная схема для обновления заказа (поля + флаги + даты + платежи)
@@ -95,6 +96,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     delete processed.payments;
 
     let updated = await prisma.order.update({ where: { id }, data: processed });
+    await logAudit({
+      action: "UPDATE",
+      entityType: "Order",
+      entityId: id,
+      userId: session.user.id,
+      changes: processed,
+    });
 
     // Автостатус из положения в Ганте
     const newStatus = computeOrderStatus({
@@ -154,6 +162,12 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     }
     const { id } = await ctx.params;
     await prisma.order.update({ where: { id }, data: { deletedAt: new Date() } });
+    await logAudit({
+      action: "DELETE",
+      entityType: "Order",
+      entityId: id,
+      userId: session.user.id,
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return apiError(e);

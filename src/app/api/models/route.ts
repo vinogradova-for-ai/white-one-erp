@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { modelCreateSchema } from "@/lib/validators/model";
+import { logAudit } from "@/server/audit";
 import { Prisma } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
@@ -56,6 +57,13 @@ export async function POST(req: NextRequest) {
         changedById: session.user.id,
         comment: "Создание",
       },
+    });
+    await logAudit({
+      action: "CREATE",
+      entityType: "ProductModel",
+      entityId: model.id,
+      userId: session.user.id,
+      changes: { name: model.name, category: model.category },
     });
     return NextResponse.json(model, { status: 201 });
   } catch (e) {

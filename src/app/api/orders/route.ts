@@ -7,6 +7,7 @@ import { orderCreateSchema } from "@/lib/validators/order";
 import { calculateOrderEconomics } from "@/lib/calculations/product-cost";
 import { generatePaymentsForOrder } from "@/lib/payments/generate-for-order";
 import { normalizeOrderDates } from "@/lib/normalize-phase-dates";
+import { logAudit } from "@/server/audit";
 
 async function nextOrderNumber() {
   const year = new Date().getUTCFullYear();
@@ -121,6 +122,13 @@ export async function POST(req: NextRequest) {
     });
     await prisma.orderStatusLog.create({
       data: { orderId: order.id, toStatus: order.status, changedById: session.user.id, comment: "Создание" },
+    });
+    await logAudit({
+      action: "CREATE",
+      entityType: "Order",
+      entityId: order.id,
+      userId: session.user.id,
+      changes: { orderNumber: order.orderNumber, productModelId: order.productModelId },
     });
 
     // Копируем комплект упаковки с фасона
