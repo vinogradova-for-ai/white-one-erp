@@ -7,14 +7,13 @@ import { FilterDropdown } from "@/components/common/filter-dropdown";
 export type KanbanFilterOptions = {
   categories: Array<{ value: string; label: string; count: number }>;
   owners: Array<{ value: string; label: string; count: number }>;
-  productionRegions: Array<{ value: string; label: string; count: number }>;
+  statuses: Array<{ value: string; label: string; count: number }>;
 };
 
 /**
- * Шапка фильтров для канбана фасонов — точно в том же стиле, что и /gantt-v2.
- * Категория · Ответственный · Производство — multi-select dropdowns с
- * клиентской фильтрацией. Под шапкой — обычный BoardClient с отфильтрованными
- * buckets.
+ * Шапка фильтров для канбана фасонов — в стиле /orders.
+ * Категория · Ответственный · Статус (= колонка канбана) —
+ * multi-select dropdowns с клиентской фильтрацией.
  */
 export function KanbanFiltersClient({
   columns,
@@ -30,8 +29,8 @@ export function KanbanFiltersClient({
   const [filters, setFilters] = useState<{
     category: string[];
     ownerId: string[];
-    productionRegion: string[];
-  }>({ category: [], ownerId: [], productionRegion: [] });
+    status: string[];
+  }>({ category: [], ownerId: [], status: [] });
 
   const filteredBuckets = useMemo(() => {
     const out: Record<string, KanbanCard[]> = {};
@@ -40,7 +39,7 @@ export function KanbanFiltersClient({
       const cards = (buckets[col.key] ?? []).filter((c) => {
         if (filters.category.length && !filters.category.includes(c.category)) return false;
         if (filters.ownerId.length && (!c.ownerId || !filters.ownerId.includes(c.ownerId))) return false;
-        if (filters.productionRegion.length && (!c.productionRegion || !filters.productionRegion.includes(c.productionRegion))) return false;
+        if (filters.status.length && !filters.status.includes(col.key)) return false;
         return true;
       });
       out[col.key] = cards;
@@ -74,10 +73,10 @@ export function KanbanFiltersClient({
             onChange={(v) => setFilters((f) => ({ ...f, ownerId: v }))}
           />
           <FilterDropdown
-            label="Производство"
-            options={filterOptions.productionRegions}
-            value={filters.productionRegion}
-            onChange={(v) => setFilters((f) => ({ ...f, productionRegion: v }))}
+            label="Статус"
+            options={filterOptions.statuses}
+            value={filters.status}
+            onChange={(v) => setFilters((f) => ({ ...f, status: v }))}
           />
         </div>
       </div>

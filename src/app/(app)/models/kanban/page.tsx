@@ -113,23 +113,6 @@ function pickDeadline(col: string, model: { sampleDate: Date | null; approvedDat
   return null;
 }
 
-// Регион производства (см. /gantt-v2): по preferredFactory фасона.
-// Имя содержит «тяк» → tyak. Иначе по стране: «Росс…» → ru, «Кит…» / «CN» → cn.
-function productionRegionOf(
-  factory: { name: string | null; country: string | null } | null | undefined,
-): "ru" | "cn" | "tyak" | null {
-  if (!factory) return null;
-  const name = (factory.name ?? "").toLowerCase();
-  if (name.includes("тяк")) return "tyak";
-  const country = (factory.country ?? "").toLowerCase();
-  if (country.startsWith("росс")) return "ru";
-  if (country.startsWith("кит") || country === "cn") return "cn";
-  return null;
-}
-const PRODUCTION_REGION_LABEL: Record<"ru" | "cn" | "tyak", string> = {
-  ru: "Россия", cn: "Китай", tyak: "Тяк",
-};
-
 export default async function ModelsKanbanPage() {
   const todayIso = moscowToday();
 
@@ -211,7 +194,7 @@ export default async function ModelsKanbanPage() {
       palette: pickPalette(m.id),
       factoryName: order?.factory?.name ?? m.preferredFactory?.name ?? null,
       ownerId: m.ownerId,
-      productionRegion: productionRegionOf(order?.factory ?? m.preferredFactory),
+      columnKey: column,
       qty,
       orderNumber: order?.orderNumber ?? null,
       orderId: order?.id ?? null,
@@ -225,7 +208,6 @@ export default async function ModelsKanbanPage() {
   const allCards = COLUMNS.flatMap((c) => buckets[c.key]);
   const categoryCount = new Map<string, number>();
   const ownerMap = new Map<string, { name: string; count: number }>();
-  const regionCount: Record<"ru" | "cn" | "tyak", number> = { ru: 0, cn: 0, tyak: 0 };
   for (const c of allCards) {
     categoryCount.set(c.category, (categoryCount.get(c.category) ?? 0) + 1);
     if (c.ownerId) {
@@ -233,7 +215,6 @@ export default async function ModelsKanbanPage() {
       const m = models.find((m) => m.ownerId === c.ownerId);
       ownerMap.set(c.ownerId, { name: m?.owner?.name ?? "", count: (own?.count ?? 0) + 1 });
     }
-    if (c.productionRegion) regionCount[c.productionRegion]++;
   }
   const filterOptions: KanbanFilterOptions = {
     categories: [...categoryCount.entries()]
@@ -242,11 +223,13 @@ export default async function ModelsKanbanPage() {
     owners: [...ownerMap.entries()]
       .sort((a, b) => a[1].name.localeCompare(b[1].name))
       .map(([value, { name, count }]) => ({ value, label: name, count })),
-    productionRegions: (["ru", "cn", "tyak"] as const).map((v) => ({
-      value: v,
-      label: PRODUCTION_REGION_LABEL[v],
-      count: regionCount[v],
-    })),
+    statuses: COLUMNS
+      .map((col) => ({
+        value: col.key,
+        label: col.title,
+        count: buckets[col.key]?.length ?? 0,
+      }))
+      .filter((s) => s.count > 0),
   };
 
   return (
