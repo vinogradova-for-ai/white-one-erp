@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { variantCreateSchema } from "@/lib/validators/variant";
+import { logAudit } from "@/server/audit";
 import { Prisma } from "@prisma/client";
 
 export async function GET() {
@@ -36,6 +37,13 @@ export async function POST(req: NextRequest) {
         changedById: session.user.id,
         comment: "Создание",
       },
+    });
+    await logAudit({
+      action: "CREATE",
+      entityType: "ProductVariant",
+      entityId: variant.id,
+      userId: session.user.id,
+      changes: { sku: variant.sku, colorName: variant.colorName },
     });
     return NextResponse.json(variant, { status: 201 });
   } catch (e) {

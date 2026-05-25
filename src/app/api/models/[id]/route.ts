@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { modelUpdateSchema } from "@/lib/validators/model";
+import { logAudit } from "@/server/audit";
 import { Prisma } from "@prisma/client";
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -56,6 +57,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         patternsUrl: data.patternsUrl === undefined ? undefined : data.patternsUrl || null,
       } as Prisma.ProductModelUncheckedUpdateInput,
     });
+    await logAudit({
+      action: "UPDATE",
+      entityType: "ProductModel",
+      entityId: id,
+      userId: session.user.id,
+      changes: data,
+    });
     return NextResponse.json(updated);
   } catch (e) {
     return apiError(e);
@@ -68,6 +76,12 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     assertCan(session.user.role, "product.delete");
     const { id } = await ctx.params;
     await prisma.productModel.update({ where: { id }, data: { deletedAt: new Date() } });
+    await logAudit({
+      action: "DELETE",
+      entityType: "ProductModel",
+      entityId: id,
+      userId: session.user.id,
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return apiError(e);

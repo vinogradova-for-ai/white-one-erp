@@ -29,6 +29,7 @@ const ADMIN_NAV: Array<{ href: string; label: string; icon: string }> = [
   { href: "/admin/users", label: "Сотрудники", icon: "☉" },
   { href: "/admin/size-grids", label: "Размерные сетки", icon: "#" },
   { href: "/admin/plans", label: "План продаж", icon: "Σ" },
+  { href: "/admin/audit-log", label: "Журнал действий", icon: "≡" },
 ];
 
 export function Sidebar({ user }: { user: { name?: string | null; email?: string | null; role: Role } }) {

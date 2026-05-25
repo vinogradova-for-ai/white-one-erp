@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { variantUpdateSchema } from "@/lib/validators/variant";
+import { logAudit } from "@/server/audit";
 import { Prisma } from "@prisma/client";
 import { canMoveVariantStatus } from "@/lib/status-machine/product-statuses";
 
@@ -54,6 +55,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       where: { id },
       data: data as Prisma.ProductVariantUncheckedUpdateInput,
     });
+    await logAudit({
+      action: data.status && data.status !== existing.status ? "STATUS_CHANGE" : "UPDATE",
+      entityType: "ProductVariant",
+      entityId: id,
+      userId: session.user.id,
+      changes: data,
+    });
     return NextResponse.json(updated);
   } catch (e) {
     return apiError(e);
@@ -73,6 +81,12 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     await prisma.productVariant.update({
       where: { id },
       data: { deletedAt: new Date(), sku: archivedSku },
+    });
+    await logAudit({
+      action: "DELETE",
+      entityType: "ProductVariant",
+      entityId: id,
+      userId: session.user.id,
     });
     return NextResponse.json({ ok: true });
   } catch (e) {
