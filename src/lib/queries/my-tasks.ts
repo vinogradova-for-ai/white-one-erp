@@ -183,94 +183,15 @@ export async function getMyTasks(userId: string, role: Role): Promise<MyTask[]> 
 
     }
 
-    // === Логистика (Таня) ===
-    if (role === "LOGISTICS" || isAdmin) {
-      if (o.status === "READY_SHIP" && !o.deliveryMethod) {
-        tasks.push(mkTask({
-          id: `order-${o.id}-pick-delivery`,
-          entityType: "order", entityId: o.id,
-          action: "Выберите способ доставки",
-          title, subtitle, deadline: o.shipmentDate,
-          url, photoUrl, category: "shipping",
-        }));
-      }
-      if (o.status === "READY_SHIP" && o.deliveryMethod) {
-        tasks.push(mkTask({
-          id: `order-${o.id}-ship`,
-          entityType: "order", entityId: o.id,
-          action: "Отправьте груз",
-          title, subtitle, deadline: o.shipmentDate,
-          url, photoUrl, category: "shipping",
-        }));
-      }
-      if (o.status === "IN_TRANSIT") {
-        const isClose = o.arrivalPlannedDate && daysBetween(new Date(), o.arrivalPlannedDate) <= 3;
-        tasks.push(mkTask({
-          id: `order-${o.id}-track`,
-          entityType: "order", entityId: o.id,
-          action: isClose ? "Отметьте прибытие (скоро)" : "Отслеживайте доставку",
-          title, subtitle: `${subtitle} · ETA ${formatShort(o.arrivalPlannedDate)}`,
-          deadline: o.arrivalPlannedDate,
-          url, photoUrl, category: "shipping",
-        }));
-      }
-    }
-
-    // === Склад / Настя ===
-    if (role === "ASSISTANT" || isAdmin) {
-      if (o.status === "PACKING" && !o.packagingOrdered) {
-        tasks.push(mkTask({
-          id: `order-${o.id}-order-packaging`,
-          entityType: "order", entityId: o.id,
-          action: "Закажите упаковку",
-          title, subtitle: `${subtitle} · ${o.packagingType ?? "тип не указан"}`,
-          deadline: null,
-          url: `${url}#packing`, photoUrl, category: "packing",
-        }));
-      }
-      if (o.status === "PACKING" && o.packagingOrdered) {
-        tasks.push(mkTask({
-          id: `order-${o.id}-pack`,
-          entityType: "order", entityId: o.id,
-          action: "Упакуйте товар",
-          title, subtitle, deadline: o.wbShipmentDate,
-          url: `${url}#packing`, photoUrl, category: "packing",
-        }));
-      }
-    }
-
-    // === Контент (Катя) ===
-    if (role === "CONTENT_MANAGER" || isAdmin) {
-      // Заказы скоро придут — надо готовить карточку
-      if (["IN_TRANSIT", "WAREHOUSE_MSK"].includes(o.status) && !o.wbCardReady) {
-        const daysToArrival = o.arrivalPlannedDate ? daysBetween(new Date(), o.arrivalPlannedDate) : null;
-        if (daysToArrival !== null && daysToArrival <= 14) {
-          tasks.push(mkTask({
-            id: `order-${o.id}-prep-wb-card`,
-            entityType: "order", entityId: o.id,
-            action: "Подготовьте карточку WB (товар скоро на складе)",
-            title, subtitle: `${subtitle} · прибытие ${formatShort(o.arrivalPlannedDate)}`,
-            deadline: o.arrivalPlannedDate,
-            url: `${url}#wb`, photoUrl, category: "content",
-          }));
-        }
-      }
-      if (o.status === "SHIPPED_WB" && !o.wbCardReady) {
-        tasks.push(mkTask({
-          id: `order-${o.id}-finalize-wb-card`,
-          entityType: "order", entityId: o.id,
-          action: "Доделайте карточку WB — товар отгружен",
-          title, subtitle, deadline: o.saleStartDate,
-          url: `${url}#wb`, photoUrl, category: "content",
-        }));
-      }
-    }
+    // Логистика, Контент, ВБ — это другие отделы. В этом сервисе они read-only
+    // (заходят посмотреть, что едет / какие артикулы на съёмку — и уходят).
+    // Задач «отметь прибытие / готовность карточки / упаковку заказана» не делаем —
+    // эти данные приходят из внешних систем (или вообще не нужны в ERP отдела Продукт).
   }
 
   // ====== УПАКОВКА — дефицит по активным заказам ======
-  // Настя/Таня (ASSISTANT/LOGISTICS) и админы: видят задачу «запустить производство упаковки»
-  // OWNER/DIRECTOR видят то же + агрегированные риски по заказам.
-  if (role === "ASSISTANT" || role === "LOGISTICS" || isAdmin) {
+  // Видят админы и PM (продуктологи): они принимают решение «запускать ли производство упаковки».
+  if (isPm) {
     const packagingItems = await prisma.packagingItem.findMany({
       where: { isActive: true },
       include: {
