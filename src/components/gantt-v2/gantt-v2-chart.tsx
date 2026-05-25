@@ -348,6 +348,7 @@ export function GanttV2Chart({
                 gridCols={gridCols}
                 onBarChange={onBarChange}
                 pendingChanges={pendingChanges}
+                zoom={zoom}
               />
             ))}
           </div>
@@ -376,7 +377,7 @@ export function GanttV2Chart({
 }
 
 function GroupBlock({
-  group, marks, totalDays, todayPct, posPct, chartStart, chartEnd, density, showHeader, gridCols, onBarChange, pendingChanges,
+  group, marks, totalDays, todayPct, posPct, chartStart, chartEnd, density, showHeader, gridCols, onBarChange, pendingChanges, zoom,
 }: {
   group: GanttGroupView;
   marks: Array<{ iso: string; pct: number; isStrong: boolean; isMonthStart?: boolean; isWeekend?: boolean }>;
@@ -390,6 +391,7 @@ function GroupBlock({
   gridCols: string;
   onBarChange: (orderId: string, endField: string, newDateIso: string, group: GanttGroup) => void;
   pendingChanges: Record<string, string>;
+  zoom: GanttZoom;
 }) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -441,6 +443,7 @@ function GroupBlock({
           gridCols={gridCols}
           onBarChange={onBarChange}
           pendingChanges={pendingChanges}
+          zoom={zoom}
         />
       ))}
     </div>
@@ -448,7 +451,7 @@ function GroupBlock({
 }
 
 function RowView({
-  row, marks, totalDays, todayPct, posPct, chartStart, chartEnd, density, gridCols, onBarChange, pendingChanges,
+  row, marks, totalDays, todayPct, posPct, chartStart, chartEnd, density, gridCols, onBarChange, pendingChanges, zoom,
 }: {
   row: GanttRowV2;
   marks: Array<{ iso: string; pct: number; isStrong: boolean; isMonthStart?: boolean; isWeekend?: boolean }>;
@@ -461,6 +464,7 @@ function RowView({
   gridCols: string;
   onBarChange: (orderId: string, endField: string, newDateIso: string, group: GanttGroup) => void;
   pendingChanges: Record<string, string>;
+  zoom: GanttZoom;
 }) {
   return (
     <div className="grid border-b border-slate-100 hover:bg-slate-50/50" style={{ gridTemplateColumns: gridCols }}>
@@ -507,10 +511,10 @@ function RowView({
             />
           );
         })}
-        {/* Зебра выходных — фон Сб/Вс едва заметнее, без переспама. */}
-        {marks.filter((m) => m.isWeekend).map((m) => {
-          // Каждый выходной — узкая полоса шириной 1 день. Считаем pct правой
-          // границы как pct + (1/totalDays)*100.
+        {/* Зебра выходных — только на зуме «1 нед», где видна разница «день недели».
+            На месячном и трёхмесячном масштабе зебра превращалась в полосатый
+            фон и мешала смотреть плашки (Алёна явно). */}
+        {zoom === "1w" && marks.filter((m) => m.isWeekend).map((m) => {
           const widthPct = (1 / totalDays) * 100;
           return (
             <div
