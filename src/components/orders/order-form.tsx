@@ -12,6 +12,7 @@ import { OrderTimeline } from "@/components/orders/order-timeline";
 import type { DeliveryMethod } from "@prisma/client";
 import { parseApiError, type ApiErrorResult } from "@/lib/api-error";
 import { FormErrorBanner } from "@/components/common/form-errors";
+import { resolveModelCost } from "@/lib/calculations/resolve-model-cost";
 
 type VariantOption = {
   id: string;
@@ -61,14 +62,8 @@ function sumSizes(dist: Record<string, number>): number {
   return Object.values(dist).reduce((a, b) => a + (Number(b) || 0), 0);
 }
 
-// Дефолтная себестоимость в рублях из фасона. Приоритет:
-//   1) purchasePriceRub (закупка в ₽)
-//   2) purchasePriceCny × cnyRubRate (закупка в ¥ + курс)
-//   3) fullCost (legacy расчёт)
-//   4) targetCostRub (legacy «Таргет» — нужно для старых фасонов до
-//      перехода на purchasePrice; иначе они подтягивались бы пустыми)
-//   5) targetCostCny × cnyRubRate
-// При отсутствии всего — пусто, Алёна введёт вручную.
+// Дефолтная себестоимость в рублях из фасона.
+// Приоритет — в общем хелпере resolveModelCost (тот же, что в backfill и на странице заказа).
 function modelDefaultUnitCost(m: {
   purchasePriceRub: string | null;
   purchasePriceCny: string | null;
@@ -77,16 +72,8 @@ function modelDefaultUnitCost(m: {
   targetCostRub: string | null;
   targetCostCny: string | null;
 }): string {
-  if (m.purchasePriceRub) return Number(m.purchasePriceRub).toString();
-  if (m.purchasePriceCny && m.cnyRubRate) {
-    return (Number(m.purchasePriceCny) * Number(m.cnyRubRate)).toFixed(2);
-  }
-  if (m.fullCost) return Number(m.fullCost).toString();
-  if (m.targetCostRub) return Number(m.targetCostRub).toString();
-  if (m.targetCostCny && m.cnyRubRate) {
-    return (Number(m.targetCostCny) * Number(m.cnyRubRate)).toFixed(2);
-  }
-  return "";
+  const c = resolveModelCost(m);
+  return c != null ? c.toString() : "";
 }
 
 // Пустое распределение — все размеры по нулю, чтобы Алёна заполняла вручную
