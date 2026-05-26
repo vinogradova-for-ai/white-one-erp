@@ -13,12 +13,17 @@ import { OrderPackagingSection } from "@/components/orders/order-packaging-secti
 import { OrderLinesSection } from "@/components/orders/order-lines-section";
 import { OrderTimelineEditor } from "@/components/orders/order-timeline-editor";
 import { CommentsThread } from "@/components/comments/comments-thread";
+import { auth } from "@/lib/auth";
 import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
 import { backfillOrderEconomicsFromModel } from "@/server/backfill-order-economics";
 import { resolveModelCost } from "@/lib/calculations/resolve-model-cost";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const session = await auth();
+  const sessionUser = session?.user as { id?: string; role?: string } | undefined;
+  const currentUserId = sessionUser?.id;
+  const isAdmin = sessionUser?.role === "OWNER" || sessionUser?.role === "DIRECTOR";
   // Авто-синк упаковки фасона. Если у фасона есть привязанная упаковка,
   // которая по какой-то причине не «протекла» в этот заказ — она
   // подтянется при следующем открытии заказа. Идемпотентно.
@@ -301,7 +306,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </details>
       )}
 
-      <CommentsThread entityType="order" entityId={order.id} />
+      <CommentsThread
+        entityType="order"
+        entityId={order.id}
+        currentUserId={currentUserId}
+        isAdmin={isAdmin}
+      />
     </div>
   );
 }

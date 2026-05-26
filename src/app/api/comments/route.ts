@@ -32,10 +32,34 @@ export async function GET(req: NextRequest) {
         { status: 400 },
       );
     }
+    // includeOrders=1 — для entityType=model тянет миксованный поток:
+    //   комменты самого фасона + комменты всех его заказов с меткой.
+    const includeOrders =
+      sp.get("includeOrders") === "1" && entityType === "model";
+
+    let orderRefs: Array<{ id: string; orderNumber: string }> = [];
+    if (includeOrders) {
+      orderRefs = await prisma.order.findMany({
+        where: { productModelId: entityId, deletedAt: null },
+        select: { id: true, orderNumber: true },
+      });
+    }
+    const orWhere = [
+      { entityType, entityId, deletedAt: null },
+      ...(orderRefs.length > 0
+        ? [{
+            entityType: "order",
+            entityId: { in: orderRefs.map((o) => o.id) },
+            deletedAt: null,
+          }]
+        : []),
+    ];
     const comments = await prisma.comment.findMany({
-      where: { entityType, entityId, deletedAt: null },
+      where: { OR: orWhere },
       orderBy: { createdAt: "desc" },
     });
+    const orderNumberByEntityId = new Map(orderRefs.map((o) => [o.id, o.orderNumber]));
+
     // Подтягиваем имена авторов одним запросом.
     const authorIds = [...new Set(comments.map((c) => c.authorId))];
     const authors = authorIds.length === 0
@@ -49,6 +73,11 @@ export async function GET(req: NextRequest) {
       comments: comments.map((c) => ({
         ...c,
         authorName: authorMap.get(c.authorId) ?? "—",
+        // Метка о привязке к заказу — рендерится в ленте на странице фасона.
+        contextLabel:
+          c.entityType === "order"
+            ? orderNumberByEntityId.get(c.entityId) ?? null
+            : null,
       })),
     });
   } catch (err) {
