@@ -90,32 +90,67 @@ export default async function DashboardPage({
   );
 }
 
+const ORDER_KINDS: ChecklistTask["kind"][] = ["order-qc", "accept-qc", "check-delivery"];
+
 function ChecklistGroup({ tasks }: { tasks: ChecklistTask[] }) {
-  const withDeadline = tasks.filter((t) => t.daysToDeadline !== null);
-  const idle = tasks.filter((t) => t.daysToDeadline === null);
+  const orderTasks = tasks.filter((t) => ORDER_KINDS.includes(t.kind));
+  const devTasks = tasks.filter((t) => !ORDER_KINDS.includes(t.kind));
+  const devWithDeadline = devTasks.filter((t) => t.daysToDeadline !== null);
+  const devIdle = devTasks.filter((t) => t.daysToDeadline === null);
 
   return (
-    <div className="space-y-6">
-      {withDeadline.length > 0 && (
-        <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          {withDeadline.map((t) => (
-            <ChecklistRow key={t.id} task={t} />
-          ))}
-        </ul>
+    <div className="space-y-8">
+      {orderTasks.length > 0 && (
+        <Section title="Заказы" count={orderTasks.length}>
+          <TaskList tasks={orderTasks} />
+        </Section>
       )}
-      {idle.length > 0 && (
-        <div>
-          <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Давно не двигалось
-          </h2>
-          <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-            {idle.map((t) => (
-              <ChecklistRow key={t.id} task={t} />
-            ))}
-          </ul>
-        </div>
+      {devTasks.length > 0 && (
+        <Section title="Разработка" count={devTasks.length}>
+          <div className="space-y-4">
+            {devWithDeadline.length > 0 && <TaskList tasks={devWithDeadline} />}
+            {devIdle.length > 0 && (
+              <div>
+                <div className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+                  Давно не двигалось
+                </div>
+                <TaskList tasks={devIdle} />
+              </div>
+            )}
+          </div>
+        </Section>
       )}
     </div>
+  );
+}
+
+function Section({
+  title,
+  count,
+  children,
+}: {
+  title: string;
+  count: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <section>
+      <div className="mb-3 flex items-baseline gap-2 px-1">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">{title}</h2>
+        <span className="text-xs text-slate-400">{count}</span>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function TaskList({ tasks }: { tasks: ChecklistTask[] }) {
+  return (
+    <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      {tasks.map((t) => (
+        <ChecklistRow key={t.id} task={t} />
+      ))}
+    </ul>
   );
 }
 
