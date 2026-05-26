@@ -5,6 +5,7 @@ import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, DELIVERY_METHOD_LABELS } from
 import { VariantVisual } from "@/components/common/variant-visual";
 import { ClickableRow } from "@/components/common/clickable-row";
 import { ColorChip } from "@/components/common/color-chip";
+import { IncomingExportButton } from "./export-button";
 
 /**
  * Окно для логистики (Таня).
@@ -47,9 +48,12 @@ export default async function IncomingPage() {
           <h1 className="text-2xl font-semibold text-slate-900">Поставки</h1>
           <p className="text-sm text-slate-500">Заказы в пути и к отгрузке: {orders.length}</p>
         </div>
-        <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5 ml-auto">
-          <span className="px-3 py-1 text-sm rounded-md bg-white text-slate-900 font-medium shadow-sm">Таблица</span>
-          <Link href="/incoming/calendar" className="px-3 py-1 text-sm rounded-md text-slate-600 hover:bg-white">Календарь</Link>
+        <div className="ml-auto flex items-center gap-2">
+          <IncomingExportButton />
+          <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5">
+            <span className="px-3 py-1 text-sm rounded-md bg-white text-slate-900 font-medium shadow-sm">Таблица</span>
+            <Link href="/incoming/calendar" className="px-3 py-1 text-sm rounded-md text-slate-600 hover:bg-white">Календарь</Link>
+          </div>
         </div>
       </div>
 

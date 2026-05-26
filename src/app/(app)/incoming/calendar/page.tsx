@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatNumber } from "@/lib/format";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
 import { ColorChip } from "@/components/common/color-chip";
+import { IncomingExportButton } from "../export-button";
 
 // Календарный вид Поставок. Заказы группируются по arrivalPlannedDate
 // (дате плановой даты прибытия). Если факт-дата стоит — карточка переезжает
@@ -158,9 +159,12 @@ export default async function IncomingCalendarPage({
           <h1 className="text-2xl font-semibold text-slate-900">Поставки</h1>
           <p className="text-sm text-slate-500">Заказы в пути и к отгрузке: {orders.length}</p>
         </div>
-        <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5 ml-auto">
-          <Link href="/incoming" className="px-3 py-1 text-sm rounded-md text-slate-600 hover:bg-white">Таблица</Link>
-          <span className="px-3 py-1 text-sm rounded-md bg-white text-slate-900 font-medium shadow-sm">Календарь</span>
+        <div className="ml-auto flex items-center gap-2">
+          <IncomingExportButton />
+          <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5">
+            <Link href="/incoming" className="px-3 py-1 text-sm rounded-md text-slate-600 hover:bg-white">Таблица</Link>
+            <span className="px-3 py-1 text-sm rounded-md bg-white text-slate-900 font-medium shadow-sm">Календарь</span>
+          </div>
         </div>
       </div>
 
