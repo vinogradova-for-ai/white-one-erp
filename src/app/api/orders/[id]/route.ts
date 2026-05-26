@@ -18,6 +18,7 @@ const fullOrderPatchSchema = orderUpdateSchema.extend({
   packagingOrdered: z.boolean().optional(),
   wbCardReady: z.boolean().optional(),
   hasIssue: z.boolean().optional(),
+  hasFactoryQc: z.boolean().optional(),
 
   // Оплаты (старые поля оставлены для обратной совместимости)
   prepaymentDate: z.string().nullable().optional(),

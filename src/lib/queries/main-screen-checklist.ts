@@ -147,7 +147,7 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
     const title = `${o.orderNumber} · ${o.productModel.name}`;
     const baseHref = `/orders/${o.id}`;
 
-    if (o.status === "SEWING" && o.readyAtFactoryDate) {
+    if (o.status === "SEWING" && o.readyAtFactoryDate && o.hasFactoryQc) {
       const days = daysFromToday(o.readyAtFactoryDate, today);
       if (days !== null && days <= URGENCY_WINDOW_DAYS) {
         tasks.push({
@@ -167,7 +167,7 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
       }
     }
 
-    if ((o.status === "QC" || o.status === "READY_SHIP") && o.qcDate) {
+    if ((o.status === "QC" || o.status === "READY_SHIP") && o.qcDate && o.hasFactoryQc) {
       const days = daysFromToday(o.qcDate, today);
       if (days !== null && days <= URGENCY_WINDOW_DAYS) {
         tasks.push({

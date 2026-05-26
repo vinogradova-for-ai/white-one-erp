@@ -40,6 +40,7 @@ export function OrderEditForm({
     paymentTerms: string;
     packagingType: string;
     notes: string;
+    hasFactoryQc: boolean;
     timeline: Timeline;
     payments: PaymentRow[];
     totalAmount?: number;
@@ -56,6 +57,7 @@ export function OrderEditForm({
     deliveryMethod: order.deliveryMethod,
     paymentTerms: order.paymentTerms,
     notes: order.notes,
+    hasFactoryQc: order.hasFactoryQc,
   });
   const [timeline, setTimeline] = useState<Timeline>(order.timeline);
   // Если платежей нет, но известна сумма — автогенерация 30% / 70%
@@ -136,6 +138,7 @@ export function OrderEditForm({
         deliveryMethod: common.deliveryMethod || null,
         paymentTerms: common.paymentTerms || null,
         notes: common.notes || null,
+        hasFactoryQc: common.hasFactoryQc,
         decisionDate: timeline.decisionDate || null,
         handedToFactoryDate: timeline.handedToFactoryDate || null,
         readyAtFactoryDate: timeline.readyAtFactoryDate || null,
@@ -195,6 +198,17 @@ export function OrderEditForm({
             <option value="">—</option>
             {Object.entries(DELIVERY_METHOD_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
+        </Field>
+        <Field label="ОТК на фабрике">
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              checked={common.hasFactoryQc}
+              onChange={(e) => setCommon({ ...common, hasFactoryQc: e.target.checked })}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            <span>Фабрика проводит ОТК (по умолчанию да)</span>
+          </label>
         </Field>
       </Section>
 
