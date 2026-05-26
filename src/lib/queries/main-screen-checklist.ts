@@ -74,9 +74,19 @@ const SLA_DAYS_BY_KIND: Record<
   number
 > = {
   "order-sample": 14,
-  "approve-sample": 21,
+  // Алёна: «2 недели шьют образец — хороший повод вспомнить». Сократили с 21 до 14.
+  "approve-sample": 14,
   "size-chart": 7,
   "start-production": 7,
+};
+
+/** Понятный человеку статус фасона — для подсказки в idle/overdue. */
+const MODEL_STATUS_RU: Record<string, string> = {
+  IDEA: "идея",
+  PATTERNS: "лекала",
+  SAMPLE: "образец шьётся",
+  APPROVED: "образец утверждён",
+  IN_PRODUCTION: "в производстве",
 };
 
 function moscowToday(): Date {
@@ -159,11 +169,21 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
       const baseUrgency = urgencyOf(days);
       const urgency: TaskUrgency = slaBreached ? "overdue" : baseUrgency;
 
+      // Подпись статуса — чтобы в «Давно не двигалось» было видно где застрял
+      // фасон («идея», «образец шьётся», «образец утверждён» и т.д.).
+      const statusRu = MODEL_STATUS_RU[m.status] ?? m.status.toLowerCase();
+      const ageStr = `${ageInDays} дн без движения`;
+      const tail = slaBreached
+        ? `${statusRu} · ${ageStr}`
+        : days === null
+        ? `${statusRu} · ${ageStr}`
+        : null;
+
       tasks.push({
         id: `${kind}:${m.id}`,
         ownerId: m.ownerId!,
         ownerName: m.owner!.name,
-        text: slaBreached ? `${text} · ${ageInDays} дн без движения` : text,
+        text: tail ? `${text} · ${tail}` : text,
         href: baseHref,
         daysToDeadline: days,
         urgency,
