@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_ORDER } from "@/lib/constants";
+import { resolveModelCost } from "@/lib/calculations/resolve-model-cost";
 import {
   OrdersListClient,
   type OrdersListRow,
@@ -15,7 +16,15 @@ export default async function OrdersPage() {
     orderBy: [{ launchMonth: "asc" }, { createdAt: "asc" }],
     take: 500,
     include: {
-      productModel: { select: { name: true, category: true, photoUrls: true } },
+      // Подтягиваем экономические поля фасона для fallback'а в сумме заказа
+      // (тот же приоритет что в resolveModelCost, что и на /orders/[id]).
+      productModel: {
+        select: {
+          name: true, category: true, photoUrls: true,
+          fullCost: true, purchasePriceRub: true, purchasePriceCny: true,
+          cnyRubRate: true, targetCostRub: true, targetCostCny: true,
+        },
+      },
       lines: {
         include: {
           productVariant: { select: { colorName: true, photoUrls: true } },
@@ -27,22 +36,38 @@ export default async function OrdersPage() {
     },
   });
 
-  const rows: OrdersListRow[] = orders.map((o) => ({
-    id: o.id,
-    orderNumber: o.orderNumber,
-    orderType: o.orderType,
-    status: o.status,
-    isDelayed: o.isDelayed,
-    hasIssue: o.hasIssue,
-    arrivalPlannedDate: o.arrivalPlannedDate ? o.arrivalPlannedDate.toISOString() : null,
-    productModel: o.productModel,
-    factory: o.factory,
-    owner: o.owner,
-    lines: o.lines.map((l) => ({
-      quantity: l.quantity,
-      productVariant: l.productVariant,
-    })),
-  }));
+  const rows: OrdersListRow[] = orders.map((o) => {
+    const modelCost = resolveModelCost(o.productModel) ?? 0;
+    const totalAmount = o.lines.reduce((sum, l) => {
+      const lc = Number(l.batchCost ?? 0);
+      if (lc > 0) return sum + lc;
+      const snap = Number(l.snapshotFullCost ?? 0);
+      if (snap > 0) return sum + snap * l.quantity;
+      return sum + modelCost * l.quantity;
+    }, 0);
+
+    return {
+      id: o.id,
+      orderNumber: o.orderNumber,
+      orderType: o.orderType,
+      status: o.status,
+      isDelayed: o.isDelayed,
+      hasIssue: o.hasIssue,
+      arrivalPlannedDate: o.arrivalPlannedDate ? o.arrivalPlannedDate.toISOString() : null,
+      totalAmount,
+      productModel: {
+        name: o.productModel.name,
+        category: o.productModel.category,
+        photoUrls: o.productModel.photoUrls,
+      },
+      factory: o.factory,
+      owner: o.owner,
+      lines: o.lines.map((l) => ({
+        quantity: l.quantity,
+        productVariant: l.productVariant,
+      })),
+    };
+  });
 
   // Опции фильтров формируются из реальных данных, с подсчётом количества.
   const categoryCount = new Map<string, number>();

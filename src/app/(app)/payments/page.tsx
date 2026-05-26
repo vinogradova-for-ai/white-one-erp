@@ -183,12 +183,11 @@ async function CalendarView({
             const sum = dayPays.reduce((a, p) => a + Number(p.amount), 0);
             const isToday = c.day === todayDay;
             const isPast = c.date && c.date < todayStart;
-            const isWeekend = i % 7 >= 5;
             return (
               <div
                 key={i}
                 className={`min-h-28 border-b border-r border-slate-100 p-2 last:border-r-0 ${
-                  c.day == null ? "bg-slate-50/50" : isWeekend ? "bg-slate-50/30" : ""
+                  c.day == null ? "bg-slate-50/50" : ""
                 }`}
               >
                 {c.day != null && (
