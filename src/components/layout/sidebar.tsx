@@ -5,8 +5,9 @@ import type { Role } from "@prisma/client";
 // Минималистичная навигация: только то, что Алёна реально открывает каждый день.
 // Аналитика и админка спрятаны, ОТК-приёмка склада убраны.
 // Основной блок — то, чем отдел продукта работает каждый день.
+// «Главный» = /dashboard (чек-лист задач по 7 типам, подвкладки по PM).
 const NAV = [
-  { href: "/my-tasks", label: "Главный", icon: "✦" },
+  { href: "/dashboard", label: "Главный", icon: "✦" },
   { href: "/models", label: "Фасоны", icon: "⬢" },
   { href: "/models/kanban", label: "Канбан фасонов", icon: "▦" },
   { href: "/variants", label: "Цветомодели", icon: "◎" },
@@ -24,14 +25,13 @@ const MORE_NAV = [
   { href: "/incoming", label: "Поставки", icon: "▣" },
   { href: "/warehouse", label: "Склад", icon: "▩" },
   { href: "/content-schedule", label: "Артикулы для фотосессии", icon: "✿" },
-  { href: "/dashboard", label: "Сводка", icon: "◉" },
 ];
 
 const ADMIN_NAV: Array<{ href: string; label: string; icon: string }> = [
   { href: "/admin/users", label: "Сотрудники", icon: "☉" },
   { href: "/factories", label: "Фабрики", icon: "⛭" },
   { href: "/admin/size-grids", label: "Размерные сетки", icon: "#" },
-  { href: "/admin/plans", label: "План продаж", icon: "Σ" },
+  { href: "/admin/plans", label: "Планирование работы", icon: "Σ" },
   { href: "/admin/audit-log", label: "Журнал действий", icon: "≡" },
 ];
 

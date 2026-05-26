@@ -6,23 +6,21 @@ import { useState } from "react";
 // Нижний таб-бар: 4 ключевых направления + кнопка «Ещё»,
 // которая открывает полный список разделов снизу.
 const TABS = [
-  { href: "/my-tasks", label: "Задачи", icon: "✦" },
+  { href: "/dashboard", label: "Главный", icon: "✦" },
   { href: "/models", label: "Каталог", icon: "⬢" },
   { href: "/orders", label: "Заказы", icon: "⬡" },
   { href: "/packaging", label: "Упаковка", icon: "▯" },
 ];
 
 const MORE_LINKS = [
-  { href: "/dashboard", label: "Сводка", icon: "◉" },
   { href: "/variants", label: "Цветомодели", icon: "◎" },
   { href: "/packaging-orders", label: "Заказы упаковки", icon: "▥" },
   { href: "/gantt-v2", label: "График Ганта", icon: "▦" },
+  { href: "/plan-vs-fact", label: "План / Факт", icon: "⎋" },
   { href: "/payments", label: "Платежи", icon: "₽" },
-  { href: "/content-schedule", label: "Артикулы для фотосессии", icon: "✿" },
   { href: "/incoming", label: "Поставки", icon: "▣" },
   { href: "/warehouse", label: "Склад", icon: "▩" },
-  { href: "/plan-vs-fact", label: "План / Факт", icon: "⎋" },
-  { href: "/factories", label: "Фабрики", icon: "⛭" },
+  { href: "/content-schedule", label: "Артикулы для фотосессии", icon: "✿" },
 ];
 
 export function MobileNav() {
