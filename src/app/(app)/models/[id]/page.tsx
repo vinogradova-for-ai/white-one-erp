@@ -14,11 +14,17 @@ import { VariantVisual } from "@/components/common/variant-visual";
 import { ColorChip } from "@/components/common/color-chip";
 import { DeleteButton } from "@/components/common/delete-button";
 import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
+import { CommentsThread } from "@/components/comments/comments-thread";
+import { auth } from "@/lib/auth";
 
 export default async function ModelDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   // Авто-синк упаковки фасона → открытые заказы (идемпотентно).
   await syncModelPackagingToOrders(id);
+  const session = await auth();
+  const sessionUser = session?.user as { id?: string; role?: string } | undefined;
+  const currentUserId = sessionUser?.id;
+  const isAdmin = sessionUser?.role === "OWNER" || sessionUser?.role === "DIRECTOR";
 
   const model = await prisma.productModel.findFirst({
     where: { id, deletedAt: null },
@@ -288,6 +294,13 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
         )}
       </section>
 
+      <CommentsThread
+        entityType="model"
+        entityId={model.id}
+        currentUserId={currentUserId}
+        isAdmin={isAdmin}
+        includeOrders
+      />
     </div>
   );
 }
