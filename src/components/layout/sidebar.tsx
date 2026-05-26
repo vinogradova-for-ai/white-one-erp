@@ -4,6 +4,7 @@ import type { Role } from "@prisma/client";
 
 // Минималистичная навигация: только то, что Алёна реально открывает каждый день.
 // Аналитика и админка спрятаны, ОТК-приёмка склада убраны.
+// Основной блок — то, чем отдел продукта работает каждый день.
 const NAV = [
   { href: "/my-tasks", label: "Главный", icon: "✦" },
   { href: "/models", label: "Фасоны", icon: "⬢" },
@@ -13,20 +14,22 @@ const NAV = [
   { href: "/packaging", label: "Упаковка", icon: "▯" },
   { href: "/packaging-orders", label: "Заказы упаковки", icon: "▥" },
   { href: "/gantt-v2", label: "График Ганта", icon: "▦" },
-  { href: "/payments", label: "Платежи", icon: "₽" },
+  { href: "/plan-vs-fact", label: "План/Факт", icon: "⎋" },
 ];
 
+// Смежные отделы — разделы, за которыми приходят финансы / склад / ВЭД / контент.
+// Они здесь только СМОТРЯТ; работаем в системе мы (отдел продукта).
 const MORE_NAV = [
-  { href: "/dashboard", label: "Сводка", icon: "◉" },
-  { href: "/content-schedule", label: "Артикулы для фотосессии", icon: "✿" },
+  { href: "/payments", label: "Платежи", icon: "₽" },
   { href: "/incoming", label: "Поставки", icon: "▣" },
   { href: "/warehouse", label: "Склад", icon: "▩" },
-  { href: "/plan-vs-fact", label: "План/Факт", icon: "⎋" },
-  { href: "/factories", label: "Фабрики", icon: "⛭" },
+  { href: "/content-schedule", label: "Артикулы для фотосессии", icon: "✿" },
+  { href: "/dashboard", label: "Сводка", icon: "◉" },
 ];
 
 const ADMIN_NAV: Array<{ href: string; label: string; icon: string }> = [
   { href: "/admin/users", label: "Сотрудники", icon: "☉" },
+  { href: "/factories", label: "Фабрики", icon: "⛭" },
   { href: "/admin/size-grids", label: "Размерные сетки", icon: "#" },
   { href: "/admin/plans", label: "План продаж", icon: "Σ" },
   { href: "/admin/audit-log", label: "Журнал действий", icon: "≡" },
@@ -46,7 +49,7 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
         ))}
 
         <div className="mt-5 px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-slate-400">
-          Ещё
+          Смежные отделы
         </div>
         {MORE_NAV.map((item) => <NavItem key={item.href} {...item} />)}
 
