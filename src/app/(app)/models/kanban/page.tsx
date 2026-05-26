@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ORDER_STATUS_ORDER } from "@/lib/constants";
 import { OrderStatus, ProductModelStatus } from "@prisma/client";
@@ -259,13 +258,6 @@ export default async function ModelsKanbanPage() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5">
-          <Link href="/models" className="px-3 py-1 text-sm rounded-md text-slate-600 hover:bg-white">Список</Link>
-          <span className="px-3 py-1 text-sm rounded-md bg-white text-slate-900 font-medium shadow-sm">Канбан</span>
-        </div>
-      </div>
-
       <KanbanFiltersClient
         columns={COLUMNS}
         buckets={buckets}
