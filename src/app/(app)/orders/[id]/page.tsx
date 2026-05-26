@@ -12,6 +12,7 @@ import { InlineCheckbox } from "@/components/common/inline-checkbox";
 import { OrderPackagingSection } from "@/components/orders/order-packaging-section";
 import { OrderLinesSection } from "@/components/orders/order-lines-section";
 import { OrderTimelineEditor } from "@/components/orders/order-timeline-editor";
+import { CommentsThread } from "@/components/comments/comments-thread";
 import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
 import { backfillOrderEconomicsFromModel } from "@/server/backfill-order-economics";
 import { resolveModelCost } from "@/lib/calculations/resolve-model-cost";
@@ -299,6 +300,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           </div>
         </details>
       )}
+
+      <CommentsThread entityType="order" entityId={order.id} />
     </div>
   );
 }

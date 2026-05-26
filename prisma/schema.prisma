@@ -823,3 +823,32 @@ enum PackagingOrderStatus {
   ARRIVED
   CANCELLED
 }
+
+// ======================================================
+// COMMENT — универсальные комментарии (полиморфно)
+// ======================================================
+
+model Comment {
+  id          String   @id @default(cuid())
+
+  // Полиморфная привязка: "model" | "order" (потенциально другие сущности).
+  // Не делаем явных foreign key — для гибкости. Целостность через приложение.
+  entityType  String
+  entityId    String
+
+  authorId    String
+  body        String   @db.Text
+  photoUrls   String[] @default([])
+
+  // Зарезервировано под треды — пока не используется в UI.
+  parentId    String?
+
+  createdAt   DateTime  @default(now())
+  // Null если не правили. При редактировании — обновляется.
+  updatedAt   DateTime?
+  // Soft delete — никогда не удаляем физически.
+  deletedAt   DateTime?
+
+  @@index([entityType, entityId, createdAt])
+  @@index([authorId])
+}
