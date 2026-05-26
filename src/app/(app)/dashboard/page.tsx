@@ -3,8 +3,10 @@ import { auth } from "@/lib/auth";
 import {
   getMainScreenChecklist,
   groupByOwner,
+  zoneOf,
   type ChecklistTask,
   type TaskUrgency,
+  type TaskZone,
 } from "@/lib/queries/main-screen-checklist";
 import type { Role } from "@prisma/client";
 
@@ -92,24 +94,46 @@ export default async function DashboardPage({
 
 const ORDER_KINDS: ChecklistTask["kind"][] = ["order-qc", "accept-qc", "check-delivery"];
 
+const ZONES: Array<{ key: TaskZone; title: string; muted: boolean }> = [
+  { key: "now", title: "Сейчас", muted: false },
+  { key: "this-week", title: "На неделе", muted: false },
+  { key: "next-week", title: "Следующая неделя", muted: true },
+];
+
 function ChecklistGroup({ tasks }: { tasks: ChecklistTask[] }) {
+  return (
+    <div className="space-y-10">
+      {ZONES.map((zone) => {
+        const zoneTasks = tasks.filter((t) => zoneOf(t.urgency) === zone.key);
+        if (zoneTasks.length === 0) return null;
+        return (
+          <Zone key={zone.key} title={zone.title} count={zoneTasks.length} muted={zone.muted}>
+            <ZoneBody tasks={zoneTasks} showIdle={zone.key === "now"} />
+          </Zone>
+        );
+      })}
+    </div>
+  );
+}
+
+function ZoneBody({ tasks, showIdle }: { tasks: ChecklistTask[]; showIdle: boolean }) {
   const orderTasks = tasks.filter((t) => ORDER_KINDS.includes(t.kind));
   const devTasks = tasks.filter((t) => !ORDER_KINDS.includes(t.kind));
   const devWithDeadline = devTasks.filter((t) => t.daysToDeadline !== null);
   const devIdle = devTasks.filter((t) => t.daysToDeadline === null);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {orderTasks.length > 0 && (
         <Section title="Заказы" count={orderTasks.length}>
           <TaskList tasks={orderTasks} />
         </Section>
       )}
-      {devTasks.length > 0 && (
+      {(devWithDeadline.length > 0 || (showIdle && devIdle.length > 0)) && (
         <Section title="Разработка" count={devTasks.length}>
           <div className="space-y-4">
             {devWithDeadline.length > 0 && <TaskList tasks={devWithDeadline} />}
-            {devIdle.length > 0 && (
+            {showIdle && devIdle.length > 0 && (
               <div>
                 <div className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-slate-400">
                   Давно не двигалось
@@ -121,6 +145,30 @@ function ChecklistGroup({ tasks }: { tasks: ChecklistTask[] }) {
         </Section>
       )}
     </div>
+  );
+}
+
+function Zone({
+  title,
+  count,
+  muted,
+  children,
+}: {
+  title: string;
+  count: number;
+  muted: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className={muted ? "opacity-75" : ""}>
+      <div className="mb-4 flex items-baseline gap-3 border-b border-slate-200 pb-1">
+        <h2 className={`text-base font-semibold ${muted ? "text-slate-500" : "text-slate-900"}`}>
+          {title}
+        </h2>
+        <span className="text-xs text-slate-400">{count}</span>
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -180,8 +228,10 @@ function UrgencyDot({ urgency }: { urgency: TaskUrgency }) {
       ? "bg-red-500"
       : urgency === "soon"
       ? "bg-amber-400"
-      : urgency === "later"
+      : urgency === "this-week"
       ? "bg-slate-300"
+      : urgency === "next-week"
+      ? "bg-slate-200"
       : "bg-slate-200";
   return <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${cls}`} aria-hidden />;
 }
