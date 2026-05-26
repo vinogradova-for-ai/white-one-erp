@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { formatDate, formatNumber } from "@/lib/format";
+import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_TYPE_LABELS } from "@/lib/constants";
 import { VariantVisual } from "@/components/common/variant-visual";
 import { ColorChip } from "@/components/common/color-chip";
@@ -18,6 +18,9 @@ export type OrdersListRow = {
   isDelayed: boolean;
   hasIssue: boolean;
   arrivalPlannedDate: string | null;
+  /** Себестоимость заказа в рублях. Считается на серверной странице из снапшотов
+   *  по линиям + fallback на fullCost фасона. 0 если данных нет. */
+  totalAmount: number;
   productModel: { name: string; category: string; photoUrls: string[] };
   factory: { name: string } | null;
   owner: { id: string; name: string };
@@ -140,8 +143,8 @@ export function OrdersListClient({
                   <div className="font-medium text-slate-900">{formatDate(o.arrivalPlannedDate)}</div>
                 </div>
                 <div>
-                  <div className="text-slate-400">Старт продаж</div>
-                  <div className="font-medium capitalize text-slate-900">{salesStartMonth(o.arrivalPlannedDate)}</div>
+                  <div className="text-slate-400">Сумма</div>
+                  <div className="font-medium text-slate-900">{o.totalAmount > 0 ? formatCurrency(o.totalAmount) : "—"}</div>
                 </div>
               </div>
             </Link>
@@ -176,7 +179,7 @@ export function OrdersListClient({
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Статус</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Фабрика</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Прибытие</th>
-              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Старт продаж</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Сумма</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Ответ.</th>
             </tr>
           </thead>
@@ -225,8 +228,8 @@ export function OrdersListClient({
                   </td>
                   <td className="px-3 py-2 text-xs text-slate-600">{o.factory?.name ?? "—"}</td>
                   <td className="px-3 py-2 text-xs text-slate-600">{formatDate(o.arrivalPlannedDate)}</td>
-                  <td className="px-3 py-2 text-xs text-slate-600 capitalize">
-                    {salesStartMonth(o.arrivalPlannedDate)}
+                  <td className="px-3 py-2 text-right text-xs text-slate-700 tabular-nums">
+                    {o.totalAmount > 0 ? formatCurrency(o.totalAmount) : "—"}
                   </td>
                   <td className="px-3 py-2 text-xs text-slate-600">{o.owner.name}</td>
                 </ClickableRow>
@@ -253,23 +256,3 @@ export function OrdersListClient({
   );
 }
 
-const MONTH_NAMES_RU = [
-  "январь", "февраль", "март", "апрель", "май", "июнь",
-  "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь",
-];
-
-function salesStartMonth(arrival: string | null | undefined): string {
-  if (!arrival) return "—";
-  const d = new Date(arrival);
-  const day = d.getDate();
-  let month = d.getMonth();
-  let year = d.getFullYear();
-  if (day > 20) {
-    month += 1;
-    if (month > 11) {
-      month = 0;
-      year += 1;
-    }
-  }
-  return `${MONTH_NAMES_RU[month]} ${year}`;
-}
