@@ -34,7 +34,7 @@ export type KanbanColumn = {
   key: string;
   title: string;
   dot: string;
-  group: "development" | "post_order";
+  group: "development" | "post_order" | "done";
 };
 
 export function BoardClient({
@@ -116,7 +116,12 @@ export function BoardClient({
           </div>
           <div className="w-[210px] shrink-0"></div>
           <div className="w-[210px] shrink-0"></div>
-          <div className="w-[210px] shrink-0"></div>
+        </div>
+        <div className="flex gap-3 shrink-0">
+          <div className="w-[210px] shrink-0 px-1">
+            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Завершено</div>
+            <div className="text-[10px] text-slate-400">только дата прибытия</div>
+          </div>
         </div>
       </div>
 
@@ -161,14 +166,19 @@ export function BoardClient({
                 )}
                 {cards.map((c) => {
                   const dragEnabled = !c.orderNumber; // нет активного заказа = можно таскать в разработке
-                  const dlClass =
-                    c.dlColor === "red" ? "text-red-700 bg-red-50" :
-                    c.dlColor === "amber" ? "text-amber-700 bg-amber-50" :
-                    "text-slate-500 bg-slate-100";
-                  const dlPrefix = c.dlColor === "red" ? "🔥" : c.dlColor === "amber" ? "⚠️" : "📅";
+                  const isDone = c.columnKey === "done";
+                  const dlClass = isDone
+                    ? "text-slate-600 bg-slate-100"
+                    : c.dlColor === "red" ? "text-red-700 bg-red-50"
+                    : c.dlColor === "amber" ? "text-amber-700 bg-amber-50"
+                    : "text-slate-500 bg-slate-100";
+                  const dlPrefix = isDone
+                    ? "📦"
+                    : c.dlColor === "red" ? "🔥"
+                    : c.dlColor === "amber" ? "⚠️" : "📅";
                   return (
                     <div
-                      key={c.modelId}
+                      key={`${c.modelId}:${c.orderId ?? "noord"}:${c.columnKey ?? ""}`}
                       draggable={dragEnabled}
                       onDragStart={(e) => {
                         if (!dragEnabled) return;

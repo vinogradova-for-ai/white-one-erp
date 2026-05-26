@@ -6,10 +6,11 @@ import { type KanbanCard, type KanbanColumn } from "@/components/models-kanban/b
 import { KanbanFiltersClient, type KanbanFilterOptions } from "@/components/models-kanban/kanban-filters-client";
 import { colorHexFromName } from "@/lib/color-map";
 
-// 8 колонок: 4 под-этапа Разработки + 4 этапа после заказа.
+// 8 колонок: 4 под-этапа Разработки + 3 этапа после заказа + Завершено.
 // Этапы Разработки видны ТОЛЬКО на канбане (не на Ганте) — детализация
 // для отслеживания процесса до создания заказа. После Производства
-// колонки синхронизированы с фазами Order на Ганте.
+// колонки синхронизированы с фазами Order на Ганте. Завершено — все
+// заказы после прибытия на склад (отдел продукта дальше не работает).
 const COLUMNS: ReadonlyArray<KanbanColumn> = [
   { key: "idea",         title: "Идея",          dot: "#af52de", group: "development" },
   { key: "sample",       title: "Образец",       dot: "#5856d6", group: "development" },
@@ -18,7 +19,7 @@ const COLUMNS: ReadonlyArray<KanbanColumn> = [
   { key: "production",   title: "Производство",  dot: "#34c759", group: "post_order" },
   { key: "qc",           title: "ОТК",           dot: "#a8d870", group: "post_order" },
   { key: "delivery",     title: "Доставка",      dot: "#ff9500", group: "post_order" },
-  { key: "on_sale",      title: "В продаже",     dot: "#ffcc00", group: "post_order" },
+  { key: "done",         title: "Завершено",     dot: "#94a3b8", group: "done" },
 ];
 
 // ProductModel.status → колонка (когда нет активного заказа).
@@ -36,11 +37,17 @@ const ORDER_STATUS_TO_COL: Record<OrderStatus, string> = {
   QC: "qc",
   READY_SHIP: "qc",
   IN_TRANSIT: "delivery",
-  WAREHOUSE_MSK: "delivery",
-  PACKING: "delivery",
-  SHIPPED_WB: "delivery",
-  ON_SALE: "on_sale",
+  // Всё после прибытия — Завершено. Дальше работа склада/упаковки/ВБ, не продукта.
+  WAREHOUSE_MSK: "done",
+  PACKING: "done",
+  SHIPPED_WB: "done",
+  ON_SALE: "done",
 };
+
+// Заказы, которые отделу продукта уже не нужны как живые — статусы «Завершено».
+const DONE_STATUSES: ReadonlyArray<OrderStatus> = [
+  "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE",
+];
 
 const PLACEHOLDER_PALETTES: Array<[string, string]> = [
   ["#fce4ec", "#f8bbd0"], ["#e8eaf6", "#c5cae9"], ["#fff3e0", "#ffe0b2"],
@@ -77,6 +84,7 @@ type OrderForKanban = {
   readyAtFactoryDate: Date | null;
   qcDate: Date | null;
   arrivalPlannedDate: Date | null;
+  arrivalActualDate: Date | null;
   saleStartDate: Date | null;
   factory: { name: string; country: string | null } | null;
   lines: Array<{ quantity: number }>;
@@ -108,8 +116,12 @@ function pickDeadline(col: string, model: { sampleDate: Date | null; approvedDat
     ? { iso: isoDate(order.qcDate)!, label: "ОТК" } : null;
   if (col === "delivery") return order.arrivalPlannedDate
     ? { iso: isoDate(order.arrivalPlannedDate)!, label: "прибытие" } : null;
-  if (col === "on_sale") return order.saleStartDate
-    ? { iso: isoDate(order.saleStartDate)!, label: "продажи" } : null;
+  if (col === "done") {
+    // Завершённая партия — показываем только дату прибытия (факт или план).
+    // Никаких подписей про упаковку/отгрузку/продажу: это не отдел продукта.
+    const iso = isoDate(order.arrivalActualDate) ?? isoDate(order.arrivalPlannedDate);
+    return iso ? { iso, label: "прибыло" } : null;
+  }
   return null;
 }
 
@@ -138,7 +150,9 @@ export default async function ModelsKanbanPage() {
         where: { deletedAt: null },
         select: {
           id: true, orderNumber: true, status: true,
-          readyAtFactoryDate: true, qcDate: true, arrivalPlannedDate: true, saleStartDate: true,
+          readyAtFactoryDate: true, qcDate: true,
+          arrivalPlannedDate: true, arrivalActualDate: true,
+          saleStartDate: true,
           factory: { select: { name: true, country: true } },
           lines: { select: { quantity: true } },
         },
@@ -150,31 +164,14 @@ export default async function ModelsKanbanPage() {
   const buckets: Record<string, KanbanCard[]> = Object.fromEntries(COLUMNS.map((c) => [c.key, []]));
 
   for (const m of models) {
-    const order = mostAdvanced(m.orders as OrderForKanban[]);
-    // Если у фасона есть «живой» заказ (продвинулся дальше PREPARATION) —
-    // колонка определяется по статусу заказа. Если заказ ещё в PREPARATION
-    // (или заказа нет) — колонка по статусу фасона.
-    //
-    // Старая защита (#88) пыталась удержать в колонке разработки фасоны
-    // со статусом IDEA/PATTERNS/SAMPLE, у которых уже есть «пилотный»
-    // заказ. На практике это привело к тому, что 36 фасонов с реальными
-    // заказами в производстве/доставке висели в «Идея», потому что
-    // никто формально не переводил статус фасона дальше IDEA. Правильнее
-    // отдавать колонку заказу — он отражает реальное положение дел.
-    const hasLiveOrder = !!order && order.status !== "PREPARATION";
-    const column = hasLiveOrder
-      ? ORDER_STATUS_TO_COL[order!.status]
-      : modelToColumn(m.status, m.sizeChartReady);
-    const deadline = pickDeadline(column, m, order);
-    const qty = order ? order.lines.reduce((a, l) => a + l.quantity, 0) : 0;
+    const allOrders = m.orders as OrderForKanban[];
+    // Делим заказы на завершённые и активные. У одного фасона может быть
+    // одновременно несколько завершённых партий и одна-две активные —
+    // тогда фасон показывается в нескольких колонках сразу.
+    const doneOrders = allOrders.filter((o) => DONE_STATUSES.includes(o.status));
+    const liveOrders = allOrders.filter((o) => !DONE_STATUSES.includes(o.status));
 
-    let dlColor: "red" | "amber" | "gray" | null = null;
-    if (deadline) {
-      const diff = dayDiff(todayIso, deadline.iso);
-      dlColor = diff < 0 ? "red" : diff <= 7 ? "amber" : "gray";
-    }
-
-    // Уникальные цвета вариантов модели → дедуплицируем по hex.
+    // Уникальные цвета вариантов модели — общие для всех карточек этого фасона.
     const colorChips: Array<{ name: string; hex: string }> = [];
     const seenHex = new Set<string>();
     for (const v of m.variants ?? []) {
@@ -184,24 +181,52 @@ export default async function ModelsKanbanPage() {
       colorChips.push({ name: v.colorName, hex });
     }
 
-    buckets[column].push({
-      modelId: m.id,
-      modelName: m.name,
-      brandLabel: m.brand,
-      category: m.category,
-      subcategory: m.subcategory,
-      photo: m.photoUrls?.[0] ?? null,
-      palette: pickPalette(m.id),
-      factoryName: order?.factory?.name ?? m.preferredFactory?.name ?? null,
-      ownerId: m.ownerId,
-      columnKey: column,
-      qty,
-      orderNumber: order?.orderNumber ?? null,
-      orderId: order?.id ?? null,
-      deadline,
-      dlColor,
-      colorChips,
-    });
+    const pushCard = (column: string, order: OrderForKanban | null) => {
+      const deadline = pickDeadline(column, m, order);
+      const qty = order ? order.lines.reduce((a, l) => a + l.quantity, 0) : 0;
+      let dlColor: "red" | "amber" | "gray" | null = null;
+      if (deadline) {
+        const diff = dayDiff(todayIso, deadline.iso);
+        dlColor = diff < 0 ? "red" : diff <= 7 ? "amber" : "gray";
+      }
+      buckets[column].push({
+        modelId: m.id,
+        modelName: m.name,
+        brandLabel: m.brand,
+        category: m.category,
+        subcategory: m.subcategory,
+        photo: m.photoUrls?.[0] ?? null,
+        palette: pickPalette(m.id),
+        factoryName: order?.factory?.name ?? m.preferredFactory?.name ?? null,
+        ownerId: m.ownerId,
+        columnKey: column,
+        qty,
+        orderNumber: order?.orderNumber ?? null,
+        orderId: order?.id ?? null,
+        deadline,
+        dlColor,
+        colorChips,
+      });
+    };
+
+    // Завершённые партии: по карточке на каждую — это история «что я довела до полок».
+    for (const o of doneOrders) {
+      pushCard("done", o);
+    }
+
+    // Активная сторона: самый продвинутый из live-заказов определяет колонку.
+    // Если live-заказов нет — колонка по статусу фасона.
+    const liveOrder = mostAdvanced(liveOrders);
+    const hasLiveOrder = !!liveOrder && liveOrder.status !== "PREPARATION";
+    const liveColumn = hasLiveOrder
+      ? ORDER_STATUS_TO_COL[liveOrder!.status]
+      : modelToColumn(m.status, m.sizeChartReady);
+    // Если все заказы фасона уже в done и нет активных — не дублируем карточку
+    // в колонку разработки. Иначе она появится одновременно в «Завершено» и
+    // в исходной IDEA, что путает.
+    if (liveOrders.length > 0 || doneOrders.length === 0) {
+      pushCard(liveColumn, liveOrder);
+    }
   }
 
   // Опции фильтров — считаются по реальным карточкам с count'ами.
