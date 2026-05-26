@@ -10,7 +10,16 @@ import { prisma } from "@/lib/prisma";
  *   нет → daysToDeadline = null, попадают в «давно не двигалось», сортируются по updatedAt.
  */
 
-export type TaskUrgency = "overdue" | "soon" | "later" | "idle";
+export type TaskUrgency = "overdue" | "soon" | "this-week" | "next-week" | "idle";
+
+/** Зона на «Главном» — определяет в какой раздел попадёт задача. */
+export type TaskZone = "now" | "this-week" | "next-week";
+
+export function zoneOf(urgency: TaskUrgency): TaskZone {
+  if (urgency === "overdue" || urgency === "soon" || urgency === "idle") return "now";
+  if (urgency === "this-week") return "this-week";
+  return "next-week";
+}
 
 export type ChecklistTask = {
   id: string;
@@ -33,8 +42,12 @@ export type ChecklistTask = {
 };
 
 const DAY = 86_400_000;
-const URGENCY_WINDOW_DAYS = 5;
+// Расширили окно показа до 14 дней — это горизонт планирования будущей нагрузки.
+// На UI разводим по трём зонам: «Сейчас» (≤2 + просрочка), «На неделе» (3-7),
+// «Следующая неделя» (8-14). Задачи с дедлайном >14 дн не показываются.
+const URGENCY_WINDOW_DAYS = 14;
 const SOON_WITHIN_DAYS = 2;
+const THIS_WEEK_WITHIN_DAYS = 7;
 
 /** Буферы для задач разработки относительно plannedLaunchMonth (в днях до 1-го числа). */
 const BUFFER_DAYS_BY_KIND: Record<
@@ -71,7 +84,8 @@ function urgencyOf(days: number | null): TaskUrgency {
   if (days === null) return "idle";
   if (days < 0) return "overdue";
   if (days <= SOON_WITHIN_DAYS) return "soon";
-  return "later";
+  if (days <= THIS_WEEK_WITHIN_DAYS) return "this-week";
+  return "next-week";
 }
 
 export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
