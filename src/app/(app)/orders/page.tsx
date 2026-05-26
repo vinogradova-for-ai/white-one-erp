@@ -33,6 +33,12 @@ export default async function OrdersPage() {
       },
       factory: { select: { name: true } },
       owner: { select: { id: true, name: true } },
+      packagingItems: {
+        include: {
+          packagingItem: { select: { name: true, type: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 
@@ -66,6 +72,7 @@ export default async function OrdersPage() {
         quantity: l.quantity,
         productVariant: l.productVariant,
       })),
+      packagingNames: o.packagingItems.map((pi) => pi.packagingItem.name),
     };
   });
 
