@@ -193,7 +193,14 @@ export function BoardClient({
                       <Link href={`/models/${c.modelId}`} className="block" onClick={(e) => { if (dragging) e.preventDefault(); }}>
                         {c.photo ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={c.photo} alt="" className="w-full aspect-square object-cover bg-slate-100" draggable={false} />
+                          <img
+                            src={c.photo}
+                            alt=""
+                            className={`w-full aspect-square object-cover bg-slate-100 ${
+                              isDone ? "grayscale opacity-80" : ""
+                            }`}
+                            draggable={false}
+                          />
                         ) : (
                           <div
                             className="w-full aspect-square flex items-center justify-center text-[11px] text-slate-500/60"
