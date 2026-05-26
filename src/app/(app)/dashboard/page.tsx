@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import {
   getMainScreenChecklist,
   groupByOwner,
@@ -9,6 +10,26 @@ import {
   type TaskZone,
 } from "@/lib/queries/main-screen-checklist";
 import type { Role } from "@prisma/client";
+
+const MONTH_NAMES_RU = [
+  "январе", "феврале", "марте", "апреле", "мае", "июне",
+  "июле", "августе", "сентябре", "октябре", "ноябре", "декабре",
+];
+
+async function getMonthClosedCount(ownerId: string | null): Promise<number> {
+  // Считаем заказы где arrivalActualDate в текущем месяце по МСК.
+  const now = new Date();
+  const mskNow = new Date(now.getTime() + 3 * 60 * 60_000);
+  const startOfMonth = new Date(Date.UTC(mskNow.getUTCFullYear(), mskNow.getUTCMonth(), 1));
+  const startOfNext = new Date(Date.UTC(mskNow.getUTCFullYear(), mskNow.getUTCMonth() + 1, 1));
+  return prisma.order.count({
+    where: {
+      deletedAt: null,
+      arrivalActualDate: { gte: startOfMonth, lt: startOfNext },
+      ...(ownerId ? { ownerId } : {}),
+    },
+  });
+}
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +54,14 @@ export default async function DashboardPage({
     ? (sp.owner && visibleGroups.some((g) => g.ownerId === sp.owner) ? sp.owner : visibleGroups[0]?.ownerId)
     : myId;
   const selected = visibleGroups.find((g) => g.ownerId === selectedOwnerId);
+
+  // «Закрыто в мае: X заказов» — для админа подвкладки, для остальных — своё.
+  // Это позитивный сигнал, прогресс. Считаем по выбранной подвкладке.
+  const monthClosed = selectedOwnerId
+    ? await getMonthClosedCount(selectedOwnerId)
+    : 0;
+  const nowMsk = new Date(new Date().getTime() + 3 * 60 * 60_000);
+  const monthName = MONTH_NAMES_RU[nowMsk.getUTCMonth()];
 
   return (
     <div className="space-y-6">
@@ -81,6 +110,13 @@ export default async function DashboardPage({
         </div>
       )}
 
+      {monthClosed > 0 && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 text-sm text-emerald-900">
+          <span className="font-semibold">✓ Закрыто в {monthName}: {monthClosed}</span>
+          <span className="text-emerald-700"> {pluralOrders(monthClosed)}</span>
+        </div>
+      )}
+
       {selected ? (
         <ChecklistGroup tasks={selected.tasks} />
       ) : (
@@ -90,6 +126,15 @@ export default async function DashboardPage({
       )}
     </div>
   );
+}
+
+function pluralOrders(n: number): string {
+  const m100 = n % 100;
+  const m10 = n % 10;
+  if (m100 >= 11 && m100 <= 14) return "заказов";
+  if (m10 === 1) return "заказ";
+  if (m10 >= 2 && m10 <= 4) return "заказа";
+  return "заказов";
 }
 
 const ORDER_KINDS: ChecklistTask["kind"][] = ["order-qc", "accept-qc", "check-delivery"];
