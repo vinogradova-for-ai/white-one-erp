@@ -121,6 +121,9 @@ function ZoneBody({ tasks, showIdle }: { tasks: ChecklistTask[]; showIdle: boole
   const devTasks = tasks.filter((t) => !ORDER_KINDS.includes(t.kind));
   const devWithDeadline = devTasks.filter((t) => t.daysToDeadline !== null);
   const devIdle = devTasks.filter((t) => t.daysToDeadline === null);
+  // Счётчик «накопленного долга» — задачи разработки с возрастом >30 дн.
+  // Показываем только в зоне «Сейчас» (showIdle=true) — это сигнал «копится».
+  const longStuck = showIdle ? devTasks.filter((t) => (t.ageInDays ?? 0) > 30).length : 0;
 
   return (
     <div className="space-y-6">
@@ -130,7 +133,11 @@ function ZoneBody({ tasks, showIdle }: { tasks: ChecklistTask[]; showIdle: boole
         </Section>
       )}
       {(devWithDeadline.length > 0 || (showIdle && devIdle.length > 0)) && (
-        <Section title="Разработка" count={devTasks.length}>
+        <Section
+          title="Разработка"
+          count={devTasks.length}
+          rightHint={longStuck > 0 ? `в разработке >30 дн: ${longStuck}` : undefined}
+        >
           <div className="space-y-4">
             {devWithDeadline.length > 0 && <TaskList tasks={devWithDeadline} />}
             {showIdle && devIdle.length > 0 && (
@@ -175,10 +182,12 @@ function Zone({
 function Section({
   title,
   count,
+  rightHint,
   children,
 }: {
   title: string;
   count: number;
+  rightHint?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -186,6 +195,9 @@ function Section({
       <div className="mb-3 flex items-baseline gap-2 px-1">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">{title}</h2>
         <span className="text-xs text-slate-400">{count}</span>
+        {rightHint && (
+          <span className="ml-auto text-xs text-orange-600">{rightHint}</span>
+        )}
       </div>
       {children}
     </section>
@@ -203,8 +215,20 @@ function TaskList({ tasks }: { tasks: ChecklistTask[] }) {
 }
 
 function ChecklistRow({ task }: { task: ChecklistTask }) {
+  // Цвет рамки для задач разработки — старение по возрасту фасона:
+  //   0-7 дн   — без рамки (нейтрально)
+  //   8-21 дн  — жёлтая (внимание)
+  //   22-44 дн — оранжевая (долг)
+  //   45+ дн   — красная (длительный простой)
+  const age = task.ageInDays;
+  const ageBorder =
+    age === null ? "" :
+    age >= 45 ? "border-l-4 border-l-red-400" :
+    age >= 22 ? "border-l-4 border-l-orange-400" :
+    age >= 8 ? "border-l-4 border-l-amber-300" :
+    "";
   return (
-    <li>
+    <li className={ageBorder}>
       <Link
         href={task.href}
         className="flex items-center gap-3 px-4 py-3 text-sm hover:bg-slate-50"

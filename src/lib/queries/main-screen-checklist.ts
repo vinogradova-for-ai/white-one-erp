@@ -39,6 +39,11 @@ export type ChecklistTask = {
     | "order-qc"
     | "accept-qc"
     | "check-delivery";
+  /** Возраст задачи в днях (для разработки — `today - model.updatedAt`).
+   *  Используется визуально (старение рамки) и для счётчика «в разработке >30 дн». */
+  ageInDays: number | null;
+  /** Превышен ли SLA для задач разработки. true → попадает в «Сейчас» как красная. */
+  slaBreached: boolean;
 };
 
 const DAY = 86_400_000;
@@ -58,6 +63,20 @@ const BUFFER_DAYS_BY_KIND: Record<
   "approve-sample": 75,
   "size-chart": 60,
   "start-production": 50,
+};
+
+/** SLA для задач разработки — за сколько дней с момента последнего движения фасона
+ *  задача должна закрыться. Превышено → задача попадает в «Сейчас» как просрочка
+ *  даже если у фасона нет plannedLaunchMonth. updatedAt используется как proxy для
+ *  «давно не двигалось» (быстро, без миграции statusChangedAt). */
+const SLA_DAYS_BY_KIND: Record<
+  "order-sample" | "approve-sample" | "size-chart" | "start-production",
+  number
+> = {
+  "order-sample": 14,
+  "approve-sample": 21,
+  "size-chart": 7,
+  "start-production": 7,
 };
 
 function moscowToday(): Date {
@@ -119,6 +138,8 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
     const hasLiveOrder = m.orders.some((o) => o.status !== "PREPARATION");
     const baseHref = `/models/${m.id}`;
 
+    const ageInDays = Math.max(0, Math.round((today.getTime() - m.updatedAt.getTime()) / DAY));
+
     const pushDev = (
       kind: keyof typeof BUFFER_DAYS_BY_KIND,
       text: string,
@@ -126,19 +147,30 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
       const days = m.plannedLaunchMonth
         ? daysFromMonth(m.plannedLaunchMonth, BUFFER_DAYS_BY_KIND[kind], today)
         : null;
-      // С launchMonth: показываем только если попало в окно 5 дней либо просрочено.
+      const sla = SLA_DAYS_BY_KIND[kind];
+      const slaBreached = ageInDays > sla;
+
+      // С launchMonth: показываем только если попало в окно 14 дней либо просрочено.
       // Без launchMonth: показываем как idle.
-      if (days !== null && days > URGENCY_WINDOW_DAYS) return;
+      // Если SLA превышен — задача всегда видна как «Сейчас» (overdue), даже если launchMonth далеко.
+      if (!slaBreached && days !== null && days > URGENCY_WINDOW_DAYS) return;
+
+      // Если SLA превышен — насильно поднимаем urgency до overdue (видна в «Сейчас»).
+      const baseUrgency = urgencyOf(days);
+      const urgency: TaskUrgency = slaBreached ? "overdue" : baseUrgency;
+
       tasks.push({
         id: `${kind}:${m.id}`,
         ownerId: m.ownerId!,
         ownerName: m.owner!.name,
-        text,
+        text: slaBreached ? `${text} · ${ageInDays} дн без движения` : text,
         href: baseHref,
         daysToDeadline: days,
-        urgency: urgencyOf(days),
+        urgency,
         updatedAt: m.updatedAt,
         kind,
+        ageInDays,
+        slaBreached,
       });
     };
 
@@ -177,6 +209,8 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
           urgency: urgencyOf(days),
           updatedAt: o.updatedAt,
           kind: "order-qc",
+          ageInDays: null,
+          slaBreached: false,
         });
       }
     }
@@ -197,6 +231,8 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
           urgency: urgencyOf(days),
           updatedAt: o.updatedAt,
           kind: "accept-qc",
+          ageInDays: null,
+          slaBreached: false,
         });
       }
     }
@@ -217,6 +253,8 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
           urgency: urgencyOf(days),
           updatedAt: o.updatedAt,
           kind: "check-delivery",
+          ageInDays: null,
+          slaBreached: false,
         });
       }
     }
