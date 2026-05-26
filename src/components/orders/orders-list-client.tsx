@@ -28,6 +28,8 @@ export type OrdersListRow = {
     quantity: number;
     productVariant: { colorName: string; photoUrls: string[] };
   }>;
+  /** Список названий упаковки, применяемой к заказу. Через запятую в карточке/таблице. */
+  packagingNames: string[];
 };
 
 export type OrdersListFilterOptions = {
@@ -147,6 +149,12 @@ export function OrdersListClient({
                   <div className="font-medium text-slate-900">{o.totalAmount > 0 ? formatCurrency(o.totalAmount) : "—"}</div>
                 </div>
               </div>
+              {o.packagingNames.length > 0 && (
+                <div className="mt-2 text-[11px] text-slate-500">
+                  <span className="text-slate-400">Упаковка: </span>
+                  {o.packagingNames.join(", ")}
+                </div>
+              )}
             </Link>
           );
         })}
@@ -179,6 +187,7 @@ export function OrdersListClient({
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Статус</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Фабрика</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Прибытие</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Упаковка</th>
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Сумма</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Ответ.</th>
             </tr>
@@ -228,6 +237,15 @@ export function OrdersListClient({
                   </td>
                   <td className="px-3 py-2 text-xs text-slate-600">{o.factory?.name ?? "—"}</td>
                   <td className="px-3 py-2 text-xs text-slate-600">{formatDate(o.arrivalPlannedDate)}</td>
+                  <td className="max-w-[180px] px-3 py-2 text-xs text-slate-600">
+                    {o.packagingNames.length > 0 ? (
+                      <span className="line-clamp-2" title={o.packagingNames.join(", ")}>
+                        {o.packagingNames.join(", ")}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-right text-xs text-slate-700 tabular-nums">
                     {o.totalAmount > 0 ? formatCurrency(o.totalAmount) : "—"}
                   </td>
