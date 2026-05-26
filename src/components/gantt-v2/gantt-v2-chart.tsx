@@ -184,7 +184,8 @@ export function GanttV2Chart({
           iso,
           pct: (dayDiff(chartStart, iso) / totalDays) * 100,
           // Подписываем только понедельники, остальные дни — без надписи.
-          label: isMon ? formatDM(iso) : "",
+          // Формат «Пн 04.05» — день недели подтягивается к дате, как в зуме 1w.
+          label: isMon ? `${DAYS_RU[dow]} ${formatDM(iso)}` : "",
           isMonthStart: cur.getUTCDate() <= 7 && isMon,
           isStrong: isMon,
           isDay: !isMon,
@@ -200,10 +201,11 @@ export function GanttV2Chart({
       while (cur <= parseISO(chartEnd)) {
         const iso = toISO(cur);
         if (iso >= chartStart) {
+          const dow = cur.getUTCDay();
           out.push({
             iso,
             pct: (dayDiff(chartStart, iso) / totalDays) * 100,
-            label: formatDM(iso),
+            label: `${DAYS_RU[dow]} ${formatDM(iso)}`,
             isMonthStart: cur.getUTCDate() <= 7,
             isStrong: cur.getUTCDate() <= 7,
           });
