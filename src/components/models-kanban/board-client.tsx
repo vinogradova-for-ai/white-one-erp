@@ -49,6 +49,12 @@ export function BoardClient({
   const [dropZone, setDropZone] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // На мобиле 8 колонок шириной 210px не помещаются — на 390px видно только
+  // 1.5 колонки и пользователь теряется. Поэтому на ≤md показываем одну
+  // колонку, выбираемую через pill-табы со счётчиками. Дефолт — первая
+  // непустая колонка (обычно «Идея»). На десктопе всё как было.
+  const firstNonEmpty = columns.find((c) => (buckets[c.key] ?? []).length > 0)?.key ?? columns[0].key;
+  const [mobileCol, setMobileCol] = useState<string>(firstNonEmpty);
 
   function fmtDM(iso: string) {
     const [, m, d] = iso.split("-");
@@ -91,15 +97,47 @@ export function BoardClient({
   }
 
   return (
-    <div className="overflow-x-auto pb-4 -mx-4 px-4">
+    <div className="pb-4 -mx-4 px-4 md:overflow-x-auto">
       {error && (
         <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      {/* Групповые шапки над колонками */}
-      <div className="flex gap-3 mb-2">
+      {/* Мобильные pill-табы по колонкам — sticky сверху. */}
+      <div className="-mx-4 mb-3 overflow-x-auto px-4 md:hidden">
+        <div className="flex gap-1.5 whitespace-nowrap">
+          {columns.map((col) => {
+            const count = (buckets[col.key] ?? []).length;
+            const active = col.key === mobileCol;
+            return (
+              <button
+                key={col.key}
+                type="button"
+                onClick={() => setMobileCol(col.key)}
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                  active
+                    ? "border-slate-900 bg-slate-900 text-white"
+                    : "border-slate-200 bg-white text-slate-700"
+                }`}
+              >
+                <span className="h-2 w-2 rounded-full" style={{ background: col.dot }} />
+                <span>{col.title}</span>
+                <span
+                  className={`rounded-full px-1.5 text-[10px] font-semibold ${
+                    active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Групповые шапки над колонками — только десктоп. */}
+      <div className="hidden gap-3 mb-2 md:flex">
         <div className="flex gap-3 shrink-0">
           <div className="w-[210px] shrink-0 px-1">
             <div className="text-[10px] uppercase tracking-wider font-semibold text-purple-600">Разработка</div>
@@ -125,20 +163,23 @@ export function BoardClient({
         </div>
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex flex-col gap-3 md:flex-row">
         {columns.map((col) => {
           const cards = buckets[col.key] ?? [];
           const isDevTarget = DEV_TARGETS.has(col.key);
           const isProduction = col.key === "production";
           const canDrop = isDevTarget || isProduction;
           const isOver = dropZone === col.key;
+          const isMobileActive = col.key === mobileCol;
 
           return (
             <div
               key={col.key}
-              className={`flex flex-col w-[210px] bg-white rounded-xl border border-slate-200 shrink-0 transition ${
-                isOver ? "ring-2 ring-blue-400 ring-offset-1" : ""
-              } ${dragging && !canDrop ? "opacity-50" : ""}`}
+              className={`flex flex-col bg-white rounded-xl border border-slate-200 transition w-full md:w-[210px] md:shrink-0 ${
+                isMobileActive ? "" : "hidden md:flex"
+              } ${isOver ? "ring-2 ring-blue-400 ring-offset-1" : ""} ${
+                dragging && !canDrop ? "opacity-50" : ""
+              }`}
               onDragOver={(e) => {
                 if (!canDrop || !dragging) return;
                 e.preventDefault();

@@ -195,7 +195,12 @@ function LineCard({
           ✕
         </button>
       )}
-      <div className="flex items-center gap-3">
+      {/* На мобиле фото+название+итоги стоят в одной строке, а размерная
+          матрица переносится на следующую строку с полной шириной (иначе
+          6 размеров на 390px зажимаются между фото и правым блоком в
+          ~3-5px колонки и цифры слипаются в «11155»).
+          На ≥md всё в одну строку как раньше. */}
+      <div className="flex flex-wrap items-start gap-3 md:flex-nowrap md:items-center">
         <VariantVisual
           variantPhotoUrl={line.photoUrl}
           modelPhotoUrl={modelPhotoUrl}
@@ -203,7 +208,7 @@ function LineCard({
           size={44}
           hideBadge
         />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 order-3 basis-full md:order-none md:flex-1 md:basis-auto">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <ColorChip name={line.colorName} />
             <span className="truncate">{line.colorName}</span>

@@ -165,7 +165,8 @@ export default async function PlanVsFactPage({
                     штук <b className="text-slate-900">{totalFactUnits.toLocaleString("ru-RU")}/{totalPlanUnits ? totalPlanUnits.toLocaleString("ru-RU") : "—"}</b>
                   </div>
                 </div>
-                <table className="min-w-full text-sm">
+                {/* Десктоп — таблица */}
+                <table className="hidden min-w-full text-sm md:table">
                   <thead className="bg-white">
                     <tr>
                       <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase text-slate-500">Ответственный</th>
@@ -176,13 +177,7 @@ export default async function PlanVsFactPage({
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {arr.map((r) => {
-                      const modelsGap = r.factModels - r.planModels;
-                      const unitsGap = r.factUnits - r.planUnits;
-                      const hasPlan = r.planModels > 0 || r.planUnits > 0;
-                      const status = !hasPlan ? "no-plan"
-                        : modelsGap >= 0 && unitsGap >= 0 ? "ok"
-                        : (r.planUnits > 0 && Math.abs(unitsGap / r.planUnits) > 0.2) ? "critical"
-                        : "warning";
+                      const { status } = classifyRow(r);
                       return (
                         <tr key={`${r.ym}-${r.ownerId ?? "_"}`}>
                           <td className="px-3 py-2 font-medium text-slate-900">{r.ownerName}</td>
@@ -193,19 +188,113 @@ export default async function PlanVsFactPage({
                             {r.factUnits.toLocaleString("ru-RU")} / {r.planUnits ? r.planUnits.toLocaleString("ru-RU") : "—"}
                           </td>
                           <td className="px-3 py-2">
-                            {status === "ok" && <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">✓ ОК</span>}
-                            {status === "warning" && <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">⚠ Нужно ещё</span>}
-                            {status === "critical" && <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">🔴 Разрыв</span>}
-                            {status === "no-plan" && <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">план не задан</span>}
+                            <StatusChip status={status} />
                           </td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
+
+                {/* Мобильный — карточки. Таблица из 4 колонок на 390px нечитаема. */}
+                <div className="divide-y divide-slate-100 md:hidden">
+                  {arr.map((r) => {
+                    const { status } = classifyRow(r);
+                    const unitsPct = r.planUnits > 0 ? Math.min(100, Math.round((r.factUnits / r.planUnits) * 100)) : 0;
+                    const modelsPct = r.planModels > 0 ? Math.min(100, Math.round((r.factModels / r.planModels) * 100)) : 0;
+                    const barCls =
+                      status === "ok" ? "bg-emerald-500"
+                      : status === "warning" ? "bg-amber-500"
+                      : status === "critical" ? "bg-red-500"
+                      : "bg-slate-300";
+                    return (
+                      <div key={`${r.ym}-${r.ownerId ?? "_"}-m`} className="px-3 py-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-sm font-semibold text-slate-900">{r.ownerName}</div>
+                          <StatusChip status={status} />
+                        </div>
+                        <div className="mt-2 space-y-2 text-[12px]">
+                          <PlanFactRow
+                            label="Фасоны"
+                            fact={r.factModels}
+                            plan={r.planModels}
+                            pct={modelsPct}
+                            barCls={barCls}
+                          />
+                          <PlanFactRow
+                            label="Штуки"
+                            fact={r.factUnits}
+                            plan={r.planUnits}
+                            pct={unitsPct}
+                            barCls={barCls}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type RowStatus = "ok" | "warning" | "critical" | "no-plan";
+
+function classifyRow(r: {
+  planModels: number;
+  planUnits: number;
+  factModels: number;
+  factUnits: number;
+}): { status: RowStatus } {
+  const modelsGap = r.factModels - r.planModels;
+  const unitsGap = r.factUnits - r.planUnits;
+  const hasPlan = r.planModels > 0 || r.planUnits > 0;
+  const status: RowStatus = !hasPlan
+    ? "no-plan"
+    : modelsGap >= 0 && unitsGap >= 0
+    ? "ok"
+    : r.planUnits > 0 && Math.abs(unitsGap / r.planUnits) > 0.2
+    ? "critical"
+    : "warning";
+  return { status };
+}
+
+function StatusChip({ status }: { status: RowStatus }) {
+  if (status === "ok") return <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">✓ ОК</span>;
+  if (status === "warning") return <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">⚠ Нужно ещё</span>;
+  if (status === "critical") return <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">🔴 Разрыв</span>;
+  return <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">план не задан</span>;
+}
+
+function PlanFactRow({
+  label,
+  fact,
+  plan,
+  pct,
+  barCls,
+}: {
+  label: string;
+  fact: number;
+  plan: number;
+  pct: number;
+  barCls: string;
+}) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-slate-500">{label}</span>
+        <span className="tabular-nums text-slate-800">
+          <b>{fact.toLocaleString("ru-RU")}</b>
+          <span className="text-slate-400"> / {plan ? plan.toLocaleString("ru-RU") : "—"}</span>
+        </span>
+      </div>
+      {plan > 0 && (
+        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+          <div className={`h-full ${barCls}`} style={{ width: `${pct}%` }} />
         </div>
       )}
     </div>
