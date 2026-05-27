@@ -170,8 +170,9 @@ async function CalendarView({
         </Link>
       </div>
 
-      {/* Сетка календаря */}
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      {/* Сетка календаря — только на ≥md, на мобиле дни 28×N не помещаются и
+          суммы наезжают на номер дня. */}
+      <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white md:block">
         <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
           {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d) => (
             <div key={d} className="px-2 py-2">{d}</div>
@@ -217,7 +218,128 @@ async function CalendarView({
           })}
         </div>
       </div>
+
+      {/* Мобильный — лента «по дням месяца» из того же байДея. Только дни
+          с платежами. Прошедшие, в которых есть PENDING, помечаем как
+          просрочку. */}
+      <MobileMonthList
+        byDay={byDay}
+        todayDay={todayDay}
+        y={y}
+        m={m}
+        todayStart={todayStart}
+      />
     </>
+  );
+}
+
+function MobileMonthList({
+  byDay,
+  todayDay,
+  y,
+  m,
+  todayStart,
+}: {
+  byDay: Record<number, PaymentWithRelations[]>;
+  todayDay: number | null;
+  y: number;
+  m: number;
+  todayStart: Date;
+}) {
+  const days = Object.keys(byDay)
+    .map(Number)
+    .sort((a, b) => a - b);
+  if (days.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 md:hidden">
+        В этом месяце платежей нет.
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3 md:hidden">
+      {days.map((day) => {
+        const dayPays = byDay[day];
+        const date = new Date(Date.UTC(y, m - 1, day));
+        const isPast = date < todayStart;
+        const dow = (date.getUTCDay() + 6) % 7;
+        const sum = dayPays.reduce((a, p) => a + Number(p.amount), 0);
+        const hasPendingPast = isPast && dayPays.some((p) => p.status === "PENDING");
+        const isToday = day === todayDay;
+        return (
+          <div
+            key={day}
+            className={`overflow-hidden rounded-2xl border bg-white ${
+              isToday ? "border-blue-300 ring-1 ring-blue-200" : "border-slate-200"
+            }`}
+          >
+            <div className="flex items-baseline justify-between gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2">
+              <div className="flex items-baseline gap-2">
+                <span
+                  className={`inline-flex h-7 min-w-7 items-center justify-center rounded-full text-sm font-semibold ${
+                    isToday ? "bg-blue-600 px-2 text-white" : "text-slate-900"
+                  }`}
+                >
+                  {day}
+                </span>
+                <span className="text-xs uppercase tracking-wide text-slate-500">
+                  {["пн", "вт", "ср", "чт", "пт", "сб", "вс"][dow]}
+                </span>
+                {isToday && <span className="text-xs font-medium text-blue-600">сегодня</span>}
+              </div>
+              <span className={`text-sm font-semibold tabular-nums ${hasPendingPast ? "text-red-600" : "text-slate-700"}`}>
+                {formatCurrency(sum)}
+              </span>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {dayPays.map((p) => (
+                <MobilePaymentRow key={p.id} p={p} isPast={!!isPast} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MobilePaymentRow({ p, isPast }: { p: PaymentWithRelations; isPast: boolean }) {
+  const isPaid = p.status === "PAID";
+  const isOverdue = !isPaid && isPast;
+  const statusCls = isPaid
+    ? "bg-emerald-100 text-emerald-700"
+    : isOverdue
+    ? "bg-red-100 text-red-700"
+    : p.type === "ORDER"
+    ? "bg-blue-100 text-blue-700"
+    : "bg-amber-100 text-amber-800";
+  const statusLabel = isPaid ? "Оплачено" : isOverdue ? "Просрочено" : "К оплате";
+  const subject = p.type === "ORDER"
+    ? (p.order?.productModel.name ?? p.factory?.name ?? "—")
+    : (p.packagingItem?.name ?? p.supplierName ?? "—");
+  const counterparty = p.type === "ORDER" ? p.factory?.name : p.supplierName;
+  return (
+    <Link href={paymentTargetHref(p)} className="block px-3 py-2.5 active:bg-slate-50">
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium text-slate-900">{subject}</div>
+          {counterparty && (
+            <div className="truncate text-[11px] text-slate-500">{counterparty}</div>
+          )}
+          {p.label && (
+            <div className="truncate text-[11px] text-slate-400">{p.label}</div>
+          )}
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="text-sm font-semibold tabular-nums text-slate-900">
+            {formatCurrency(p.amount.toString())}
+          </div>
+          <span className={`mt-0.5 inline-block rounded px-1.5 py-0.5 text-[10px] ${statusCls}`}>
+            {statusLabel}
+          </span>
+        </div>
+      </div>
+    </Link>
   );
 }
 

@@ -138,6 +138,13 @@ function pluralOrders(n: number): string {
 }
 
 const ORDER_KINDS: ChecklistTask["kind"][] = ["order-qc", "accept-qc", "check-delivery"];
+const PACKAGING_KINDS: ChecklistTask["kind"][] = [
+  "pkg-design",
+  "pkg-sample",
+  "pkg-approve",
+  "pkg-launch",
+  "pkg-check-delivery",
+];
 
 const ZONES: Array<{ key: TaskZone; title: string; muted: boolean }> = [
   { key: "now", title: "Сейчас", muted: false },
@@ -163,9 +170,15 @@ function ChecklistGroup({ tasks }: { tasks: ChecklistTask[] }) {
 
 function ZoneBody({ tasks, showIdle }: { tasks: ChecklistTask[]; showIdle: boolean }) {
   const orderTasks = tasks.filter((t) => ORDER_KINDS.includes(t.kind));
-  const devTasks = tasks.filter((t) => !ORDER_KINDS.includes(t.kind));
+  const packagingTasks = tasks.filter((t) => PACKAGING_KINDS.includes(t.kind));
+  const devTasks = tasks.filter(
+    (t) => !ORDER_KINDS.includes(t.kind) && !PACKAGING_KINDS.includes(t.kind),
+  );
   const devWithDeadline = devTasks.filter((t) => t.daysToDeadline !== null);
   const devIdle = devTasks.filter((t) => t.daysToDeadline === null);
+  // Упаковка тоже делится на «есть дедлайн» (заказы в пути) и «idle» (разработка PackagingItem).
+  const packagingWithDeadline = packagingTasks.filter((t) => t.daysToDeadline !== null);
+  const packagingIdle = packagingTasks.filter((t) => t.daysToDeadline === null);
   // Счётчик «накопленного долга» — задачи разработки с возрастом >30 дн.
   // Показываем только в зоне «Сейчас» (showIdle=true) — это сигнал «копится».
   const longStuck = showIdle ? devTasks.filter((t) => (t.ageInDays ?? 0) > 30).length : 0;
@@ -191,6 +204,21 @@ function ZoneBody({ tasks, showIdle }: { tasks: ChecklistTask[]; showIdle: boole
                   Давно не двигалось
                 </div>
                 <TaskList tasks={devIdle} />
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
+      {(packagingWithDeadline.length > 0 || (showIdle && packagingIdle.length > 0)) && (
+        <Section title="Упаковка" count={packagingTasks.length}>
+          <div className="space-y-4">
+            {packagingWithDeadline.length > 0 && <TaskList tasks={packagingWithDeadline} />}
+            {showIdle && packagingIdle.length > 0 && (
+              <div>
+                <div className="mb-2 px-1 text-xs font-medium uppercase tracking-wide text-slate-400">
+                  Давно не двигалось
+                </div>
+                <TaskList tasks={packagingIdle} />
               </div>
             )}
           </div>

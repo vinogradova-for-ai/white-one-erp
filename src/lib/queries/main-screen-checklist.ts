@@ -38,7 +38,14 @@ export type ChecklistTask = {
     | "start-production"
     | "order-qc"
     | "accept-qc"
-    | "check-delivery";
+    | "check-delivery"
+    // Разработка упаковки — lifecycle PackagingItem (IDEA → DESIGN → SAMPLE → APPROVED → ACTIVE)
+    | "pkg-design"           // нет макета (status = IDEA/DESIGN, designReadyDate = null)
+    | "pkg-sample"           // макет готов, нет образца (DESIGN+designReady или SAMPLE без sampleRequestedDate)
+    | "pkg-approve"          // образец заказан, не утверждён
+    | "pkg-launch"           // утверждено, не запущено в производство
+    // Заказы упаковки в пути
+    | "pkg-check-delivery";  // PackagingOrder со статусом IN_PRODUCTION/IN_TRANSIT, ожидаемая дата близка/прошла
   /** Возраст задачи в днях (для разработки — `today - model.updatedAt`).
    *  Используется визуально (старение рамки) и для счётчика «в разработке >30 дн». */
   ageInDays: number | null;
@@ -78,6 +85,20 @@ const SLA_DAYS_BY_KIND: Record<
   "approve-sample": 14,
   "size-chart": 7,
   "start-production": 7,
+};
+
+/** SLA для разработки упаковки — у PackagingItem нет launchMonth, поэтому
+ *  единственный сигнал «застряли» — это возраст updatedAt. Цифры консервативные:
+ *  макет/образец/утверждение/запуск всё долгое — но если ещё ничего не движется
+ *  3+ недели, явный сигнал «забыли». */
+const PKG_SLA_DAYS_BY_KIND: Record<
+  "pkg-design" | "pkg-sample" | "pkg-approve" | "pkg-launch",
+  number
+> = {
+  "pkg-design": 14,
+  "pkg-sample": 21,
+  "pkg-approve": 14,
+  "pkg-launch": 7,
 };
 
 /** Понятный человеку статус фасона — для подсказки в idle/overdue. */
@@ -120,7 +141,7 @@ function urgencyOf(days: number | null): TaskUrgency {
 export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
   const today = moscowToday();
 
-  const [models, orders] = await Promise.all([
+  const [models, orders, packagingItems, packagingOrders] = await Promise.all([
     prisma.productModel.findMany({
       where: { deletedAt: null, activated: true },
       include: {
@@ -136,6 +157,23 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
       include: {
         owner: { select: { id: true, name: true } },
         productModel: { select: { name: true } },
+      },
+    }),
+    // Разработка упаковки — только активные, не архив.
+    // Берём всё кроме ARCHIVED, т.к. lifecycle прерывается на любом этапе IDEA→ACTIVE.
+    prisma.packagingItem.findMany({
+      where: { isActive: true, status: { not: "ARCHIVED" } },
+      include: {
+        owner: { select: { id: true, name: true } },
+      },
+    }),
+    // Заказы упаковки в пути — IN_PRODUCTION / IN_TRANSIT.
+    // ORDERED означает что только что заказали (ждём подтверждение фабрики), пока не трогаем.
+    // ARRIVED/CANCELLED — закрыты.
+    prisma.packagingOrder.findMany({
+      where: { status: { in: ["IN_PRODUCTION", "IN_TRANSIT"] } },
+      include: {
+        owner: { select: { id: true, name: true } },
       },
     }),
   ]);
@@ -278,6 +316,85 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
         });
       }
     }
+  }
+
+  // Разработка упаковки. Lifecycle PackagingItem:
+  //   IDEA       — ещё не начали → «Сделайте макет»
+  //   DESIGN     — макет в работе → «Сделайте макет» (если designReadyDate пуст)
+  //                                  «Закажите образец» (если макет готов)
+  //   SAMPLE     — образец заказан → «Утвердите образец»
+  //   APPROVED   — образец утверждён → «Запустите в производство»
+  //   ACTIVE     — норма, нет задачи
+  // Дедлайнов нет — все задачи idle, SLA только по возрасту updatedAt.
+  for (const p of packagingItems) {
+    if (!p.ownerId || !p.owner) continue;
+    const ageInDays = Math.max(0, Math.round((today.getTime() - p.updatedAt.getTime()) / DAY));
+    const baseHref = `/packaging`;
+
+    const pushPkg = (
+      kind: keyof typeof PKG_SLA_DAYS_BY_KIND,
+      text: string,
+    ) => {
+      const sla = PKG_SLA_DAYS_BY_KIND[kind];
+      const slaBreached = ageInDays > sla;
+      const urgency: TaskUrgency = slaBreached ? "overdue" : "idle";
+      const ageStr = `${ageInDays} дн без движения`;
+      tasks.push({
+        id: `${kind}:${p.id}`,
+        ownerId: p.ownerId!,
+        ownerName: p.owner!.name,
+        text: `${text} · ${ageStr}`,
+        href: baseHref,
+        daysToDeadline: null,
+        urgency,
+        updatedAt: p.updatedAt,
+        kind,
+        ageInDays,
+        slaBreached,
+      });
+    };
+
+    if (p.status === "IDEA" || (p.status === "DESIGN" && !p.designReadyDate)) {
+      pushPkg("pkg-design", `Сделайте макет упаковки · ${p.name}`);
+    } else if (p.status === "DESIGN" && p.designReadyDate && !p.sampleRequestedDate) {
+      pushPkg("pkg-sample", `Закажите образец упаковки · ${p.name}`);
+    } else if (p.status === "SAMPLE" && !p.sampleApprovedDate) {
+      pushPkg("pkg-approve", `Утвердите образец упаковки · ${p.name}`);
+    } else if (p.status === "APPROVED" && !p.productionStartDate) {
+      pushPkg("pkg-launch", `Запустите упаковку в производство · ${p.name}`);
+    }
+  }
+
+  // Заказы упаковки в пути — отслеживаем expectedDate.
+  // IN_PRODUCTION → ждём productionEndDate (если есть) или expectedDate как fallback.
+  // IN_TRANSIT → ждём expectedDate.
+  for (const po of packagingOrders) {
+    if (!po.ownerId || !po.owner) continue;
+    const target = po.status === "IN_PRODUCTION"
+      ? (po.productionEndDate ?? po.expectedDate)
+      : po.expectedDate;
+    if (!target) continue;
+    const days = daysFromToday(target, today);
+    if (days === null || days > URGENCY_WINDOW_DAYS) continue;
+
+    const phaseLabel = po.status === "IN_PRODUCTION" ? "готовности у фабрики" : "прибытия";
+    const text = days < 0
+      ? `Проверьте упаковку — ждали ${phaseLabel} ${-days} дн назад · ${po.orderNumber}`
+      : `Через ${days} дн проверьте упаковку (${po.status === "IN_PRODUCTION" ? "у фабрики" : "доставка"}) · ${po.orderNumber}`;
+
+    tasks.push({
+      id: `pkg-check-delivery:${po.id}`,
+      ownerId: po.ownerId,
+      ownerName: po.owner.name,
+      text,
+      href: `/packaging-orders/${po.id}`,
+      daysToDeadline: days,
+      urgency: urgencyOf(days),
+      updatedAt: po.updatedAt,
+      kind: "pkg-check-delivery",
+      ageInDays: null,
+      slaBreached: false,
+    });
   }
 
   return tasks;

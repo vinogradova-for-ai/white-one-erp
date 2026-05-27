@@ -154,11 +154,20 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </div>
       </header>
 
-      {/* Экономика — три KPI */}
-      <div className="grid grid-cols-3 gap-3">
-        <Kpi label="Себестоимость шт" value={unitCost > 0 ? formatCurrency(unitCost) : "—"} />
-        <Kpi label="Кол-во штук" value={formatNumber(totalQty)} />
-        <Kpi label="Себестоимость партии" value={totalBatchCost > 0 ? formatCurrency(totalBatchCost) : "—"} accent />
+      {/* Экономика — три KPI.
+          На мобиле «Себестоимость партии» (главное число для собственника)
+          растягивается на 2 колонки сверху, две другие — снизу в одной строке.
+          На ≥md — три равных в одну строку, порядок как раньше. */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <div className="order-2 md:order-none">
+          <Kpi label="Себестоимость шт" value={unitCost > 0 ? formatCurrency(unitCost) : "—"} />
+        </div>
+        <div className="order-3 md:order-none">
+          <Kpi label="Кол-во штук" value={formatNumber(totalQty)} />
+        </div>
+        <div className="order-1 col-span-2 md:order-none md:col-span-1">
+          <Kpi label="Себестоимость партии" value={totalBatchCost > 0 ? formatCurrency(totalBatchCost) : "—"} accent />
+        </div>
       </div>
 
       {/* Параметры — однорядный набор фактов */}
