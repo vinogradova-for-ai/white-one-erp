@@ -15,7 +15,7 @@ const NAV = [
   { href: "/packaging", label: "Упаковка", icon: "▯" },
   { href: "/packaging-orders", label: "Заказы упаковки", icon: "▥" },
   { href: "/gantt-v2", label: "График Ганта", icon: "▦" },
-  { href: "/seasons", label: "Цели сезона", icon: "◈" },
+  { href: "/seasons", label: "Цели", icon: "◈" },
   { href: "/plan-vs-fact", label: "План/Факт", icon: "⎋" },
 ];
 

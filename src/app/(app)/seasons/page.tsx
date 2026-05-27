@@ -42,10 +42,9 @@ export default async function SeasonsPage({
     <div className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Цели сезонов</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">Цели</h1>
           <p className="text-sm text-slate-500">
-            10 артикулов и 20 000 шт в месяц — общая цель отдела. Сезоны разбиты
-            по релевантным категориям; план редактируется в Админке.
+            10 артикулов и 20 000 шт в месяц — общая цель отдела.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

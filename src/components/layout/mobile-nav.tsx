@@ -3,20 +3,22 @@
 import Link from "next/link";
 import { useState } from "react";
 
-// Нижний таб-бар: 4 ключевых направления + кнопка «Ещё»,
-// которая открывает полный список разделов снизу.
+// Нижний таб-бар: 4 ключевых направления + кнопка «Ещё».
+// «Цели» вынесена в таб (Алёна 27.05.2026): это экран руководителя, открывается
+// каждый день. «Упаковка» переехала в «Ещё» — операционная задача, открывается
+// через дашборд при необходимости.
 const TABS = [
   { href: "/dashboard", label: "Главный", icon: "✦" },
-  { href: "/models", label: "Каталог", icon: "⬢" },
+  { href: "/seasons", label: "Цели", icon: "◈" },
   { href: "/orders", label: "Заказы", icon: "⬡" },
-  { href: "/packaging", label: "Упаковка", icon: "▯" },
+  { href: "/models", label: "Каталог", icon: "⬢" },
 ];
 
 const MORE_LINKS = [
+  { href: "/packaging", label: "Упаковка", icon: "▯" },
   { href: "/variants", label: "Цветомодели", icon: "◎" },
   { href: "/packaging-orders", label: "Заказы упаковки", icon: "▥" },
   { href: "/gantt-v2", label: "График Ганта", icon: "▦" },
-  { href: "/seasons", label: "Цели сезона", icon: "◈" },
   { href: "/plan-vs-fact", label: "План / Факт", icon: "⎋" },
   { href: "/payments", label: "Платежи", icon: "₽" },
   { href: "/incoming", label: "Поставки", icon: "▣" },
