@@ -10,6 +10,8 @@ import {
   type TaskZone,
 } from "@/lib/queries/main-screen-checklist";
 import type { Role } from "@prisma/client";
+import { CheckableRow } from "./checkable-row";
+import { isCheckable } from "./checkable-kinds";
 
 const MONTH_NAMES_RU = [
   "январе", "феврале", "марте", "апреле", "мае", "июне",
@@ -280,26 +282,34 @@ function Section({
 function TaskList({ tasks }: { tasks: ChecklistTask[] }) {
   return (
     <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      {tasks.map((t) => (
-        <ChecklistRow key={t.id} task={t} />
-      ))}
+      {tasks.map((t) => {
+        const ageBorder = ageBorderOf(t.ageInDays);
+        // Задачи с однозначным «галочным» переходом — CheckableRow с чек-боксом
+        // и выбором фактической даты. Остальные (требуют создать сущность или
+        // ввести доп.данные) — обычная ссылка в карточку.
+        if (isCheckable(t.kind)) {
+          return <CheckableRow key={t.id} task={t} ageBorder={ageBorder} />;
+        }
+        return <ChecklistRow key={t.id} task={t} ageBorder={ageBorder} />;
+      })}
     </ul>
   );
 }
 
-function ChecklistRow({ task }: { task: ChecklistTask }) {
+function ageBorderOf(age: number | null): string {
   // Цвет рамки для задач разработки — старение по возрасту фасона:
   //   0-7 дн   — без рамки (нейтрально)
   //   8-21 дн  — жёлтая (внимание)
   //   22-44 дн — оранжевая (долг)
   //   45+ дн   — красная (длительный простой)
-  const age = task.ageInDays;
-  const ageBorder =
-    age === null ? "" :
-    age >= 45 ? "border-l-4 border-l-red-400" :
-    age >= 22 ? "border-l-4 border-l-orange-400" :
-    age >= 8 ? "border-l-4 border-l-amber-300" :
-    "";
+  if (age === null) return "";
+  if (age >= 45) return "border-l-4 border-l-red-400";
+  if (age >= 22) return "border-l-4 border-l-orange-400";
+  if (age >= 8) return "border-l-4 border-l-amber-300";
+  return "";
+}
+
+function ChecklistRow({ task, ageBorder }: { task: ChecklistTask; ageBorder: string }) {
   return (
     <li className={ageBorder}>
       <Link
