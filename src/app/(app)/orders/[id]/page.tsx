@@ -320,6 +320,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         entityId={order.id}
         currentUserId={currentUserId}
         isAdmin={isAdmin}
+        includeRelated
       />
     </div>
   );
