@@ -135,6 +135,25 @@ export function CommentsThread({
     }
   }
 
+  // Paste из буфера: Алёна копирует фото со скриншота (Cmd+Shift+5 на Mac),
+  // потом Cmd+V в любое место формы — улетает в /api/uploads.
+  // Слушаем на самой форме чтобы paste работал даже без фокуса в textarea.
+  function handlePaste(e: React.ClipboardEvent) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files: File[] = [];
+    for (const it of items) {
+      if (it.kind === "file") {
+        const f = it.getAsFile();
+        if (f) files.push(f);
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault();
+      void uploadFiles(files);
+    }
+  }
+
   return (
     <section className="space-y-3">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
@@ -150,17 +169,40 @@ export function CommentsThread({
         }}
         onDragLeave={() => setDropOver(false)}
         onDrop={handleDrop}
+        onPaste={handlePaste}
         className={`space-y-2 rounded-2xl border-2 bg-white p-3 transition ${
-          dropOver ? "border-dashed border-slate-400 bg-slate-50" : "border-slate-200"
+          dropOver
+            ? "border-dashed border-emerald-500 bg-emerald-50/60"
+            : "border-dashed border-slate-300"
         }`}
       >
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
           rows={2}
-          placeholder="Заметка про ткань, посадку, особенности…  Можно перетащить фото сюда."
+          placeholder="Заметка про ткань, посадку, особенности…"
           className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:bg-white"
         />
+
+        {/* Подсказка DnD — постоянно видна. Алёна (memory): «Фото всегда drag-n-drop».
+            Поддерживаем три способа: дроп, paste из буфера (Cmd+V), клик 📎. */}
+        <div
+          onClick={() => fileInputRef.current?.click()}
+          className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-2.5 text-xs transition ${
+            dropOver
+              ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+              : "border-slate-300 bg-slate-50 text-slate-500 hover:border-slate-400 hover:text-slate-700"
+          }`}
+        >
+          <span className="text-base leading-none">📎</span>
+          <span>
+            {dropOver
+              ? "Отпустите файл здесь"
+              : uploading
+              ? "Загружаю…"
+              : "Перетащите фото, вставьте из буфера (⌘V) или нажмите"}
+          </span>
+        </div>
 
         {pendingPhotos.length > 0 && (
           <div className="flex flex-wrap gap-2">
@@ -174,7 +216,7 @@ export function CommentsThread({
                 <button
                   type="button"
                   onClick={() => removePending(url)}
-                  className="absolute right-0.5 top-0.5 hidden h-5 w-5 items-center justify-center rounded-full bg-black/70 text-xs text-white group-hover:flex"
+                  className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/70 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
                   aria-label="Убрать фото"
                 >
                   ×
@@ -185,7 +227,7 @@ export function CommentsThread({
         )}
 
         {error && <div className="text-xs text-red-600">{error}</div>}
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-end gap-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -197,14 +239,6 @@ export function CommentsThread({
               e.target.value = "";
             }}
           />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-          >
-            {uploading ? "Загружаю…" : "📎 Фото"}
-          </button>
           <button
             type="submit"
             disabled={(!body.trim() && pendingPhotos.length === 0) || posting || uploading}
