@@ -17,6 +17,7 @@ const NAV = [
   { href: "/gantt-v2", label: "График Ганта", icon: "▦" },
   { href: "/seasons", label: "Цели", icon: "◈" },
   { href: "/plan-vs-fact", label: "План/Факт", icon: "⎋" },
+  { href: "/admin/plans", label: "Планирование работы", icon: "Σ" },
 ];
 
 // Смежные отделы — разделы, за которыми приходят финансы / склад / ВЭД / контент.
@@ -32,7 +33,6 @@ const ADMIN_NAV: Array<{ href: string; label: string; icon: string }> = [
   { href: "/admin/users", label: "Сотрудники", icon: "☉" },
   { href: "/factories", label: "Фабрики", icon: "⛭" },
   { href: "/admin/size-grids", label: "Размерные сетки", icon: "#" },
-  { href: "/admin/plans", label: "Планирование работы", icon: "Σ" },
   { href: "/admin/audit-log", label: "Журнал действий", icon: "≡" },
 ];
 

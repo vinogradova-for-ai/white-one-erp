@@ -23,12 +23,15 @@ export function CommentsThread({
   isAdmin = false,
   /** Для фасона — подтягивает в ленту и комменты всех его заказов (с меткой). */
   includeOrders = false,
+  /** Универсальная агрегация: фасон → заказы+варианты, заказ/вариант → родительский фасон. */
+  includeRelated = false,
 }: {
-  entityType: "model" | "order";
+  entityType: "model" | "order" | "variant";
   entityId: string;
   currentUserId?: string;
   isAdmin?: boolean;
   includeOrders?: boolean;
+  includeRelated?: boolean;
 }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [body, setBody] = useState("");
@@ -41,7 +44,7 @@ export function CommentsThread({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const listUrl = `/api/comments?entityType=${entityType}&entityId=${entityId}${
-    includeOrders ? "&includeOrders=1" : ""
+    includeOrders || includeRelated ? "&includeRelated=1" : ""
   }`;
 
   async function reload() {
