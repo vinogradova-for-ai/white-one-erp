@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { ORDER_STATUS_ORDER } from "@/lib/constants";
-import { OrderStatus, ProductModelStatus } from "@prisma/client";
+import { OrderStatus, PackagingOrderStatus, ProductModelStatus } from "@prisma/client";
 import { type KanbanCard, type KanbanColumn } from "@/components/models-kanban/board-client";
 import { KanbanFiltersClient, type KanbanFilterOptions } from "@/components/models-kanban/kanban-filters-client";
 import { colorHexFromName } from "@/lib/color-map";
@@ -28,6 +28,19 @@ function modelToColumn(status: ProductModelStatus, sizeChartReady: boolean): str
   if (status === "APPROVED") return sizeChartReady ? "sizing_done" : "ideal_sample";
   return "production";
 }
+
+// PackagingOrder → колонка. У упаковки нет ОТК — пропускаем колонку qc.
+//   ORDERED        → production (только что заказали)
+//   IN_PRODUCTION  → production
+//   IN_TRANSIT     → delivery
+//   ARRIVED        → done
+//   CANCELLED      → не показываем
+const PKG_ORDER_STATUS_TO_COL: Partial<Record<PackagingOrderStatus, string>> = {
+  ORDERED: "production",
+  IN_PRODUCTION: "production",
+  IN_TRANSIT: "delivery",
+  ARRIVED: "done",
+};
 
 const ORDER_STATUS_TO_COL: Record<OrderStatus, string> = {
   PREPARATION: "production",
@@ -127,9 +140,11 @@ function pickDeadline(col: string, model: { sampleDate: Date | null; approvedDat
 export default async function ModelsKanbanPage() {
   const todayIso = moscowToday();
 
-  // Грузим все активированные фасоны без фильтрации в where — фильтрация
-  // выполняется на клиенте multi-select dropdown'ами (как на /gantt-v2).
-  const models = await prisma.productModel.findMany({
+  // Грузим все активированные фасоны + все активные заказы упаковки.
+  // Алёна (27.05.2026): «на канбан нужно добавить заказы упаковки тоже» —
+  // показываются в тех же колонках post_order (без ОТК) с отдельным UX.
+  const [models, packagingOrders] = await Promise.all([
+    prisma.productModel.findMany({
     where: { deletedAt: null, activated: true },
     orderBy: { updatedAt: "desc" },
     take: 500,
@@ -157,7 +172,29 @@ export default async function ModelsKanbanPage() {
         },
       },
     },
-  });
+    }),
+    prisma.packagingOrder.findMany({
+      where: { status: { in: ["ORDERED", "IN_PRODUCTION", "IN_TRANSIT", "ARRIVED"] } },
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        productionEndDate: true,
+        expectedDate: true,
+        arrivedDate: true,
+        ownerId: true,
+        factory: { select: { name: true } },
+        owner: { select: { id: true, name: true } },
+        lines: {
+          select: {
+            quantity: true,
+            packagingItem: { select: { name: true, photoUrl: true } },
+          },
+        },
+      },
+    }),
+  ]);
 
   // Раскидать карточки по колонкам
   const buckets: Record<string, KanbanCard[]> = Object.fromEntries(COLUMNS.map((c) => [c.key, []]));
@@ -226,6 +263,56 @@ export default async function ModelsKanbanPage() {
     if (liveOrders.length > 0 || doneOrders.length === 0) {
       pushCard(liveColumn, liveOrder);
     }
+  }
+
+  // ── Заказы упаковки ─────────────────────────────────────────────
+  // Каждая карточка = один PackagingOrder. Фото = первое фото первого
+  // PackagingItem в lines, заголовок = "📦 PKG-..." + название первой позиции.
+  // Без цветочипов и без drag-n-drop.
+  for (const po of packagingOrders) {
+    const col = PKG_ORDER_STATUS_TO_COL[po.status];
+    if (!col) continue;
+    const firstLine = po.lines[0];
+    const totalQty = po.lines.reduce((s, l) => s + l.quantity, 0);
+    const firstItemName = firstLine?.packagingItem?.name ?? "";
+    const extraItems = po.lines.length > 1 ? ` +${po.lines.length - 1}` : "";
+
+    // Дедлайн: для production — productionEndDate, для delivery — expectedDate,
+    // для done — arrivedDate (фактическая дата прибытия).
+    let deadline: { iso: string; label: string } | null = null;
+    if (col === "production" && po.productionEndDate) {
+      deadline = { iso: isoDate(po.productionEndDate)!, label: "готов" };
+    } else if (col === "delivery" && po.expectedDate) {
+      deadline = { iso: isoDate(po.expectedDate)!, label: "прибытие" };
+    } else if (col === "done") {
+      const iso = isoDate(po.arrivedDate) ?? isoDate(po.expectedDate);
+      if (iso) deadline = { iso, label: "прибыло" };
+    }
+    let dlColor: "red" | "amber" | "gray" | null = null;
+    if (deadline) {
+      const diff = dayDiff(todayIso, deadline.iso);
+      dlColor = diff < 0 ? "red" : diff <= 7 ? "amber" : "gray";
+    }
+
+    buckets[col].push({
+      modelId: po.id,
+      modelName: `📦 ${po.orderNumber}${firstItemName ? ` · ${firstItemName}${extraItems}` : ""}`,
+      brandLabel: "Упаковка",
+      category: "Упаковка",
+      subcategory: null,
+      photo: firstLine?.packagingItem?.photoUrl ?? null,
+      palette: pickPalette(po.id),
+      factoryName: po.factory?.name ?? null,
+      ownerId: po.ownerId,
+      columnKey: col,
+      qty: totalQty,
+      orderNumber: po.orderNumber,
+      orderId: po.id,
+      deadline,
+      dlColor,
+      colorChips: [],
+      kind: "packaging-order",
+    });
   }
 
   // Опции фильтров — считаются по реальным карточкам с count'ами.
