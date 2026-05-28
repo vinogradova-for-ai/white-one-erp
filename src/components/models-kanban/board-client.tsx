@@ -28,6 +28,10 @@ export type KanbanCard = {
   deadline: { iso: string; label: string } | null;
   dlColor: "red" | "amber" | "gray" | null;
   colorChips: Array<{ name: string; hex: string }>;
+  /** Тип карточки: фасон (модель + опц. заказ) или заказ упаковки целиком.
+   *  Для packaging-order: photo = первое фото PackagingItem, modelName = orderNumber,
+   *  href ведёт в /packaging-orders/[id]. Drag-n-drop отключён. */
+  kind?: "model" | "packaging-order";
 };
 
 export type KanbanColumn = {
@@ -206,8 +210,12 @@ export function BoardClient({
                   </div>
                 )}
                 {cards.map((c) => {
-                  const dragEnabled = !c.orderNumber; // нет активного заказа = можно таскать в разработке
+                  const isPackaging = c.kind === "packaging-order";
+                  const dragEnabled = !isPackaging && !c.orderNumber; // нет активного заказа = можно таскать в разработке
                   const isDone = c.columnKey === "done";
+                  const href = isPackaging
+                    ? `/packaging-orders/${c.modelId}`
+                    : `/models/${c.modelId}`;
                   const dlClass = isDone
                     ? "text-slate-600 bg-slate-100"
                     : c.dlColor === "red" ? "text-red-700 bg-red-50"
@@ -231,7 +239,7 @@ export function BoardClient({
                         dragEnabled ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
                       } ${dragging === c.modelId ? "opacity-40 rotate-1" : ""}`}
                     >
-                      <Link href={`/models/${c.modelId}`} className="block" onClick={(e) => { if (dragging) e.preventDefault(); }}>
+                      <Link href={href} className="block" onClick={(e) => { if (dragging) e.preventDefault(); }}>
                         {c.photo ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
@@ -289,8 +297,10 @@ export function BoardClient({
                           </div>
                         </div>
                       </Link>
-                      {/* Ссылки в подвале карточки — только для пост-order (есть заказ) */}
-                      {c.orderId && (
+                      {/* Ссылки в подвале карточки — только для пост-order (есть заказ).
+                          У карточки упаковки заголовок и есть ссылка на packagingOrder,
+                          дублировать не нужно. */}
+                      {!isPackaging && c.orderId && (
                         <div className="flex border-t border-slate-100 text-[10px]">
                           <Link
                             href={`/orders/${c.orderId}`}
