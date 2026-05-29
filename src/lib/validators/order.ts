@@ -25,6 +25,8 @@ export const orderCreateSchema = z.object({
   paymentTerms: z.string().optional().nullable(),
   packagingType: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  // Фабрика проводит ОТК. Если false — у заказа 3 фазы вместо 4 (без ОТК).
+  hasFactoryQc: z.boolean().optional(),
   // Стоимость одной единицы в рублях — переопределяет fullCost с фасона для этого заказа.
   unitCost: z.union([z.number(), z.string()]).transform((v) => Number(v)).pipe(z.number().positive()).optional(),
   // Если передан — используем как график платежей вместо авто-парсинга paymentTerms.

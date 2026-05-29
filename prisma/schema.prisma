@@ -452,9 +452,11 @@ model Order {
   packagingOrdered Boolean @default(false)
 
   // Флаги
-  isDelayed   Boolean @default(false)
-  hasIssue    Boolean @default(false)
-  wbCardReady Boolean @default(false)
+  isDelayed     Boolean @default(false)
+  hasIssue      Boolean @default(false)
+  wbCardReady   Boolean @default(false)
+  // Фабрика проводит ОТК. Если false — у заказа 3 фазы вместо 4 (без ОТК).
+  hasFactoryQc  Boolean @default(true)
 
   notes     String?
   createdAt DateTime  @default(now())
