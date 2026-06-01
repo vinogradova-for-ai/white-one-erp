@@ -161,6 +161,8 @@ export function OrderTimeline({
   // Зум = «сколько пикселей занимает один день». Большие значения = крупный масштаб,
   // мелкие = можно охватить весь цикл взглядом. auto подбирает под viewport.
   const [zoom, setZoom] = useState<"auto" | "1w" | "1m" | "3m">("auto");
+  // Ширина видимой области шкалы — нужна, чтобы «Авто» вписывал весь цикл по ширине.
+  const [containerW, setContainerW] = useState(0);
 
   useEffect(() => {
     if (touched) return;
@@ -168,6 +170,17 @@ export function OrderTimeline({
     onChange(calc);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [launchMonth, deliveryMethod]);
+
+  // Следим за шириной контейнера (для адаптивного «Авто»-масштаба).
+  useEffect(() => {
+    const el = railRef.current;
+    if (!el) return;
+    const update = () => setContainerW(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   function resetAuto() {
     setTouched(false);
@@ -215,8 +228,11 @@ export function OrderTimeline({
 
   // Сколько пикселей занимает один день. Это и есть зум — фикс. масштаб времени.
   // 1 нед: 32 px/день (хорошо для коротких циклов), 1 мес: 16, 3 мес: 6.
-  // auto = 8 px/день для типового цикла (~90-120 дней влезает в широкий экран).
-  const dayWidth = zoom === "1w" ? 32 : zoom === "1m" ? 16 : zoom === "3m" ? 6 : 8;
+  // «Авто» = вписать ВЕСЬ цикл в ширину контейнера. Раньше тут был фикс. 8 px/день,
+  // из-за чего короткий цикл жался в левую четверть, а справа зияла пустота —
+  // это и выглядело «сломанным». Теперь авто-масштаб = ширина / длина цикла.
+  const autoDayWidth = containerW > 0 ? Math.max(4, Math.min(120, containerW / totalDays)) : 8;
+  const dayWidth = zoom === "1w" ? 32 : zoom === "1m" ? 16 : zoom === "3m" ? 6 : autoDayWidth;
   const railWidthPx = totalDays * dayWidth;
 
   // Позиция и ширина плашки — в пикселях. Никаких процентов и clamping'ов:
