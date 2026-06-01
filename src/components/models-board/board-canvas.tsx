@@ -51,8 +51,8 @@ const CELL_H = CARD_H + 60;
 const PAD = 48;
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 3.5;
-const INITIAL_SCALE = 1.35; // доска открывается крупно (карточки читаемого размера), не «вписать всё»
-const VIEW_KEY = "wo-board-view-v1"; // запоминаем масштаб/позицию пользователя (localStorage)
+const INITIAL_SCALE = 1.8; // доска открывается крупно (карточки читаемого размера), не «вписать всё»
+const VIEW_KEY = "wo-board-view-v2"; // запоминаем масштаб/позицию (localStorage). v2 — сброс старого вида под новый дефолт
 const MIN_W = 56;
 const MIN_H = 40;
 
