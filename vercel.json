@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "prisma generate && prisma migrate deploy && next build",
+  "buildCommand": "prisma generate && (prisma migrate deploy || (echo '↻ migrate: retry через 8с (база просыпается)' && sleep 8 && prisma migrate deploy) || (echo '↻ migrate: retry через 20с' && sleep 20 && prisma migrate deploy)) && next build",
   "framework": "nextjs",
   "regions": ["fra1"]
 }
