@@ -633,7 +633,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
     fetch("/api/models/board-positions", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ positions: updates.map((u) => ({ id: u.id, x: u.x, y: u.y })) }),
+      body: JSON.stringify({ positions: updates.map((u) => ({ id: u.id, x: u.x, y: u.y, w: CARD_W, h: CARD_H })) }),
     }).catch(() => showToast("Не удалось сохранить раскладку"));
     window.setTimeout(fitAll, 0);
   };
