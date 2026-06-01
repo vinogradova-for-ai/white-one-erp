@@ -38,12 +38,15 @@ export type BoardItemData = {
 };
 
 // ── Константы ────────────────────────────────────────────────────────
-const CARD_W = 188;
-const CARD_H = 252;
-const CARD_TEXT_STRIP = 64; // нижняя полоса с названием
-const COLS = 10;
-const CELL_W = 210;
-const CELL_H = 300;
+// Карточка-превью в стиле поста Instagram: шапка (аватар+ник) + фото + панель
+// действий + подпись. Фото = высота карточки минус шапка и подвал.
+const CARD_W = 214;
+const CARD_HEADER = 42; // шапка с аватаром и ником
+const CARD_FOOTER = 92; // панель лайков/коммент + подпись
+const CARD_H = CARD_HEADER + 214 + CARD_FOOTER; // фото ≈ квадрат
+const COLS = 9;
+const CELL_W = 244;
+const CELL_H = CARD_H + 60;
 const PAD = 48;
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 3.5;
@@ -690,21 +693,100 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
 }
 
 // ── Карточка фасона ────────────────────────────────────────────────────
+function igHandle(brandLabel: string): string {
+  const l = brandLabel.toLowerCase();
+  if (l.includes("white")) return "white_one_love";
+  if (l.includes("сердц")) return "serdcebienie";
+  return brandLabel.toLowerCase().replace(/\s+/g, "_") || "white_one_love";
+}
+
+const IG_ICON = "shrink-0 text-slate-900";
+function HeartIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_ICON}>
+      <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.5 4.04 3 5.5l7 7Z" />
+    </svg>
+  );
+}
+function CommentIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_ICON}>
+      <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+    </svg>
+  );
+}
+function SendIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_ICON}>
+      <path d="m22 2-7 20-4-9-9-4Z" />
+      <path d="M22 2 11 13" />
+    </svg>
+  );
+}
+function BookmarkIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_ICON}>
+      <path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
+    </svg>
+  );
+}
+function VerifiedBadge() {
+  return (
+    <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-[#3897f0]">
+      <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5 12l4 4L19 7" />
+      </svg>
+    </span>
+  );
+}
+
+// Карточка-превью в стиле поста Instagram.
 function CardBody({ el }: { el: El }) {
   const c = el.card!;
-  const photoH = Math.max(0, el.h - CARD_TEXT_STRIP);
+  const handle = igHandle(c.brandLabel);
   return (
-    <div className="h-full w-full cursor-grab overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm active:cursor-grabbing">
+    <div className="flex h-full w-full cursor-grab flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm active:cursor-grabbing">
+      {/* Шапка: аватар + ник + галочка */}
+      <div className="flex items-center gap-2 px-2.5" style={{ height: CARD_HEADER }}>
+        <span className="shrink-0 rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 p-[1.5px]">
+          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-[11px] font-bold uppercase text-slate-700">
+            {handle[0]}
+          </span>
+        </span>
+        <div className="flex min-w-0 items-center gap-1">
+          <span className="truncate text-[12px] font-semibold leading-none text-slate-900">{handle}</span>
+          <VerifiedBadge />
+        </div>
+        <span className="ml-auto text-[15px] leading-none text-slate-500">⋯</span>
+      </div>
+
+      {/* Фото на всю ширину */}
       {c.photo ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={c.photo} alt="" loading="lazy" draggable={false} className="w-full bg-slate-100 object-cover" style={{ height: photoH }} />
+        <img src={c.photo} alt="" loading="lazy" draggable={false} className="min-h-0 w-full flex-1 bg-slate-100 object-cover" />
       ) : (
-        <div className="flex w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 px-2 text-center text-[11px] text-slate-500" style={{ height: photoH }}>{c.name}</div>
+        <div className="flex min-h-0 w-full flex-1 items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 px-2 text-center text-[11px] text-slate-500">
+          {c.name}
+        </div>
       )}
-      <div className="space-y-1 p-2" style={{ height: CARD_TEXT_STRIP }}>
-        <div className="line-clamp-1 text-[13px] font-semibold leading-tight text-slate-900">{c.name}</div>
-        <div className="flex items-center justify-between gap-1">
-          <span className="inline-flex items-center gap-1 truncate text-[10px] text-slate-600">
+
+      {/* Подвал: панель действий + подпись + статус */}
+      <div className="flex flex-col gap-1 px-2.5 pb-2 pt-1.5" style={{ height: CARD_FOOTER }}>
+        <div className="flex items-center">
+          <span className="flex items-center gap-3">
+            <HeartIcon />
+            <CommentIcon />
+            <SendIcon />
+          </span>
+          <span className="ml-auto">
+            <BookmarkIcon />
+          </span>
+        </div>
+        <div className="line-clamp-2 text-[12px] leading-snug text-slate-900">
+          <span className="font-semibold">{handle}</span> {c.name}
+        </div>
+        <div className="mt-auto flex items-center justify-between gap-1">
+          <span className="inline-flex items-center gap-1 truncate text-[10px] text-slate-500">
             <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: c.statusDot }} />
             {c.statusLabel}
           </span>
