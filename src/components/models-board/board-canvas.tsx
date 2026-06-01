@@ -241,7 +241,7 @@ export function BoardCanvas({ cards }: { cards: BoardCard[] }) {
       <div
         className="pointer-events-none absolute inset-0"
         style={{
-          backgroundImage: "radial-gradient(circle, #cbd5e1 1px, transparent 1px)",
+          backgroundImage: "radial-gradient(circle, var(--board-dot) 1px, transparent 1px)",
           backgroundSize: `${dotSize}px ${dotSize}px`,
           backgroundPosition: `${view.tx}px ${view.ty}px`,
           opacity: view.scale < 0.4 ? 0.4 : 1,
