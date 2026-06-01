@@ -9,9 +9,9 @@ import { generatePaymentsForOrder } from "@/lib/payments/generate-for-order";
 import { normalizeOrderDates } from "@/lib/normalize-phase-dates";
 import { logAudit } from "@/server/audit";
 
-async function nextOrderNumber() {
+async function nextOrderNumber(client: Prisma.TransactionClient = prisma) {
   const year = new Date().getUTCFullYear();
-  const last = await prisma.order.findFirst({
+  const last = await client.order.findFirst({
     where: { orderNumber: { startsWith: `ORD-${year}-` } },
     orderBy: { orderNumber: "desc" },
     select: { orderNumber: true },
@@ -94,35 +94,98 @@ export async function POST(req: NextRequest) {
       createdAt: new Date(),
     });
 
-    const order = await prisma.order.create({
-      data: {
-        orderNumber: await nextOrderNumber(),
-        productModelId: data.productModelId,
-        orderType: data.orderType,
-        season: data.season ?? null,
-        launchMonth: data.launchMonth,
-        factoryId: data.factoryId || model.preferredFactoryId || null,
-        ownerId: data.ownerId,
-        deliveryMethod: data.deliveryMethod ?? null,
-        paymentTerms: data.paymentTerms ?? null,
-        packagingType: data.packagingType ?? null,
-        notes: data.notes ?? null,
-        decisionDate: phases.decisionDate,
-        handedToFactoryDate: phases.handedToFactoryDate,
-        sewingStartDate: toDate(data.sewingStartDate),
-        readyAtFactoryDate: phases.readyAtFactoryDate,
-        qcDate: phases.qcDate,
-        shipmentDate: toDate(data.shipmentDate),
-        arrivalPlannedDate: phases.arrivalPlannedDate,
-        packingDoneDate: toDate(data.packingDoneDate),
-        wbShipmentDate: toDate(data.wbShipmentDate),
-        saleStartDate: toDate(data.saleStartDate),
-        lines: { create: linesData },
-      },
+    // Всё создание заказа — атомарно: заказ + лог статуса + упаковка + платежи.
+    // При обрыве (Neon serverless) не остаётся «полузаказа» без графика оплат.
+    const order = await prisma.$transaction(async (tx) => {
+      const created = await tx.order.create({
+        data: {
+          orderNumber: await nextOrderNumber(tx),
+          productModelId: data.productModelId,
+          orderType: data.orderType,
+          season: data.season ?? null,
+          launchMonth: data.launchMonth,
+          factoryId: data.factoryId || model.preferredFactoryId || null,
+          ownerId: data.ownerId,
+          deliveryMethod: data.deliveryMethod ?? null,
+          paymentTerms: data.paymentTerms ?? null,
+          packagingType: data.packagingType ?? null,
+          notes: data.notes ?? null,
+          decisionDate: phases.decisionDate,
+          handedToFactoryDate: phases.handedToFactoryDate,
+          sewingStartDate: toDate(data.sewingStartDate),
+          readyAtFactoryDate: phases.readyAtFactoryDate,
+          qcDate: phases.qcDate,
+          shipmentDate: toDate(data.shipmentDate),
+          arrivalPlannedDate: phases.arrivalPlannedDate,
+          packingDoneDate: toDate(data.packingDoneDate),
+          wbShipmentDate: toDate(data.wbShipmentDate),
+          saleStartDate: toDate(data.saleStartDate),
+          lines: { create: linesData },
+        },
+      });
+
+      await tx.orderStatusLog.create({
+        data: { orderId: created.id, toStatus: created.status, changedById: session.user.id, comment: "Создание" },
+      });
+
+      // Копируем комплект упаковки с фасона
+      if (model.packagingItems && model.packagingItems.length > 0) {
+        await tx.orderPackaging.createMany({
+          data: model.packagingItems.map((mp) => ({
+            orderId: created.id,
+            packagingItemId: mp.packagingItemId,
+            quantityPerUnit: mp.quantityPerUnit,
+          })),
+          skipDuplicates: true,
+        });
+      }
+
+      // Платежи: если передан график из формы — используем его; иначе автогенерация по paymentTerms.
+      if (data.payments && data.payments.length > 0) {
+        await tx.payment.createMany({
+          data: data.payments.map((p) => ({
+            type: "ORDER" as const,
+            plannedDate: new Date(p.plannedDate),
+            amount: p.amount,
+            label: p.label,
+            orderId: created.id,
+            factoryId: created.factoryId,
+            createdById: session.user.id,
+            status: p.paid ? "PAID" as const : "PENDING" as const,
+            paidAt: p.paid ? new Date() : null,
+            paidById: p.paid ? session.user.id : null,
+          })),
+        });
+      } else {
+        const generated = generatePaymentsForOrder({
+          id: created.id,
+          paymentTerms: created.paymentTerms,
+          batchCost: totalBatchCost > 0 ? new Prisma.Decimal(totalBatchCost) : null,
+          factoryId: created.factoryId,
+          createdAt: created.createdAt,
+          readyAtFactoryDate: created.readyAtFactoryDate,
+          launchMonth: created.launchMonth,
+        });
+        if (generated.length > 0) {
+          await tx.payment.createMany({
+            data: generated.map((p) => ({
+              type: p.type,
+              plannedDate: p.plannedDate,
+              amount: p.amount,
+              label: p.label,
+              notes: p.notes,
+              orderId: p.orderId,
+              factoryId: p.factoryId,
+              createdById: session.user.id,
+            })),
+          });
+        }
+      }
+
+      return created;
     });
-    await prisma.orderStatusLog.create({
-      data: { orderId: order.id, toStatus: order.status, changedById: session.user.id, comment: "Создание" },
-    });
+
+    // Аудит — после успешного коммита (его сбой не должен откатывать заказ).
     await logAudit({
       action: "CREATE",
       entityType: "Order",
@@ -130,60 +193,6 @@ export async function POST(req: NextRequest) {
       userId: session.user.id,
       changes: { orderNumber: order.orderNumber, productModelId: order.productModelId },
     });
-
-    // Копируем комплект упаковки с фасона
-    if (model.packagingItems && model.packagingItems.length > 0) {
-      await prisma.orderPackaging.createMany({
-        data: model.packagingItems.map((mp) => ({
-          orderId: order.id,
-          packagingItemId: mp.packagingItemId,
-          quantityPerUnit: mp.quantityPerUnit,
-        })),
-        skipDuplicates: true,
-      });
-    }
-
-    // Платежи: если передан график из формы — используем его; иначе автогенерация по paymentTerms.
-    if (data.payments && data.payments.length > 0) {
-      await prisma.payment.createMany({
-        data: data.payments.map((p) => ({
-          type: "ORDER" as const,
-          plannedDate: new Date(p.plannedDate),
-          amount: p.amount,
-          label: p.label,
-          orderId: order.id,
-          factoryId: order.factoryId,
-          createdById: session.user.id,
-          status: p.paid ? "PAID" as const : "PENDING" as const,
-          paidAt: p.paid ? new Date() : null,
-          paidById: p.paid ? session.user.id : null,
-        })),
-      });
-    } else {
-      const generated = generatePaymentsForOrder({
-        id: order.id,
-        paymentTerms: order.paymentTerms,
-        batchCost: totalBatchCost > 0 ? new Prisma.Decimal(totalBatchCost) : null,
-        factoryId: order.factoryId,
-        createdAt: order.createdAt,
-        readyAtFactoryDate: order.readyAtFactoryDate,
-        launchMonth: order.launchMonth,
-      });
-      if (generated.length > 0) {
-        await prisma.payment.createMany({
-          data: generated.map((p) => ({
-            type: p.type,
-            plannedDate: p.plannedDate,
-            amount: p.amount,
-            label: p.label,
-            notes: p.notes,
-            orderId: p.orderId,
-            factoryId: p.factoryId,
-            createdById: session.user.id,
-          })),
-        });
-      }
-    }
 
     return NextResponse.json(order, { status: 201 });
   } catch (e) {

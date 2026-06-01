@@ -154,8 +154,13 @@ describe("resolveModelCost — ноль и граничные числа", () =>
     expect(resolveModelCost({ purchasePriceCny: 0, cnyRubRate: 12, fullCost: 999 })).toBe(0);
   });
 
-  it("курс === 0 валиден: 100 ¥ × 0 = 0", () => {
-    expect(resolveModelCost({ purchasePriceCny: 100, cnyRubRate: 0, fullCost: 999 })).toBe(0);
+  it("курс === 0 НЕвалиден: ¥-источник пропускается, откат на fullCost", () => {
+    // Нулевой курс — ошибка ввода, а не «бесплатно». Не обнуляем себестоимость.
+    expect(resolveModelCost({ purchasePriceCny: 100, cnyRubRate: 0, fullCost: 999 })).toBe(999);
+  });
+
+  it("курс отрицательный → ¥-источник пропускается, откат дальше", () => {
+    expect(resolveModelCost({ purchasePriceCny: 100, cnyRubRate: -5, fullCost: 777 })).toBe(777);
   });
 
   it("fullCost === 0 возвращается как 0", () => {

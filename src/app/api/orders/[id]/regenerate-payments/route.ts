@@ -30,10 +30,6 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: { code: "not_found", message: "Заказ не найден" } }, { status: 404 });
     }
 
-    await prisma.payment.deleteMany({
-      where: { orderId: id, status: "PENDING" },
-    });
-
     const totalBatchCost = order.lines.reduce((a, l) => a + Number(l.batchCost ?? 0), 0);
     const generated = generatePaymentsForOrder({
       id: order.id,
@@ -44,20 +40,28 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       readyAtFactoryDate: order.readyAtFactoryDate,
       launchMonth: order.launchMonth,
     });
-    if (generated.length > 0) {
-      await prisma.payment.createMany({
-        data: generated.map((p) => ({
-          type: p.type,
-          plannedDate: p.plannedDate,
-          amount: p.amount,
-          label: p.label,
-          notes: p.notes,
-          orderId: p.orderId,
-          factoryId: p.factoryId,
-          createdById: session.user.id,
-        })),
+
+    // Атомарно: удаление старых PENDING и создание новых — чтобы при обрыве
+    // заказ не остался вообще без графика оплат. PAID-платежи не трогаем.
+    await prisma.$transaction(async (tx) => {
+      await tx.payment.deleteMany({
+        where: { orderId: id, status: "PENDING" },
       });
-    }
+      if (generated.length > 0) {
+        await tx.payment.createMany({
+          data: generated.map((p) => ({
+            type: p.type,
+            plannedDate: p.plannedDate,
+            amount: p.amount,
+            label: p.label,
+            notes: p.notes,
+            orderId: p.orderId,
+            factoryId: p.factoryId,
+            createdById: session.user.id,
+          })),
+        });
+      }
+    });
 
     const payments = await prisma.payment.findMany({
       where: { orderId: id },
