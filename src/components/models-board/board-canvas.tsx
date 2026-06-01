@@ -42,9 +42,9 @@ export type BoardItemData = {
 // Карточка-превью в стиле поста Instagram: шапка (аватар+ник) + фото + панель
 // действий + подпись. Фото = высота карточки минус шапка и подвал.
 const CARD_W = 214;
-const CARD_HEADER = 42; // шапка с аватаром и ником
-const CARD_FOOTER = 92; // панель лайков/коммент + подпись
-const CARD_H = CARD_HEADER + 214 + CARD_FOOTER; // фото ≈ квадрат
+const CARD_HEADER = 32; // тонкая шапка с аватаром и ником
+const CARD_FOOTER = 62; // тонкая панель лайков/коммент + подпись
+const CARD_H = CARD_HEADER + 274 + CARD_FOOTER; // фото доминирует (≈74% карточки)
 const COLS = 9;
 const CELL_W = 244;
 const CELL_H = CARD_H + 60;
@@ -839,21 +839,21 @@ function igHandle(brandLabel: string): string {
 const IG_ICON = "shrink-0 text-slate-900";
 function HeartIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_ICON}>
+    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_ICON}>
       <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.5 4.04 3 5.5l7 7Z" />
     </svg>
   );
 }
 function CommentIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_ICON}>
+    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_ICON}>
       <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
     </svg>
   );
 }
 function SendIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_ICON}>
+    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_ICON}>
       <path d="m22 2-7 20-4-9-9-4Z" />
       <path d="M22 2 11 13" />
     </svg>
@@ -861,7 +861,7 @@ function SendIcon() {
 }
 function BookmarkIcon() {
   return (
-    <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_ICON}>
+    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_ICON}>
       <path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
     </svg>
   );
@@ -885,18 +885,18 @@ function CardBody({ el }: { el: El }) {
   const cur = photos.length ? idx % photos.length : 0;
   return (
     <div className="flex h-full w-full cursor-grab flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm active:cursor-grabbing">
-      {/* Шапка: аватар + ник + галочка */}
-      <div className="flex items-center gap-2 px-2.5" style={{ height: CARD_HEADER }}>
+      {/* Шапка: аватар + ник + галочка (тонкая) */}
+      <div className="flex items-center gap-1.5 px-2" style={{ height: CARD_HEADER }}>
         <span className="shrink-0 rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 p-[1.5px]">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-[11px] font-bold uppercase text-slate-700">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] font-bold uppercase text-slate-700">
             {handle[0]}
           </span>
         </span>
         <div className="flex min-w-0 items-center gap-1">
-          <span className="truncate text-[12px] font-semibold leading-none text-slate-900">{handle}</span>
+          <span className="truncate text-[11px] font-semibold leading-none text-slate-900">{handle}</span>
           <VerifiedBadge />
         </div>
-        <span className="ml-auto text-[15px] leading-none text-slate-500">⋯</span>
+        <span className="ml-auto text-[13px] leading-none text-slate-500">⋯</span>
       </div>
 
       {/* Фото — карусель, если их несколько (как в Instagram) */}
@@ -941,10 +941,10 @@ function CardBody({ el }: { el: El }) {
         )}
       </div>
 
-      {/* Подвал: панель действий + подпись + статус */}
-      <div className="flex flex-col gap-1 px-2.5 pb-2 pt-1.5" style={{ height: CARD_FOOTER }}>
+      {/* Подвал: панель действий + подпись + статус (тонкий) */}
+      <div className="flex flex-col gap-0.5 px-2 pb-1.5 pt-1" style={{ height: CARD_FOOTER }}>
         <div className="flex items-center">
-          <span className="flex items-center gap-3">
+          <span className="flex items-center gap-2.5">
             <HeartIcon />
             <CommentIcon />
             <SendIcon />
@@ -953,7 +953,7 @@ function CardBody({ el }: { el: El }) {
             <BookmarkIcon />
           </span>
         </div>
-        <div className="line-clamp-2 text-[12px] leading-snug text-slate-900">
+        <div className="line-clamp-1 text-[11px] leading-tight text-slate-900">
           <span className="font-semibold">{handle}</span> {c.name}
         </div>
         <div className="mt-auto flex items-center justify-between gap-1">
@@ -964,7 +964,7 @@ function CardBody({ el }: { el: El }) {
           {c.colorChips.length > 0 && (
             <span className="flex shrink-0 items-center gap-0.5">
               {c.colorChips.slice(0, 5).map((cc, i) => (
-                <span key={i} className="inline-block h-3 w-3 rounded-full ring-1 ring-slate-200" style={{ backgroundColor: cc.hex }} />
+                <span key={i} className="inline-block h-2.5 w-2.5 rounded-full ring-1 ring-slate-200" style={{ backgroundColor: cc.hex }} />
               ))}
             </span>
           )}
