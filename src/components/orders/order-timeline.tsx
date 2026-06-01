@@ -445,9 +445,13 @@ export function OrderTimeline({
                   const endIso = getEndIso(ph);
                   const leftPx = posPx(startIso);
                   const rawWidthPx = posPx(endIso) - leftPx;
-                  // min-width 64px — две ручки 24px помещаются с зазором 16px.
-                  // Минус 4px — visual gap между соседними плашками.
-                  const widthPx = Math.max(64, rawWidthPx) - 4;
+                  // Ширина = честная длительность в пикселях. Раньше был min 64px,
+                  // из-за чего короткие фазы (ОТК ~5 дн, Доставка) раздувались и
+                  // налезали на соседние строки — каскад выглядел «сломанным».
+                  // Теперь маленький минимум: фаза не исчезает, но фазы стыкуются
+                  // встык по реальным датам. Для редактирования коротких фаз — зум.
+                  const MIN_BAR = 26;
+                  const widthPx = Math.max(MIN_BAR, rawWidthPx);
                   const days = daysBetween(startIso, endIso);
                   // Узкая плашка (≤80px) — только иконка, без названия и дней.
                   // Средняя (≤140px) — иконка + название, без дней.
