@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { CommentsDrawer } from "./comments-drawer";
 
 // Колонки куда МОЖНО таскать (drag-target). Колонки 5–8 (после заказа)
 // в этот список не входят — они только показывают результат, изменения
@@ -28,6 +29,11 @@ export type KanbanCard = {
   deadline: { iso: string; label: string } | null;
   dlColor: "red" | "amber" | "gray" | null;
   colorChips: Array<{ name: string; hex: string }>;
+  /** Все фото фасона — для карусели в карточке. */
+  photos?: string[];
+  /** Кол-во комментов к фасону + превью последнего. */
+  commentCount?: number;
+  lastComment?: { author: string; snippet: string; photos: number } | null;
   /** Тип карточки: фасон (модель + опц. заказ) или заказ упаковки целиком.
    *  Для packaging-order: photo = первое фото PackagingItem, modelName = orderNumber,
    *  href ведёт в /packaging-orders/[id]. Drag-n-drop отключён. */
@@ -44,15 +50,20 @@ export type KanbanColumn = {
 export function BoardClient({
   columns,
   buckets,
+  currentUserId,
+  isAdmin,
 }: {
   columns: ReadonlyArray<KanbanColumn>;
   buckets: Record<string, KanbanCard[]>;
+  currentUserId?: string;
+  isAdmin?: boolean;
 }) {
   const router = useRouter();
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropZone, setDropZone] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [openComments, setOpenComments] = useState<{ id: string; name: string } | null>(null);
   // На мобиле 8 колонок шириной 210px не помещаются — на 390px видно только
   // 1.5 колонки и пользователь теряется. Поэтому на ≤md показываем одну
   // колонку, выбираемую через pill-табы со счётчиками. Дефолт — первая
@@ -209,117 +220,17 @@ export function BoardClient({
                     {isOver ? "отпускай сюда" : "пусто"}
                   </div>
                 )}
-                {cards.map((c) => {
-                  const isPackaging = c.kind === "packaging-order";
-                  const dragEnabled = !isPackaging && !c.orderNumber; // нет активного заказа = можно таскать в разработке
-                  const isDone = c.columnKey === "done";
-                  const href = isPackaging
-                    ? `/packaging-orders/${c.modelId}`
-                    : `/models/${c.modelId}`;
-                  const dlClass = isDone
-                    ? "text-slate-600 bg-slate-100"
-                    : c.dlColor === "red" ? "text-red-700 bg-red-50"
-                    : c.dlColor === "amber" ? "text-amber-700 bg-amber-50"
-                    : "text-slate-500 bg-slate-100";
-                  const dlPrefix = isDone
-                    ? "📦"
-                    : c.dlColor === "red" ? "🔥"
-                    : c.dlColor === "amber" ? "⚠️" : "📅";
-                  return (
-                    <div
-                      key={`${c.modelId}:${c.orderId ?? "noord"}:${c.columnKey ?? ""}`}
-                      draggable={dragEnabled}
-                      onDragStart={(e) => {
-                        if (!dragEnabled) return;
-                        setDragging(c.modelId);
-                        e.dataTransfer.effectAllowed = "move";
-                      }}
-                      onDragEnd={() => { setDragging(null); setDropZone(null); }}
-                      className={`block bg-white border border-slate-200 rounded-xl overflow-hidden hover:shadow-md transition-all ${
-                        dragEnabled ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
-                      } ${dragging === c.modelId ? "opacity-40 rotate-1" : ""}`}
-                    >
-                      <Link href={href} className="block" onClick={(e) => { if (dragging) e.preventDefault(); }}>
-                        {c.photo ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={c.photo}
-                            alt=""
-                            className={`w-full aspect-square object-cover bg-slate-100 ${
-                              isDone ? "grayscale opacity-80" : ""
-                            }`}
-                            draggable={false}
-                          />
-                        ) : (
-                          <div
-                            className="w-full aspect-square flex items-center justify-center text-[11px] text-slate-500/60"
-                            style={{ background: `linear-gradient(135deg, ${c.palette[0]}, ${c.palette[1]})` }}
-                          >
-                            {c.modelName}
-                          </div>
-                        )}
-                        <div className="p-2 space-y-1">
-                          <div className="text-[13px] font-semibold text-slate-900 line-clamp-1 leading-tight">{c.modelName}</div>
-                          <div className="text-[11px] text-slate-500 truncate">
-                            {c.brandLabel} · {c.category}
-                          </div>
-                          {c.colorChips.length > 0 && (
-                            <div className="flex flex-wrap gap-1 items-center" title={c.colorChips.map((x) => x.name).join(", ")}>
-                              {c.colorChips.slice(0, 6).map((cc, i) => (
-                                <span
-                                  key={i}
-                                  className="inline-block h-3 w-3 rounded-full ring-1 ring-slate-200"
-                                  style={{ backgroundColor: cc.hex }}
-                                  aria-label={cc.name}
-                                />
-                              ))}
-                              {c.colorChips.length > 6 && (
-                                <span className="text-[10px] text-slate-400">+{c.colorChips.length - 6}</span>
-                              )}
-                            </div>
-                          )}
-                          <div className="flex flex-wrap items-center gap-1">
-                            {c.factoryName && (
-                              <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded truncate max-w-[120px]">
-                                🏭 {c.factoryName}
-                              </span>
-                            )}
-                            {c.qty > 0 && (
-                              <span className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded">
-                                {c.qty.toLocaleString("ru-RU")} шт
-                              </span>
-                            )}
-                            {c.deadline && (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${dlClass}`}>
-                                {dlPrefix} {fmtDM(c.deadline.iso)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </Link>
-                      {/* Ссылки в подвале карточки — только для пост-order (есть заказ).
-                          У карточки упаковки заголовок и есть ссылка на packagingOrder,
-                          дублировать не нужно. */}
-                      {!isPackaging && c.orderId && (
-                        <div className="flex border-t border-slate-100 text-[10px]">
-                          <Link
-                            href={`/orders/${c.orderId}`}
-                            className="flex-1 px-2 py-1.5 text-blue-600 hover:bg-blue-50 truncate text-center border-r border-slate-100"
-                          >
-                            #{c.orderNumber}
-                          </Link>
-                          <Link
-                            href={`/gantt-v2`}
-                            className="px-2 py-1.5 text-slate-600 hover:bg-slate-50"
-                            title="Гант"
-                          >
-                            📊 Гант
-                          </Link>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {cards.map((c) => (
+                  <KanbanCardView
+                    key={`${c.modelId}:${c.orderId ?? "noord"}:${c.columnKey ?? ""}`}
+                    c={c}
+                    dragging={dragging}
+                    onDragStartCard={() => setDragging(c.modelId)}
+                    onDragEndCard={() => { setDragging(null); setDropZone(null); }}
+                    onOpenComments={() => setOpenComments({ id: c.modelId, name: c.modelName })}
+                    fmtDM={fmtDM}
+                  />
+                ))}
               </div>
             </div>
           );
@@ -331,6 +242,187 @@ export function BoardClient({
           Сохраняем…
         </div>
       )}
+
+      {openComments && (
+        <CommentsDrawer
+          modelId={openComments.id}
+          modelName={openComments.name}
+          currentUserId={currentUserId}
+          isAdmin={isAdmin}
+          onClose={() => setOpenComments(null)}
+        />
+      )}
     </div>
   );
+}
+
+// ── Карточка фасона в стиле Instagram (компактная) ──────────────────────
+function igHandle(brandLabel: string): string {
+  const l = (brandLabel || "").toLowerCase();
+  if (l.includes("white") || l.includes("white_one") || l === "white_one") return "white_one_love";
+  if (l.includes("сердц") || l.includes("serdc")) return "serdcebienie";
+  return l.replace(/\s+/g, "_") || "white_one_love";
+}
+
+function IgVerified() {
+  return (
+    <span className="inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full bg-[#3897f0]">
+      <svg viewBox="0 0 24 24" width="8" height="8" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5 12l4 4L19 7" />
+      </svg>
+    </span>
+  );
+}
+
+const IG_MINI = "shrink-0 text-slate-900";
+function MiniHeart() {
+  return <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_MINI}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.5 4.04 3 5.5l7 7Z" /></svg>;
+}
+function MiniComment() {
+  return <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_MINI}><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg>;
+}
+function MiniSend() {
+  return <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_MINI}><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>;
+}
+function MiniBookmark() {
+  return <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_MINI}><path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" /></svg>;
+}
+
+function KanbanCardView({
+  c,
+  dragging,
+  onDragStartCard,
+  onDragEndCard,
+  onOpenComments,
+  fmtDM,
+}: {
+  c: KanbanCard;
+  dragging: string | null;
+  onDragStartCard: () => void;
+  onDragEndCard: () => void;
+  onOpenComments: () => void;
+  fmtDM: (iso: string) => string;
+}) {
+  const isPackaging = c.kind === "packaging-order";
+  const dragEnabled = !isPackaging && !c.orderNumber;
+  const isDone = c.columnKey === "done";
+  const href = isPackaging ? `/packaging-orders/${c.modelId}` : `/models/${c.modelId}`;
+  const dlClass = isDone
+    ? "text-slate-600 bg-slate-100"
+    : c.dlColor === "red" ? "text-red-700 bg-red-50"
+    : c.dlColor === "amber" ? "text-amber-700 bg-amber-50"
+    : "text-slate-500 bg-slate-100";
+  const dlPrefix = isDone ? "📦" : c.dlColor === "red" ? "🔥" : c.dlColor === "amber" ? "⚠️" : "📅";
+
+  const photos = c.photos?.length ? c.photos : c.photo ? [c.photo] : [];
+  const [idx, setIdx] = useState(0);
+  const cur = photos.length ? idx % photos.length : 0;
+  const handle = igHandle(c.brandLabel);
+  const commentCount = c.commentCount ?? 0;
+
+  const wrapper = (
+    <div
+      draggable={dragEnabled}
+      onDragStart={(e) => { if (!dragEnabled) return; onDragStartCard(); e.dataTransfer.effectAllowed = "move"; }}
+      onDragEnd={onDragEndCard}
+      className={`block overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all hover:shadow-md ${
+        dragEnabled ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
+      } ${dragging === c.modelId ? "rotate-1 opacity-40" : ""}`}
+    >
+      {/* Шапка */}
+      {!isPackaging && (
+        <div className="flex items-center gap-1.5 px-2 py-1.5">
+          <span className="shrink-0 rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 p-[1.5px]">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] font-bold uppercase text-slate-700">{handle[0]}</span>
+          </span>
+          <span className="truncate text-[11px] font-semibold text-slate-900">{handle}</span>
+          <IgVerified />
+          <span className="ml-auto text-slate-400">⋯</span>
+        </div>
+      )}
+
+      <Link href={href} className="block" onClick={(e) => { if (dragging) e.preventDefault(); }}>
+        {/* Фото / карусель */}
+        <div className="group/ph relative w-full bg-slate-100">
+          {photos.length > 0 ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={photos[cur]} alt="" draggable={false} className={`aspect-square w-full object-cover ${isDone ? "opacity-80 grayscale" : ""}`} />
+              {photos.length > 1 && (
+                <>
+                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIdx((i) => (i - 1 + photos.length) % photos.length); }} className="absolute left-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-sm text-slate-700 opacity-0 shadow transition group-hover/ph:opacity-100">‹</button>
+                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIdx((i) => (i + 1) % photos.length); }} className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-sm text-slate-700 opacity-0 shadow transition group-hover/ph:opacity-100">›</button>
+                  <div className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[9px] font-medium text-white">{cur + 1}/{photos.length}</div>
+                  <div className="absolute bottom-1.5 left-1/2 flex -translate-x-1/2 items-center gap-1">
+                    {photos.slice(0, 7).map((_, i) => (<span key={i} className={`h-1 rounded-full ${i === cur ? "w-2.5 bg-white" : "w-1 bg-white/60"}`} />))}
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            <div className="flex aspect-square w-full items-center justify-center px-2 text-center text-[11px] text-slate-500/60" style={{ background: `linear-gradient(135deg, ${c.palette[0]}, ${c.palette[1]})` }}>{c.modelName}</div>
+          )}
+        </div>
+
+        {/* Панель действий (декоративная, как в инсте) */}
+        {!isPackaging && (
+          <div className="flex items-center gap-2.5 px-2 pb-0.5 pt-1.5">
+            <MiniHeart />
+            <MiniComment />
+            <MiniSend />
+            <span className="ml-auto"><MiniBookmark /></span>
+          </div>
+        )}
+
+        <div className="space-y-1 px-2 pb-2 pt-0.5">
+          <div className="line-clamp-1 text-[12px] leading-tight text-slate-900">
+            {!isPackaging && <span className="font-semibold">{handle} </span>}
+            {c.modelName}
+          </div>
+          {c.colorChips.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1" title={c.colorChips.map((x) => x.name).join(", ")}>
+              {c.colorChips.slice(0, 6).map((cc, i) => (<span key={i} className="inline-block h-3 w-3 rounded-full ring-1 ring-slate-200" style={{ backgroundColor: cc.hex }} />))}
+              {c.colorChips.length > 6 && <span className="text-[10px] text-slate-400">+{c.colorChips.length - 6}</span>}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-1">
+            {c.factoryName && <span className="max-w-[120px] truncate rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-700">🏭 {c.factoryName}</span>}
+            {c.qty > 0 && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-700">{c.qty.toLocaleString("ru-RU")} шт</span>}
+            {c.deadline && <span className={`rounded px-1.5 py-0.5 text-[10px] ${dlClass}`}>{dlPrefix} {fmtDM(c.deadline.iso)}</span>}
+          </div>
+        </div>
+      </Link>
+
+      {/* Превью комментариев — клик открывает переписку */}
+      {!isPackaging && (
+        <button
+          type="button"
+          onClick={onOpenComments}
+          className="block w-full border-t border-slate-100 px-2 py-1.5 text-left hover:bg-slate-50"
+        >
+          {commentCount > 0 && c.lastComment ? (
+            <span className="block">
+              <span className="line-clamp-1 text-[11px] text-slate-700">
+                <span className="font-semibold">{c.lastComment.author}:</span> {c.lastComment.snippet}
+                {c.lastComment.photos > 0 && <span className="text-slate-400"> 📷{c.lastComment.photos}</span>}
+              </span>
+              {commentCount > 1 && <span className="text-[10px] text-blue-600">Показать все {commentCount} →</span>}
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-[11px] text-slate-400"><MiniComment /> Добавить комментарий</span>
+          )}
+        </button>
+      )}
+
+      {/* Ссылки на заказ/Гант */}
+      {!isPackaging && c.orderId && (
+        <div className="flex border-t border-slate-100 text-[10px]">
+          <Link href={`/orders/${c.orderId}`} className="flex-1 truncate border-r border-slate-100 px-2 py-1.5 text-center text-blue-600 hover:bg-blue-50">#{c.orderNumber}</Link>
+          <Link href={`/gantt-v2`} className="px-2 py-1.5 text-slate-600 hover:bg-slate-50" title="Гант">📊 Гант</Link>
+        </div>
+      )}
+    </div>
+  );
+
+  return wrapper;
 }
