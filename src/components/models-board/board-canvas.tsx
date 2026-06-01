@@ -670,10 +670,12 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
         )}
       </div>
 
-      {/* Подсказка */}
-      <div className="pointer-events-none absolute left-3 top-16 hidden rounded-lg bg-white/80 px-3 py-1.5 text-[11px] text-slate-500 shadow-sm backdrop-blur md:block">
-        Фасонов: <b className="text-slate-700">{cardCount}</b> · 2× клик по карточке — открыть · по тексту/стикеру — править · ⌘V — вставить картинку
-      </div>
+      {/* Подсказка — внизу слева (там пусто), прячем при выделении, чтобы не мешала тулбару */}
+      {!selected && (
+        <div className="pointer-events-none absolute bottom-4 left-4 hidden max-w-[min(60vw,640px)] rounded-lg bg-white/80 px-3 py-1.5 text-[11px] text-slate-500 shadow-sm backdrop-blur md:block">
+          Фасонов: <b className="text-slate-700">{cardCount}</b> · 2× клик по карточке — открыть · по тексту/стикеру — править · ⌘V — вставить картинку
+        </div>
+      )}
 
       {/* Нижняя панель: зум / fit / сетка */}
       <div onPointerDown={(e) => e.stopPropagation()} className="absolute bottom-4 right-4 flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-md">
