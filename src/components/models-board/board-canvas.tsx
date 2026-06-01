@@ -635,7 +635,9 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ positions: updates.map((u) => ({ id: u.id, x: u.x, y: u.y, w: CARD_W, h: CARD_H })) }),
     }).catch(() => showToast("Не удалось сохранить раскладку"));
-    window.setTimeout(fitAll, 0);
+    // Не «вписываем всё» (это делало карточки мелкими) — оставляем крупный
+    // стартовый масштаб и переходим к левому-верхнему углу сетки.
+    window.setTimeout(resetInitial, 0);
   };
 
   const cardCount = Object.values(els).filter((e) => e.kind === "card").length;
