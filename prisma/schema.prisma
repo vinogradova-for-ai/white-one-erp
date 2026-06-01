@@ -289,10 +289,13 @@ model ProductModel {
   // Фото модели (общие, без цвета).
   photoUrls         String[]
 
-  // Координаты карточки на бесконечной доске (/models/board, Miro-аналог).
+  // Координаты и размер карточки на бесконечной доске (/models/board, Miro-аналог).
   // Общие для всех — кабинет один на команду. null = ещё не размещена (раскладка сеткой).
   canvasX           Float?
   canvasY           Float?
+  canvasW           Float?
+  canvasH           Float?
+  canvasZ           Int?
 
   // Пропорция размеров по умолчанию (% на размер). Например, { "42": 10, "44": 25, ... }.
   // Используется как шаблон при создании заказа. На варианте можно переопределить, если цвет продаётся иначе.
@@ -856,4 +859,47 @@ model Comment {
 
   @@index([entityType, entityId, createdAt])
   @@index([authorId])
+}
+
+// ======================================================
+// BOARD ITEM — свободные элементы доски фасонов (/models/board)
+// ======================================================
+// Помимо карточек фасонов на доску можно класть свободные элементы как в Miro:
+// текстовые блоки (размер/жирность/цвет), цветные стикеры и отдельные картинки
+// (не привязанные к фасону). Доска общая на команду.
+
+enum BoardItemType {
+  TEXT
+  STICKY
+  IMAGE
+}
+
+model BoardItem {
+  id   String        @id @default(cuid())
+  type BoardItemType
+
+  // Геометрия в мировых координатах доски
+  x        Float
+  y        Float
+  w        Float
+  h        Float
+  z        Int    @default(0)
+  rotation Float  @default(0)
+
+  // Контент
+  text       String? @db.Text
+  color      String?
+  fontSize   Int?
+  fontWeight Int?
+  align      String?
+  imageUrl   String?
+
+  createdById String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([deletedAt])
+  @@index([z])
 }
