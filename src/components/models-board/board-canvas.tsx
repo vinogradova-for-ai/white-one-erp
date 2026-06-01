@@ -168,6 +168,11 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
   editingRef.current = editingKey;
   // Рамка-выделение (экранные координаты вьюпорта)
   const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  // Пан холста как в Figma: зажатый пробел (рука) или средняя/правая кнопка мыши.
+  // Простое перетаскивание левой по пустому месту = рамка-выделение.
+  const spaceRef = useRef(false);
+  const [spaceDown, setSpaceDown] = useState(false);
+  const [panning, setPanning] = useState(false);
 
   const [stickyPicker, setStickyPicker] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -289,11 +294,17 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
       e.preventDefault();
       const v = viewRef.current;
       const r = el.getBoundingClientRect();
-      const mx = e.clientX - r.left, my = e.clientY - r.top;
-      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
-      const ns = clamp(v.scale * factor, MIN_SCALE, MAX_SCALE);
-      const k = ns / v.scale;
-      setView({ scale: ns, tx: mx - (mx - v.tx) * k, ty: my - (my - v.ty) * k });
+      // Трекпад как в Figma: щипок (приходит как ctrl+wheel) или ⌘+колесо —
+      // зум к курсору; обычная прокрутка двумя пальцами — панорама холста.
+      if (e.ctrlKey || e.metaKey) {
+        const mx = e.clientX - r.left, my = e.clientY - r.top;
+        const factor = clamp(Math.exp(-e.deltaY * 0.01), 0.8, 1.25);
+        const ns = clamp(v.scale * factor, MIN_SCALE, MAX_SCALE);
+        const k = ns / v.scale;
+        setView({ scale: ns, tx: mx - (mx - v.tx) * k, ty: my - (my - v.ty) * k });
+      } else {
+        setView({ scale: v.scale, tx: v.tx - e.deltaX, ty: v.ty - e.deltaY });
+      }
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
@@ -303,14 +314,24 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (editingRef.current) { if (e.key === "Escape") (document.activeElement as HTMLElement)?.blur(); return; }
+      if (e.code === "Space") {
+        // Зажатый пробел = режим «рука» (панорама холста), как в Figma.
+        if (!spaceRef.current) { spaceRef.current = true; setSpaceDown(true); }
+        e.preventDefault();
+        return;
+      }
       if (e.key === "Escape") { setSelection([]); return; }
       if (e.key === "Delete" || e.key === "Backspace") {
         const itemKeys = selectionRef.current.filter((k) => elsRef.current[k]?.kind === "item");
         if (itemKeys.length) { e.preventDefault(); itemKeys.forEach((k) => deleteItem(k)); }
       }
     };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") { spaceRef.current = false; setSpaceDown(false); setPanning(false); }
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKeyUp);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("keyup", onKeyUp); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -319,16 +340,21 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
   const marqueeRef = useRef<{ sx: number; sy: number; base: string[] } | null>(null);
 
   const onBgPointerDown = (e: React.PointerEvent) => {
-    if (e.button !== 0) return;
     setStickyPicker(false);
     const r = viewportRef.current?.getBoundingClientRect();
-    if (e.shiftKey && r) {
-      const sx = e.clientX - r.left, sy = e.clientY - r.top;
-      marqueeRef.current = { sx, sy, base: selectionRef.current };
-      setMarquee({ x0: sx, y0: sy, x1: sx, y1: sy });
-    } else {
+    if (!r) return;
+    // Панорама: средняя/правая кнопка мыши или зажатый пробел (рука).
+    if (e.button === 1 || e.button === 2 || (e.button === 0 && spaceRef.current)) {
       panRef.current = { x: e.clientX, y: e.clientY, tx: viewRef.current.tx, ty: viewRef.current.ty, moved: false };
+      setPanning(true);
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      return;
     }
+    if (e.button !== 0) return;
+    // Левая по пустому месту = рамка-выделение (с Shift — добавляем к текущему).
+    const sx = e.clientX - r.left, sy = e.clientY - r.top;
+    marqueeRef.current = { sx, sy, base: e.shiftKey ? selectionRef.current : [] };
+    setMarquee({ x0: sx, y0: sy, x1: sx, y1: sy });
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
   const onBgPointerMove = (e: React.PointerEvent) => {
@@ -352,8 +378,8 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
       const r = viewportRef.current?.getBoundingClientRect();
       if (!r) return;
       const cx = e.clientX - r.left, cy = e.clientY - r.top;
-      // крошечная рамка = клик: снять выделение
-      if (Math.abs(cx - m.sx) + Math.abs(cy - m.sy) < 5) { setSelection([]); return; }
+      // крошечная рамка = клик: сбросить выделение (при Shift сохраняем базу)
+      if (Math.abs(cx - m.sx) + Math.abs(cy - m.sy) < 5) { setSelection(m.base); return; }
       const rx0 = Math.min(m.sx, cx), ry0 = Math.min(m.sy, cy), rx1 = Math.max(m.sx, cx), ry1 = Math.max(m.sy, cy);
       const v = viewRef.current;
       const hit = new Set(m.base);
@@ -366,15 +392,15 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
       setSelection([...hit]);
       return;
     }
-    const p = panRef.current;
     panRef.current = null;
-    if (p && !p.moved) setSelection([]); // клик по пустому фону — снять выделение
+    setPanning(false);
   };
 
   // ── Перетаскивание элемента (с поддержкой группы) ─────────────────────
   const dragRef = useRef<{ keys: string[]; px: number; py: number; origins: Record<string, { x: number; y: number }>; moved: boolean } | null>(null);
   const onElPointerDown = (e: React.PointerEvent, key: string) => {
     if (e.button !== 0) return;
+    if (spaceRef.current) return; // пробел = рука: пусть событие уйдёт на пан холста
     if (editingRef.current === key) return; // в режиме правки не таскаем
     e.stopPropagation();
     setStickyPicker(false);
@@ -658,7 +684,8 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
       onPaste={onPaste}
       onDrop={onDrop}
       onDragOver={(e) => e.preventDefault()}
-      style={{ cursor: panRef.current ? "grabbing" : "grab" }}
+      onContextMenu={(e) => e.preventDefault()}
+      style={{ cursor: panning ? "grabbing" : spaceDown ? "grab" : "default" }}
     >
       {/* Точечная сетка */}
       <div
@@ -807,7 +834,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
       {/* Подсказка — внизу слева (там пусто), прячем при выделении, чтобы не мешала тулбару */}
       {selection.length === 0 && (
         <div className="pointer-events-none absolute bottom-4 left-4 hidden max-w-[min(60vw,680px)] rounded-lg bg-white/80 px-3 py-1.5 text-[11px] text-slate-500 shadow-sm backdrop-blur md:block">
-          Фасонов: <b className="text-slate-700">{cardCount}</b> · <b className="text-slate-700">Shift+тащить</b> — выделить группу · Shift+клик — добавить · 2× клик по карточке — открыть · ⌘V — картинка
+          Фасонов: <b className="text-slate-700">{cardCount}</b> · <b className="text-slate-700">тащить мышкой</b> — выделить рамкой · <b className="text-slate-700">два пальца / пробел</b> — двигать холст · Shift+тащить — добавить · 2× клик — открыть · ⌘V — картинка
         </div>
       )}
 
