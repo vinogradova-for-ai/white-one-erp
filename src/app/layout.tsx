@@ -1,6 +1,14 @@
 import type { Metadata } from "next";
+import { Great_Vibes, Pacifico, Caveat } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+
+// Рукописные шрифты для курсивных надписей на доске фасонов (/models/board).
+// Все три поддерживают латиницу И кириллицу — красиво и для «with love», и «с любовью».
+const greatVibes = Great_Vibes({ weight: "400", subsets: ["latin", "cyrillic"], variable: "--font-script-vibes", display: "swap" });
+const pacifico = Pacifico({ weight: "400", subsets: ["latin", "cyrillic"], variable: "--font-script-pacifico", display: "swap" });
+const caveat = Caveat({ weight: ["400", "700"], subsets: ["latin", "cyrillic"], variable: "--font-script-caveat", display: "swap" });
+const scriptFontVars = `${greatVibes.variable} ${pacifico.variable} ${caveat.variable}`;
 
 export const metadata: Metadata = {
   title: "White One ERP",
@@ -22,7 +30,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className="h-full antialiased">
+    <html lang="ru" className={`h-full antialiased ${scriptFontVars}`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>

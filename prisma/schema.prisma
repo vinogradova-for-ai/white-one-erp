@@ -892,6 +892,7 @@ model BoardItem {
   fontSize   Int?
   fontWeight Int?
   align      String?
+  fontFamily String? // ключ рукописного шрифта для курсивных надписей (null = обычный)
   imageUrl   String?
 
   createdById String?

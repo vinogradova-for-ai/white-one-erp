@@ -17,6 +17,7 @@ const createSchema = z.object({
   fontSize: z.number().int().min(6).max(400).optional().nullable(),
   fontWeight: z.number().int().optional().nullable(),
   align: z.enum(["left", "center", "right"]).optional().nullable(),
+  fontFamily: z.string().max(40).optional().nullable(),
   imageUrl: z.string().max(2000).optional().nullable(),
 });
 
@@ -38,6 +39,7 @@ export async function POST(req: NextRequest) {
         fontSize: data.fontSize ?? null,
         fontWeight: data.fontWeight ?? null,
         align: data.align ?? null,
+        fontFamily: data.fontFamily ?? null,
         imageUrl: data.imageUrl ?? null,
         createdById: session.user.id,
       },
