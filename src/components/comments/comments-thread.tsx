@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Comment = {
   id: string;
@@ -41,6 +42,8 @@ export function CommentsThread({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dropOver, setDropOver] = useState(false);
+  // Просмотр фото внутри страницы (а не в новой вкладке): какой комментарий и индекс.
+  const [lightbox, setLightbox] = useState<{ urls: string[]; index: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const listUrl = `/api/comments?entityType=${entityType}&entityId=${entityId}${
@@ -293,17 +296,16 @@ export function CommentsThread({
                 )}
                 {c.photoUrls.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {c.photoUrls.map((url) => (
-                      <a
+                    {c.photoUrls.map((url, i) => (
+                      <button
                         key={url}
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block h-20 w-20 overflow-hidden rounded-lg border border-slate-200 hover:opacity-80"
+                        type="button"
+                        onClick={() => setLightbox({ urls: c.photoUrls, index: i })}
+                        className="block h-20 w-20 overflow-hidden rounded-lg border border-slate-200 transition hover:opacity-80"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={url} alt="" className="h-full w-full object-cover" />
-                      </a>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -312,7 +314,97 @@ export function CommentsThread({
           })}
         </ul>
       )}
+
+      {lightbox && (
+        <Lightbox
+          urls={lightbox.urls}
+          index={lightbox.index}
+          onIndex={(i) => setLightbox((lb) => (lb ? { ...lb, index: i } : lb))}
+          onClose={() => setLightbox(null)}
+        />
+      )}
     </section>
+  );
+}
+
+// Полноэкранный просмотр фото поверх всего (через портал — чтобы не обрезался
+// дровером/контейнером). Клик по фону, ×, или Esc — закрыть; стрелки — листать.
+function Lightbox({
+  urls,
+  index,
+  onIndex,
+  onClose,
+}: {
+  urls: string[];
+  index: number;
+  onIndex: (i: number) => void;
+  onClose: () => void;
+}) {
+  const multi = urls.length > 1;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      else if (multi && e.key === "ArrowRight") onIndex((index + 1) % urls.length);
+      else if (multi && e.key === "ArrowLeft") onIndex((index - 1 + urls.length) % urls.length);
+    };
+    window.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [index, multi, urls.length, onIndex, onClose]);
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-2xl leading-none text-white transition hover:bg-white/30"
+        aria-label="Закрыть"
+      >
+        ×
+      </button>
+
+      {multi && (
+        <>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onIndex((index - 1 + urls.length) % urls.length); }}
+            className="absolute left-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-3xl leading-none text-white transition hover:bg-white/30"
+            aria-label="Предыдущее"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onIndex((index + 1) % urls.length); }}
+            className="absolute right-4 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-3xl leading-none text-white transition hover:bg-white/30"
+            aria-label="Следующее"
+          >
+            ›
+          </button>
+          <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-white/15 px-3 py-1 text-sm text-white">
+            {index + 1} / {urls.length}
+          </div>
+        </>
+      )}
+
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={urls[index]}
+        alt=""
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[90vh] max-w-[92vw] rounded-lg object-contain shadow-2xl"
+      />
+    </div>,
+    document.body,
   );
 }
 
