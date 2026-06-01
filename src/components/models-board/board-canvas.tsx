@@ -35,6 +35,7 @@ export type BoardItemData = {
   fontSize: number | null;
   fontWeight: number | null;
   align: "left" | "center" | "right" | null;
+  fontFamily: string | null;
   imageUrl: string | null;
 };
 
@@ -59,8 +60,19 @@ const MIN_H = 40;
 // Pinterest-муд­борд палитра: мягкие десатурированные пастели.
 const STICKY_COLORS = ["#FCE7A2", "#F8C9D4", "#CFE3C5", "#BBD6E8", "#DACDEE", "#F4C9A8", "#F4EAD5", "#E2D8C8"];
 const DEFAULT_STICKY = STICKY_COLORS[0];
-const TEXT_COLORS = ["#111827", "#ffffff", "#ef4444", "#f59e0b", "#10b981", "#2563eb", "#8b5cf6", "#ec4899"];
+const TEXT_COLORS = ["#111827", "#ffffff", "#ff3da6", "#ef4444", "#f59e0b", "#10b981", "#2563eb", "#8b5cf6"];
 const STICKY_TEXT = "#3a3733";
+
+// Рукописные шрифты для курсивных надписей (CSS-переменные заданы в layout.tsx).
+// Все поддерживают кириллицу и латиницу. fontFamily элемента хранит ключ.
+const SCRIPT_FONTS: Array<{ key: string; label: string; css: string }> = [
+  { key: "vibes", label: "with love", css: "var(--font-script-vibes), cursive" },
+  { key: "pacifico", label: "Pacifico", css: "var(--font-script-pacifico), cursive" },
+  { key: "caveat", label: "Caveat", css: "var(--font-script-caveat), cursive" },
+];
+const scriptCss = (key?: string | null): string | null =>
+  key ? SCRIPT_FONTS.find((f) => f.key === key)?.css ?? null : null;
+const SCRIPT_PINK = "#ff3da6"; // фирменный розовый для курсивных надписей
 
 // Лёгкий детерминированный наклон стикера (живой коллажный вид как в Pinterest).
 function tiltFromId(id: string): number {
@@ -88,6 +100,7 @@ type El = {
   fontSize?: number | null;
   fontWeight?: number | null;
   align?: "left" | "center" | "right" | null;
+  fontFamily?: string | null;
   imageUrl?: string | null;
 };
 type View = { scale: number; tx: number; ty: number };
@@ -144,7 +157,8 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
         key: `i:${it.id}`, kind: "item", id: it.id,
         x: it.x, y: it.y, w: it.w, h: it.h, z: it.z,
         type: it.type, text: it.text, color: it.color,
-        fontSize: it.fontSize, fontWeight: it.fontWeight, align: it.align, imageUrl: it.imageUrl,
+        fontSize: it.fontSize, fontWeight: it.fontWeight, align: it.align,
+        fontFamily: it.fontFamily, imageUrl: it.imageUrl,
       };
     }
     return els;
@@ -492,7 +506,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
         type: init.type,
         text: init.text ?? null, color: init.color ?? null,
         fontSize: init.fontSize ?? null, fontWeight: init.fontWeight ?? null,
-        align: init.align ?? null, imageUrl: init.imageUrl ?? null,
+        align: init.align ?? null, fontFamily: init.fontFamily ?? null, imageUrl: init.imageUrl ?? null,
       };
       setEls((prev) => ({ ...prev, [tmpKey]: base }));
       setSelection([tmpKey]);
@@ -503,7 +517,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
           body: JSON.stringify({
             type: base.type, x: round(base.x), y: round(base.y), w: round(base.w), h: round(base.h), z,
             text: base.text, color: base.color, fontSize: base.fontSize, fontWeight: base.fontWeight,
-            align: base.align, imageUrl: base.imageUrl,
+            align: base.align, fontFamily: base.fontFamily, imageUrl: base.imageUrl,
           }),
         });
         if (!res.ok) throw new Error();
@@ -528,6 +542,9 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
 
   const addText = () =>
     createItem({ type: "TEXT", w: 240, h: 70, text: "Текст", fontSize: 28, fontWeight: 600, align: "left" });
+  // Красивая курсивная надпись — рукописный шрифт + фирменный розовый.
+  const addCursive = () =>
+    createItem({ type: "TEXT", w: 360, h: 130, text: "with love", fontSize: 64, fontWeight: 400, align: "center", color: SCRIPT_PINK, fontFamily: "vibes" });
   const addSticky = (color: string) => {
     setStickyPicker(false);
     createItem({ type: "STICKY", w: 200, h: 200, color, text: "", fontSize: 18, fontWeight: 500, align: "left" });
@@ -618,7 +635,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
       type: el.type, w: el.w, h: el.h,
       at: { x: el.x + el.w / 2 + 24, y: el.y + el.h / 2 + 24 },
       text: el.text, color: el.color, fontSize: el.fontSize, fontWeight: el.fontWeight,
-      align: el.align, imageUrl: el.imageUrl,
+      align: el.align, fontFamily: el.fontFamily, imageUrl: el.imageUrl,
     });
   };
 
@@ -780,6 +797,11 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
           <span className="text-base font-semibold">T</span> Текст
         </button>
 
+        <button type="button" onClick={addCursive} className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm text-slate-700 hover:bg-slate-100" title="Добавить курсивную надпись">
+          <span className="text-lg leading-none" style={{ fontFamily: "var(--font-script-vibes), cursive", color: SCRIPT_PINK }}>ƒ</span>
+          <span style={{ fontFamily: "var(--font-script-vibes), cursive", color: SCRIPT_PINK, fontSize: 17 }}>Курсив</span>
+        </button>
+
         <div className="relative">
           <button type="button" onClick={() => setStickyPicker((s) => !s)} className="flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-sm text-slate-700 hover:bg-slate-100" title="Добавить стикер">
             <span className="inline-block h-3.5 w-3.5 rounded-[3px] bg-amber-300 ring-1 ring-amber-400" /> Стикер
@@ -820,6 +842,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
               onBold={() => setItemField(selected.key, "fontWeight", (selected.fontWeight ?? 400) >= 700 ? 400 : 700)}
               onAlign={(a) => setItemField(selected.key, "align", a)}
               onColor={(c) => setItemField(selected.key, "color", c)}
+              onFontFamily={(fam) => setItemField(selected.key, "fontFamily", fam)}
               onFront={() => bringFront(selected.key)}
               onDuplicate={() => duplicateItem(selected.key)}
               onDelete={() => deleteItem(selected.key)}
@@ -1003,12 +1026,14 @@ function CardBody({ el }: { el: El }) {
 
 // ── Текстовый блок ─────────────────────────────────────────────────────
 function TextBody({ el, editing, onCommit }: { el: El; editing: boolean; onCommit: (t: string) => void }) {
+  const family = scriptCss(el.fontFamily);
   const style: React.CSSProperties = {
     fontSize: el.fontSize ?? 28,
     fontWeight: el.fontWeight ?? 600,
     color: el.color ?? "var(--foreground)",
     textAlign: (el.align ?? "left") as React.CSSProperties["textAlign"],
-    lineHeight: 1.2,
+    lineHeight: family ? 1.15 : 1.2,
+    ...(family ? { fontFamily: family } : {}),
   };
   if (editing) return <EditArea el={el} style={style} transparent onCommit={onCommit} />;
   return (
@@ -1109,13 +1134,14 @@ function EditArea({ el, style, transparent, onCommit }: { el: El; style: React.C
 
 // ── Контекстные контролы выделения ─────────────────────────────────────
 function SelectionControls({
-  el, onFontSize, onBold, onAlign, onColor, onFront, onDuplicate, onDelete, onOpen, onResetSize, onEdit,
+  el, onFontSize, onBold, onAlign, onColor, onFontFamily, onFront, onDuplicate, onDelete, onOpen, onResetSize, onEdit,
 }: {
   el: El;
   onFontSize: (d: number) => void;
   onBold: () => void;
   onAlign: (a: "left" | "center" | "right") => void;
   onColor: (c: string) => void;
+  onFontFamily: (fam: string | null) => void;
   onFront: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
@@ -1149,6 +1175,31 @@ function SelectionControls({
           <button type="button" className={btn} onClick={() => onAlign("center")} title="По центру">≡</button>
           <button type="button" className={btn} onClick={() => onAlign("right")} title="Вправо">⇥</button>
         </>
+      )}
+
+      {isText && (
+        <span className="flex items-center gap-1 px-1">
+          <button
+            type="button"
+            onClick={() => onFontFamily(null)}
+            className={`flex h-7 items-center rounded-md px-1.5 text-xs ring-1 ring-slate-300 ${!el.fontFamily ? "bg-slate-200" : "hover:bg-slate-100"}`}
+            title="Обычный шрифт"
+          >
+            Aa
+          </button>
+          {SCRIPT_FONTS.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => onFontFamily(f.key)}
+              className={`flex h-7 items-center rounded-md px-2 leading-none ring-1 ${el.fontFamily === f.key ? "bg-pink-100 ring-pink-300" : "ring-slate-300 hover:bg-slate-100"}`}
+              style={{ fontFamily: f.css, fontSize: 18 }}
+              title={`Курсив: ${f.label}`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </span>
       )}
 
       {isText && (

@@ -96,6 +96,7 @@ export default async function ModelsBoardPage() {
     fontSize: it.fontSize,
     fontWeight: it.fontWeight,
     align: (it.align as "left" | "center" | "right" | null) ?? null,
+    fontFamily: it.fontFamily,
     imageUrl: it.imageUrl,
   }));
 
