@@ -53,9 +53,18 @@ const MAX_SCALE = 3.5;
 const MIN_W = 56;
 const MIN_H = 40;
 
-const STICKY_COLORS = ["#ffe27a", "#ffc4d6", "#b9f6ca", "#a7d8ff", "#d7c0ff", "#ffd1a3", "#ffffff", "#c7d0d9"];
+// Pinterest-муд­борд палитра: мягкие десатурированные пастели.
+const STICKY_COLORS = ["#FCE7A2", "#F8C9D4", "#CFE3C5", "#BBD6E8", "#DACDEE", "#F4C9A8", "#F4EAD5", "#E2D8C8"];
+const DEFAULT_STICKY = STICKY_COLORS[0];
 const TEXT_COLORS = ["#111827", "#ffffff", "#ef4444", "#f59e0b", "#10b981", "#2563eb", "#8b5cf6", "#ec4899"];
-const STICKY_TEXT = "#27272a";
+const STICKY_TEXT = "#3a3733";
+
+// Лёгкий детерминированный наклон стикера (живой коллажный вид как в Pinterest).
+function tiltFromId(id: string): number {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffff;
+  return ((h % 100) / 100) * 3.4 - 1.7; // ≈ [-1.7°, +1.7°]
+}
 
 type Geom = { x: number; y: number; w: number; h: number; z: number };
 type El = {
@@ -824,20 +833,67 @@ function TextBody({ el, editing, onCommit }: { el: El; editing: boolean; onCommi
 
 // ── Стикер ─────────────────────────────────────────────────────────────
 function StickyBody({ el, editing, onCommit }: { el: El; editing: boolean; onCommit: (t: string) => void }) {
+  const color = el.color ?? DEFAULT_STICKY;
+  const tilt = editing ? 0 : tiltFromId(el.id);
   const style: React.CSSProperties = {
     fontSize: el.fontSize ?? 18,
     fontWeight: el.fontWeight ?? 500,
     color: STICKY_TEXT,
     textAlign: (el.align ?? "left") as React.CSSProperties["textAlign"],
-    lineHeight: 1.25,
+    lineHeight: 1.3,
   };
   return (
-    <div className="h-full w-full cursor-grab overflow-hidden rounded-lg p-3 shadow-md active:cursor-grabbing" style={{ backgroundColor: el.color ?? "#ffe27a" }}>
-      {editing ? (
-        <EditArea el={el} style={style} transparent onCommit={onCommit} />
-      ) : (
-        <div className="h-full w-full overflow-hidden whitespace-pre-wrap break-words" style={style}>{el.text}</div>
-      )}
+    <div
+      className="relative h-full w-full cursor-grab active:cursor-grabbing"
+      style={{ transform: `rotate(${tilt}deg)`, transformOrigin: "center" }}
+    >
+      {/* «washi-скотч» сверху — как будто стикер приклеен к доске */}
+      <div
+        className="pointer-events-none absolute left-1/2 top-0 z-10"
+        style={{
+          width: 58,
+          height: 18,
+          transform: "translateX(-50%) rotate(-5deg)",
+          background: "linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.32))",
+          border: "1px solid rgba(255,255,255,0.6)",
+          borderRadius: 2,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.10)",
+        }}
+      />
+      {/* сам листок-заметка */}
+      <div
+        className="absolute inset-x-0 bottom-0 overflow-hidden rounded-2xl"
+        style={{
+          top: 11,
+          background: `linear-gradient(155deg, rgba(255,255,255,0.48), rgba(0,0,0,0.05)), ${color}`,
+          boxShadow: "0 10px 24px rgba(0,0,0,0.14), 0 2px 6px rgba(0,0,0,0.08)",
+        }}
+      >
+        {editing ? (
+          <div className="h-full w-full p-3.5">
+            <EditArea el={el} style={style} transparent onCommit={onCommit} />
+          </div>
+        ) : el.text ? (
+          <div className="h-full w-full overflow-hidden whitespace-pre-wrap break-words p-3.5" style={style}>
+            {el.text}
+          </div>
+        ) : (
+          <div className="flex h-full w-full items-center justify-center p-3.5 text-center text-[12px] italic" style={{ color: "rgba(58,55,51,0.4)" }}>
+            двойной клик — добавить текст
+          </div>
+        )}
+        {/* загнутый уголок */}
+        <span
+          className="pointer-events-none absolute bottom-0 right-0"
+          style={{
+            width: 0,
+            height: 0,
+            borderStyle: "solid",
+            borderWidth: "0 0 18px 18px",
+            borderColor: "transparent transparent rgba(0,0,0,0.10) rgba(255,255,255,0.5)",
+          }}
+        />
+      </div>
     </div>
   );
 }
