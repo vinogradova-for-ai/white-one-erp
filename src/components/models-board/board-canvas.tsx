@@ -51,6 +51,8 @@ const CELL_H = CARD_H + 60;
 const PAD = 48;
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 3.5;
+const INITIAL_SCALE = 1.35; // доска открывается крупно (карточки читаемого размера), не «вписать всё»
+const VIEW_KEY = "wo-board-view-v1"; // запоминаем масштаб/позицию пользователя (localStorage)
 const MIN_W = 56;
 const MIN_H = 40;
 
@@ -243,10 +245,41 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
     });
   }, []);
 
+  // Открыть крупно в левом-верхнем углу контента (дефолт, если нет сохранённого вида).
+  const resetInitial = useCallback(() => {
+    const el = viewportRef.current;
+    const keys = Object.keys(elsRef.current);
+    if (!el) return;
+    let minX = Infinity, minY = Infinity;
+    for (const k of keys) { const e = elsRef.current[k]; minX = Math.min(minX, e.x); minY = Math.min(minY, e.y); }
+    if (!Number.isFinite(minX)) { minX = 0; minY = 0; }
+    const pad = 40;
+    setView({ scale: INITIAL_SCALE, tx: pad - minX * INITIAL_SCALE, ty: pad - minY * INITIAL_SCALE });
+  }, []);
+
+  // При входе: восстановить сохранённый масштаб/позицию, иначе — открыть крупно.
   useEffect(() => {
-    fitAll();
+    try {
+      const raw = localStorage.getItem(VIEW_KEY);
+      if (raw) {
+        const v = JSON.parse(raw);
+        if (typeof v?.scale === "number" && typeof v?.tx === "number" && typeof v?.ty === "number") {
+          setView({ scale: clamp(v.scale, MIN_SCALE, MAX_SCALE), tx: v.tx, ty: v.ty });
+          return;
+        }
+      }
+    } catch {}
+    resetInitial();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Запоминаем вид (debounce), чтобы доска открывалась там же, где оставили.
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      try { localStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch {}
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [view]);
 
   // ── Зум колесом ──────────────────────────────────────────────────────
   useEffect(() => {
