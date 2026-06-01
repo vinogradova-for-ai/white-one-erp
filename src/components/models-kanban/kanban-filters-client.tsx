@@ -20,11 +20,15 @@ export function KanbanFiltersClient({
   buckets,
   filterOptions,
   total,
+  currentUserId,
+  isAdmin,
 }: {
   columns: ReadonlyArray<KanbanColumn>;
   buckets: Record<string, KanbanCard[]>;
   filterOptions: KanbanFilterOptions;
   total: number;
+  currentUserId?: string;
+  isAdmin?: boolean;
 }) {
   const [filters, setFilters] = useState<{
     category: string[];
@@ -81,7 +85,7 @@ export function KanbanFiltersClient({
         </div>
       </div>
 
-      <BoardClient columns={columns} buckets={filteredBuckets.buckets} />
+      <BoardClient columns={columns} buckets={filteredBuckets.buckets} currentUserId={currentUserId} isAdmin={isAdmin} />
     </div>
   );
 }

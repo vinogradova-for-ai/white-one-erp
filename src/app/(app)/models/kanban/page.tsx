@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { ORDER_STATUS_ORDER } from "@/lib/constants";
 import { OrderStatus, PackagingOrderStatus, ProductModelStatus } from "@prisma/client";
 import { type KanbanCard, type KanbanColumn } from "@/components/models-kanban/board-client";
@@ -139,6 +140,10 @@ function pickDeadline(col: string, model: { sampleDate: Date | null; approvedDat
 
 export default async function ModelsKanbanPage() {
   const todayIso = moscowToday();
+  const session = await auth();
+  const currentUserId = (session?.user as { id?: string } | undefined)?.id;
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const isAdmin = role === "OWNER" || role === "DIRECTOR";
 
   // Грузим все активированные фасоны + все активные заказы упаковки.
   // Алёна (27.05.2026): «на канбан нужно добавить заказы упаковки тоже» —
@@ -196,6 +201,38 @@ export default async function ModelsKanbanPage() {
     }),
   ]);
 
+  // Комментарии к фасонам: счётчик + превью последнего (для карточек).
+  const modelIds = models.map((m) => m.id);
+  const modelComments = modelIds.length === 0 ? [] : await prisma.comment.findMany({
+    where: { entityType: "model", entityId: { in: modelIds }, deletedAt: null },
+    orderBy: { createdAt: "desc" },
+    select: { entityId: true, body: true, authorId: true, photoUrls: true },
+  });
+  const commentCountByModel = new Map<string, number>();
+  const latestByModel = new Map<string, { body: string; authorId: string; photos: number }>();
+  for (const cm of modelComments) {
+    commentCountByModel.set(cm.entityId, (commentCountByModel.get(cm.entityId) ?? 0) + 1);
+    if (!latestByModel.has(cm.entityId)) {
+      latestByModel.set(cm.entityId, { body: cm.body, authorId: cm.authorId, photos: cm.photoUrls?.length ?? 0 });
+    }
+  }
+  const lastAuthorIds = [...new Set([...latestByModel.values()].map((v) => v.authorId))];
+  const lastAuthors = lastAuthorIds.length === 0 ? [] : await prisma.user.findMany({
+    where: { id: { in: lastAuthorIds } },
+    select: { id: true, name: true },
+  });
+  const authorNameById = new Map(lastAuthors.map((a) => [a.id, a.name]));
+  function commentMetaFor(modelId: string): Pick<KanbanCard, "commentCount" | "lastComment"> {
+    const count = commentCountByModel.get(modelId) ?? 0;
+    const last = latestByModel.get(modelId);
+    return {
+      commentCount: count,
+      lastComment: last
+        ? { author: authorNameById.get(last.authorId) ?? "—", snippet: last.body.slice(0, 90), photos: last.photos }
+        : null,
+    };
+  }
+
   // Раскидать карточки по колонкам
   const buckets: Record<string, KanbanCard[]> = Object.fromEntries(COLUMNS.map((c) => [c.key, []]));
 
@@ -232,6 +269,7 @@ export default async function ModelsKanbanPage() {
         category: m.category,
         subcategory: m.subcategory,
         photo: m.photoUrls?.[0] ?? null,
+        photos: m.photoUrls ?? [],
         palette: pickPalette(m.id),
         factoryName: order?.factory?.name ?? m.preferredFactory?.name ?? null,
         ownerId: m.ownerId,
@@ -242,6 +280,7 @@ export default async function ModelsKanbanPage() {
         deadline,
         dlColor,
         colorChips,
+        ...commentMetaFor(m.id),
       });
     };
 
@@ -350,6 +389,8 @@ export default async function ModelsKanbanPage() {
         buckets={buckets}
         filterOptions={filterOptions}
         total={models.length}
+        currentUserId={currentUserId}
+        isAdmin={isAdmin}
       />
     </div>
   );
