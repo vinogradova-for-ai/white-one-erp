@@ -71,6 +71,7 @@ export default async function ModelsBoardPage() {
       brandLabel: BRAND_LABELS[m.brand] ?? m.brand,
       category: m.category,
       photo: m.photoUrls?.[0] ?? null,
+      photos: m.photoUrls ?? [],
       statusLabel: meta.label,
       statusDot: meta.dot,
       colorChips,

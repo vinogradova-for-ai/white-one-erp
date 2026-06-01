@@ -9,6 +9,7 @@ export type BoardCard = {
   brandLabel: string;
   category: string;
   photo: string | null;
+  photos: string[];
   statusLabel: string;
   statusDot: string;
   colorChips: Array<{ name: string; hex: string }>;
@@ -156,12 +157,15 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
   const viewRef = useRef(view);
   viewRef.current = view;
 
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const selectedRef = useRef(selectedKey);
-  selectedRef.current = selectedKey;
+  // Множественное выделение: массив ключей. selectedKey — когда выделен ровно один.
+  const [selection, setSelection] = useState<string[]>([]);
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const editingRef = useRef(editingKey);
   editingRef.current = editingKey;
+  // Рамка-выделение (экранные координаты вьюпорта)
+  const [marquee, setMarquee] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
 
   const [stickyPicker, setStickyPicker] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -266,12 +270,10 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (editingRef.current) { if (e.key === "Escape") (document.activeElement as HTMLElement)?.blur(); return; }
-      if (e.key === "Escape") { setSelectedKey(null); return; }
+      if (e.key === "Escape") { setSelection([]); return; }
       if (e.key === "Delete" || e.key === "Backspace") {
-        const k = selectedRef.current;
-        if (!k) return;
-        const el = elsRef.current[k];
-        if (el && el.kind === "item") { e.preventDefault(); deleteItem(k); }
+        const itemKeys = selectionRef.current.filter((k) => elsRef.current[k]?.kind === "item");
+        if (itemKeys.length) { e.preventDefault(); itemKeys.forEach((k) => deleteItem(k)); }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -279,36 +281,82 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Панорама по фону ─────────────────────────────────────────────────
+  // ── Фон: панорама (drag) или рамка-выделение (Shift+drag) ─────────────
   const panRef = useRef<{ x: number; y: number; tx: number; ty: number; moved: boolean } | null>(null);
+  const marqueeRef = useRef<{ sx: number; sy: number; base: string[] } | null>(null);
+
   const onBgPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     setStickyPicker(false);
-    panRef.current = { x: e.clientX, y: e.clientY, tx: viewRef.current.tx, ty: viewRef.current.ty, moved: false };
+    const r = viewportRef.current?.getBoundingClientRect();
+    if (e.shiftKey && r) {
+      const sx = e.clientX - r.left, sy = e.clientY - r.top;
+      marqueeRef.current = { sx, sy, base: selectionRef.current };
+      setMarquee({ x0: sx, y0: sy, x1: sx, y1: sy });
+    } else {
+      panRef.current = { x: e.clientX, y: e.clientY, tx: viewRef.current.tx, ty: viewRef.current.ty, moved: false };
+    }
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
   const onBgPointerMove = (e: React.PointerEvent) => {
+    const m = marqueeRef.current;
+    const r = viewportRef.current?.getBoundingClientRect();
+    if (m && r) {
+      setMarquee({ x0: m.sx, y0: m.sy, x1: e.clientX - r.left, y1: e.clientY - r.top });
+      return;
+    }
     const p = panRef.current;
     if (!p) return;
     if (Math.abs(e.clientX - p.x) + Math.abs(e.clientY - p.y) > 3) p.moved = true;
     setView((v) => ({ ...v, tx: p.tx + (e.clientX - p.x), ty: p.ty + (e.clientY - p.y) }));
   };
   const onBgPointerUp = (e: React.PointerEvent) => {
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
+    const m = marqueeRef.current;
+    if (m) {
+      marqueeRef.current = null;
+      setMarquee(null);
+      const r = viewportRef.current?.getBoundingClientRect();
+      if (!r) return;
+      const cx = e.clientX - r.left, cy = e.clientY - r.top;
+      // крошечная рамка = клик: снять выделение
+      if (Math.abs(cx - m.sx) + Math.abs(cy - m.sy) < 5) { setSelection([]); return; }
+      const rx0 = Math.min(m.sx, cx), ry0 = Math.min(m.sy, cy), rx1 = Math.max(m.sx, cx), ry1 = Math.max(m.sy, cy);
+      const v = viewRef.current;
+      const hit = new Set(m.base);
+      for (const k in elsRef.current) {
+        const el = elsRef.current[k];
+        const ex0 = el.x * v.scale + v.tx, ey0 = el.y * v.scale + v.ty;
+        const ex1 = (el.x + el.w) * v.scale + v.tx, ey1 = (el.y + el.h) * v.scale + v.ty;
+        if (ex0 < rx1 && ex1 > rx0 && ey0 < ry1 && ey1 > ry0) hit.add(k);
+      }
+      setSelection([...hit]);
+      return;
+    }
     const p = panRef.current;
     panRef.current = null;
-    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
-    if (p && !p.moved) setSelectedKey(null); // клик по пустому фону — снять выделение
+    if (p && !p.moved) setSelection([]); // клик по пустому фону — снять выделение
   };
 
-  // ── Перетаскивание элемента ──────────────────────────────────────────
-  const dragRef = useRef<{ key: string; px: number; py: number; ox: number; oy: number; moved: boolean } | null>(null);
+  // ── Перетаскивание элемента (с поддержкой группы) ─────────────────────
+  const dragRef = useRef<{ keys: string[]; px: number; py: number; origins: Record<string, { x: number; y: number }>; moved: boolean } | null>(null);
   const onElPointerDown = (e: React.PointerEvent, key: string) => {
     if (e.button !== 0) return;
     if (editingRef.current === key) return; // в режиме правки не таскаем
     e.stopPropagation();
-    setSelectedKey(key);
-    const el = elsRef.current[key];
-    dragRef.current = { key, px: e.clientX, py: e.clientY, ox: el.x, oy: el.y, moved: false };
+    setStickyPicker(false);
+    if (e.shiftKey) {
+      // Shift+клик — добавить/убрать из выделения, без перетаскивания
+      setSelection((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+      return;
+    }
+    // если кликнули по уже выделенному — тащим всю группу; иначе выделяем только этот
+    const cur = selectionRef.current;
+    const keys = cur.includes(key) ? cur : [key];
+    if (!cur.includes(key)) setSelection(keys);
+    const origins: Record<string, { x: number; y: number }> = {};
+    for (const k of keys) { const el = elsRef.current[k]; if (el) origins[k] = { x: el.x, y: el.y }; }
+    dragRef.current = { keys, px: e.clientX, py: e.clientY, origins, moved: false };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   };
   const onElPointerMove = (e: React.PointerEvent) => {
@@ -318,13 +366,20 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
     if (!d.moved && Math.abs(dxs) + Math.abs(dys) > 4) d.moved = true;
     if (!d.moved) return;
     const s = viewRef.current.scale;
-    patchEl(d.key, { x: d.ox + dxs / s, y: d.oy + dys / s });
+    setEls((prev) => {
+      const next = { ...prev };
+      for (const k of d.keys) {
+        const o = d.origins[k];
+        if (o && next[k]) next[k] = { ...next[k], x: o.x + dxs / s, y: o.y + dys / s };
+      }
+      return next;
+    });
   };
   const onElPointerUp = (e: React.PointerEvent) => {
     const d = dragRef.current;
     dragRef.current = null;
     try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch {}
-    if (d && d.moved) { const el = elsRef.current[d.key]; if (el) persistGeom(el); }
+    if (d && d.moved) for (const k of d.keys) { const el = elsRef.current[k]; if (el) persistGeom(el); }
   };
 
   const onElDoubleClick = (e: React.PointerEvent, key: string) => {
@@ -381,7 +436,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
         align: init.align ?? null, imageUrl: init.imageUrl ?? null,
       };
       setEls((prev) => ({ ...prev, [tmpKey]: base }));
-      setSelectedKey(tmpKey);
+      setSelection([tmpKey]);
       try {
         const res = await fetch("/api/board/items", {
           method: "POST",
@@ -403,7 +458,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
           next[realKey] = { ...cur, key: realKey, id: item.id };
           return next;
         });
-        setSelectedKey((p) => (p === tmpKey ? realKey : p));
+        setSelection((prev) => prev.map((k) => (k === tmpKey ? realKey : k)));
       } catch {
         showToast("Не удалось создать элемент");
         setEls((prev) => { const n = { ...prev }; delete n[tmpKey]; return n; });
@@ -478,7 +533,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
     const el = elsRef.current[key];
     if (!el || el.kind !== "item") return;
     setEls((prev) => { const n = { ...prev }; delete n[key]; return n; });
-    setSelectedKey((p) => (p === key ? null : p));
+    setSelection((prev) => prev.filter((k) => k !== key));
     if (!isTmp(el.id)) fetch(`/api/board/items/${el.id}`, { method: "DELETE" }).catch(() => {});
   }, []);
 
@@ -487,6 +542,14 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
     patchEl(key, { z });
     const el = elsRef.current[key];
     if (el) { if (el.kind === "card") persistGeom({ ...el, z }); else persistFields(el.id, { z }); }
+  };
+
+  // Операции над группой выделенных
+  const deleteSelection = () => {
+    selectionRef.current.filter((k) => elsRef.current[k]?.kind === "item").forEach((k) => deleteItem(k));
+  };
+  const bringFrontSelection = () => {
+    selectionRef.current.forEach((k) => bringFront(k));
   };
 
   const duplicateItem = (key: string) => {
@@ -545,6 +608,8 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
   const cardCount = Object.values(els).filter((e) => e.kind === "card").length;
   const dotSize = 24 * view.scale;
   const sorted = Object.values(els).sort((a, b) => a.z - b.z);
+  const selectedKey = selection.length === 1 ? selection[0] : null;
+  const selectionSet = new Set(selection);
   const selected = selectedKey ? els[selectedKey] : null;
   const handleSize = Math.max(8, 11 / view.scale);
 
@@ -577,7 +642,8 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
         style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.scale})` }}
       >
         {sorted.map((el) => {
-          const isSel = el.key === selectedKey;
+          const isSel = selectionSet.has(el.key);
+          const single = selection.length === 1 && isSel;
           const isEditing = el.key === editingKey;
           return (
             <div
@@ -601,14 +667,14 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
                 <img src={el.imageUrl ?? ""} alt="" draggable={false} className="h-full w-full rounded-lg object-cover shadow-sm" />
               ) : null}
 
-              {/* рамка выделения + ручки ресайза */}
+              {/* рамка выделения + ручки ресайза (ручки только при одиночном выборе) */}
               {isSel && !isEditing && (
                 <>
                   <div
-                    className="pointer-events-none absolute -inset-[2px] rounded-[10px] ring-2 ring-blue-500"
+                    className={`pointer-events-none absolute -inset-[2px] rounded-[10px] ring-2 ${single ? "ring-blue-500" : "ring-blue-400"}`}
                     style={{ borderRadius: 10 }}
                   />
-                  {HANDLES.map((hd, i) => (
+                  {single && HANDLES.map((hd, i) => (
                     <div
                       key={i}
                       onPointerDown={(e) => onHandlePointerDown(e, el.key, hd.dx, hd.dy)}
@@ -629,6 +695,19 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
           );
         })}
       </div>
+
+      {/* Рамка-выделение (Shift+тащить по фону) */}
+      {marquee && (
+        <div
+          className="pointer-events-none absolute z-20 rounded-sm border border-blue-500 bg-blue-500/10"
+          style={{
+            left: Math.min(marquee.x0, marquee.x1),
+            top: Math.min(marquee.y0, marquee.y1),
+            width: Math.abs(marquee.x1 - marquee.x0),
+            height: Math.abs(marquee.y1 - marquee.y0),
+          }}
+        />
+      )}
 
       {/* ВЕРХНЯЯ ПАНЕЛЬ: добавление + контекст выделения */}
       <div
@@ -658,7 +737,18 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
         <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={onFilePick} />
         {uploading && <span className="px-1 text-xs text-slate-400">загрузка…</span>}
 
-        {/* контекст выделения */}
+        {/* контекст: группа выделенных */}
+        {selection.length > 1 && (
+          <>
+            <div className="mx-1 h-6 w-px bg-slate-200" />
+            <span className="px-1.5 text-sm text-slate-600">Выбрано: <b className="text-slate-900">{selection.length}</b></span>
+            <button type="button" onClick={bringFrontSelection} className="flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-sm text-slate-700 hover:bg-slate-100" title="На передний план">⤴</button>
+            <button type="button" onClick={deleteSelection} className="flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-sm text-red-600 hover:bg-red-50" title="Удалить выделенные (стикеры/текст/картинки)">🗑</button>
+            <button type="button" onClick={() => setSelection([])} className="flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-sm text-slate-500 hover:bg-slate-100" title="Снять выделение">✕</button>
+          </>
+        )}
+
+        {/* контекст: один элемент */}
         {selected && (
           <>
             <div className="mx-1 h-6 w-px bg-slate-200" />
@@ -680,9 +770,9 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
       </div>
 
       {/* Подсказка — внизу слева (там пусто), прячем при выделении, чтобы не мешала тулбару */}
-      {!selected && (
-        <div className="pointer-events-none absolute bottom-4 left-4 hidden max-w-[min(60vw,640px)] rounded-lg bg-white/80 px-3 py-1.5 text-[11px] text-slate-500 shadow-sm backdrop-blur md:block">
-          Фасонов: <b className="text-slate-700">{cardCount}</b> · 2× клик по карточке — открыть · по тексту/стикеру — править · ⌘V — вставить картинку
+      {selection.length === 0 && (
+        <div className="pointer-events-none absolute bottom-4 left-4 hidden max-w-[min(60vw,680px)] rounded-lg bg-white/80 px-3 py-1.5 text-[11px] text-slate-500 shadow-sm backdrop-blur md:block">
+          Фасонов: <b className="text-slate-700">{cardCount}</b> · <b className="text-slate-700">Shift+тащить</b> — выделить группу · Shift+клик — добавить · 2× клик по карточке — открыть · ⌘V — картинка
         </div>
       )}
 
@@ -755,6 +845,9 @@ function VerifiedBadge() {
 function CardBody({ el }: { el: El }) {
   const c = el.card!;
   const handle = igHandle(c.brandLabel);
+  const photos = c.photos?.length ? c.photos : c.photo ? [c.photo] : [];
+  const [idx, setIdx] = useState(0);
+  const cur = photos.length ? idx % photos.length : 0;
   return (
     <div className="flex h-full w-full cursor-grab flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm active:cursor-grabbing">
       {/* Шапка: аватар + ник + галочка */}
@@ -771,15 +864,47 @@ function CardBody({ el }: { el: El }) {
         <span className="ml-auto text-[15px] leading-none text-slate-500">⋯</span>
       </div>
 
-      {/* Фото на всю ширину */}
-      {c.photo ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={c.photo} alt="" loading="lazy" draggable={false} className="min-h-0 w-full flex-1 bg-slate-100 object-cover" />
-      ) : (
-        <div className="flex min-h-0 w-full flex-1 items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 px-2 text-center text-[11px] text-slate-500">
-          {c.name}
-        </div>
-      )}
+      {/* Фото — карусель, если их несколько (как в Instagram) */}
+      <div className="group/ph relative min-h-0 w-full flex-1 overflow-hidden bg-slate-100">
+        {photos.length > 0 ? (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photos[cur]} alt="" loading="lazy" draggable={false} className="h-full w-full object-cover" />
+            {photos.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); setIdx((i) => (i - 1 + photos.length) % photos.length); }}
+                  className="absolute left-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-base text-slate-700 opacity-0 shadow transition group-hover/ph:opacity-100"
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); setIdx((i) => (i + 1) % photos.length); }}
+                  className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-base text-slate-700 opacity-0 shadow transition group-hover/ph:opacity-100"
+                >
+                  ›
+                </button>
+                <div className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white">
+                  {cur + 1}/{photos.length}
+                </div>
+                <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-1">
+                  {photos.slice(0, 8).map((_, i) => (
+                    <span key={i} className={`h-1.5 rounded-full transition-all ${i === cur ? "w-3 bg-white" : "w-1.5 bg-white/60"}`} />
+                  ))}
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 px-2 text-center text-[11px] text-slate-500">
+            {c.name}
+          </div>
+        )}
+      </div>
 
       {/* Подвал: панель действий + подпись + статус */}
       <div className="flex flex-col gap-1 px-2.5 pb-2 pt-1.5" style={{ height: CARD_FOOTER }}>
