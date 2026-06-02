@@ -2,49 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { BoardCard, BoardItemData, El, Geom, ItemType, View } from "./board-types";
+import { CardBody, StickyBody, TextBody } from "./board-bodies";
+import {
+  CARD_FOOTER,
+  CARD_HEADER,
+  SCRIPT_FONTS,
+  SCRIPT_PINK,
+  STICKY_COLORS,
+  TEXT_COLORS,
+} from "./board-utils";
 
-export type BoardCard = {
-  id: string;
-  name: string;
-  brandLabel: string;
-  category: string;
-  photo: string | null;
-  photos: string[];
-  statusLabel: string;
-  statusDot: string;
-  colorChips: Array<{ name: string; hex: string }>;
-  x: number | null;
-  y: number | null;
-  w: number | null;
-  h: number | null;
-  z: number | null;
-};
+export type { BoardCard, BoardItemData, ItemType } from "./board-types";
 
-export type ItemType = "TEXT" | "STICKY" | "IMAGE";
-
-export type BoardItemData = {
-  id: string;
-  type: ItemType;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  z: number;
-  text: string | null;
-  color: string | null;
-  fontSize: number | null;
-  fontWeight: number | null;
-  align: "left" | "center" | "right" | null;
-  fontFamily: string | null;
-  imageUrl: string | null;
-};
-
-// ── Константы ────────────────────────────────────────────────────────
+// ── Константы ─────────────────────────────────────────────
 // Карточка-превью в стиле поста Instagram: шапка (аватар+ник) + фото + панель
 // действий + подпись. Фото = высота карточки минус шапка и подвал.
 const CARD_W = 214;
-const CARD_HEADER = 32; // тонкая шапка с аватаром и ником
-const CARD_FOOTER = 62; // тонкая панель лайков/коммент + подпись
 const CARD_H = CARD_HEADER + 274 + CARD_FOOTER; // фото доминирует (≈74% карточки)
 const COLS = 9;
 const CELL_W = 244;
@@ -56,54 +30,6 @@ const INITIAL_SCALE = 1.8; // доска открывается крупно (к
 const VIEW_KEY = "wo-board-view-v2"; // запоминаем масштаб/позицию (localStorage). v2 — сброс старого вида под новый дефолт
 const MIN_W = 56;
 const MIN_H = 40;
-
-// Pinterest-муд­борд палитра: мягкие десатурированные пастели.
-const STICKY_COLORS = ["#FCE7A2", "#F8C9D4", "#CFE3C5", "#BBD6E8", "#DACDEE", "#F4C9A8", "#F4EAD5", "#E2D8C8"];
-const DEFAULT_STICKY = STICKY_COLORS[0];
-const TEXT_COLORS = ["#111827", "#ffffff", "#ff3da6", "#ef4444", "#f59e0b", "#10b981", "#2563eb", "#8b5cf6"];
-const STICKY_TEXT = "#3a3733";
-
-// Рукописные шрифты для курсивных надписей (CSS-переменные заданы в layout.tsx).
-// Все поддерживают кириллицу и латиницу. fontFamily элемента хранит ключ.
-const SCRIPT_FONTS: Array<{ key: string; label: string; css: string }> = [
-  { key: "vibes", label: "with love", css: "var(--font-script-vibes), cursive" },
-  { key: "pacifico", label: "Pacifico", css: "var(--font-script-pacifico), cursive" },
-  { key: "caveat", label: "Caveat", css: "var(--font-script-caveat), cursive" },
-];
-const scriptCss = (key?: string | null): string | null =>
-  key ? SCRIPT_FONTS.find((f) => f.key === key)?.css ?? null : null;
-const SCRIPT_PINK = "#ff3da6"; // фирменный розовый для курсивных надписей
-
-// Лёгкий детерминированный наклон стикера (живой коллажный вид как в Pinterest).
-function tiltFromId(id: string): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffff;
-  return ((h % 100) / 100) * 3.4 - 1.7; // ≈ [-1.7°, +1.7°]
-}
-
-type Geom = { x: number; y: number; w: number; h: number; z: number };
-type El = {
-  key: string;
-  kind: "card" | "item";
-  id: string;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  z: number;
-  // card
-  card?: BoardCard;
-  // item
-  type?: ItemType;
-  text?: string | null;
-  color?: string | null;
-  fontSize?: number | null;
-  fontWeight?: number | null;
-  align?: "left" | "center" | "right" | null;
-  fontFamily?: string | null;
-  imageUrl?: string | null;
-};
-type View = { scale: number; tx: number; ty: number };
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const round = (v: number) => Math.round(v);
@@ -126,7 +52,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tmpCounter = useRef(0);
 
-  // ── Начальное состояние элементов ───────────────────────────────────
+  // ── Начальное состояние элементов ────────────────────────────
   const initialEls = useMemo<Record<string, El>>(() => {
     const els: Record<string, El> = {};
     // карточки фасонов
@@ -202,7 +128,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
     return mz + 1;
   }, []);
 
-  // ── Сохранение в БД ──────────────────────────────────────────────────
+  // ── Сохранение в БД ───────────────────────────────────────────
   const persistGeom = useCallback((el: El) => {
     if (isTmp(el.id)) return;
     const body = JSON.stringify({ x: round(el.x), y: round(el.y), w: round(el.w), h: round(el.h), z: el.z });
@@ -225,7 +151,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
     setEls((prev) => (prev[key] ? { ...prev, [key]: { ...prev[key], ...patch } } : prev));
   }, []);
 
-  // ── Координаты ───────────────────────────────────────────────────────
+  // ── Координаты ────────────────────────────────────────────
   const viewCenterWorld = useCallback((): { x: number; y: number } => {
     const el = viewportRef.current;
     const v = viewRef.current;
@@ -242,7 +168,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
     return { x: (sx - r.left - v.tx) / v.scale, y: (sy - r.top - v.ty) / v.scale };
   }, []);
 
-  // ── Вписать всё в экран ──────────────────────────────────────────────
+  // ── Вписать всё в экран ───────────────────────────────────
   const fitAll = useCallback(() => {
     const el = viewportRef.current;
     const keys = Object.keys(elsRef.current);
@@ -300,7 +226,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
     return () => window.clearTimeout(t);
   }, [view]);
 
-  // ── Зум колесом ──────────────────────────────────────────────────────
+  // ── Зум колесом ───────────────────────────────────────────
   useEffect(() => {
     const el = viewportRef.current;
     if (!el) return;
@@ -410,7 +336,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
     setPanning(false);
   };
 
-  // ── Перетаскивание элемента (с поддержкой группы) ─────────────────────
+  // ── Перетаскивание элемента (с поддержкой группы) ───────────────────
   const dragRef = useRef<{ keys: string[]; px: number; py: number; origins: Record<string, { x: number; y: number }>; moved: boolean } | null>(null);
   const onElPointerDown = (e: React.PointerEvent, key: string) => {
     if (e.button !== 0) return;
@@ -463,7 +389,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
     if (el.type === "TEXT" || el.type === "STICKY") setEditingKey(key);
   };
 
-  // ── Ресайз ───────────────────────────────────────────────────────────
+  // ── Ресайз ───────────────────────────────────────────────────
   const resizeRef = useRef<
     { key: string; px: number; py: number; g: Geom; dx: number; dy: number } | null
   >(null);
@@ -493,7 +419,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
     if (r) { const el = elsRef.current[r.key]; if (el) persistGeom(el); }
   };
 
-  // ── Создание элементов ───────────────────────────────────────────────
+  // ── Создание элементов ──────────────────────────────────────
   const createItem = useCallback(
     async (init: { type: ItemType; w: number; h: number; at?: { x: number; y: number } } & Partial<El>) => {
       const center = init.at ?? viewCenterWorld();
@@ -604,7 +530,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
     if (f) uploadAndAdd(f, screenToWorld(e.clientX, e.clientY));
   };
 
-  // ── Операции над выделенным ──────────────────────────────────────────
+  // ── Операции над выделенным ─────────────────────────────────
   const deleteItem = useCallback((key: string) => {
     const el = elsRef.current[key];
     if (!el || el.kind !== "item") return;
@@ -651,7 +577,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
     if (el) persistGeom({ ...el, w: CARD_W, h: CARD_H });
   };
 
-  // ── Зум-кнопки / раскладка ───────────────────────────────────────────
+  // ── Зум-кнопки / раскладка ─────────────────────────────────
   const zoomBy = (factor: number) => {
     const el = viewportRef.current; if (!el) return;
     const r = el.getBoundingClientRect();
@@ -878,261 +804,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
   );
 }
 
-// ── Карточка фасона ────────────────────────────────────────────────────
-function igHandle(brandLabel: string): string {
-  const l = brandLabel.toLowerCase();
-  if (l.includes("white")) return "white_one_love";
-  if (l.includes("сердц")) return "serdcebienie";
-  return brandLabel.toLowerCase().replace(/\s+/g, "_") || "white_one_love";
-}
-
-const IG_ICON = "shrink-0 text-slate-900";
-function HeartIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_ICON}>
-      <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.5 4.04 3 5.5l7 7Z" />
-    </svg>
-  );
-}
-function CommentIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_ICON}>
-      <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
-    </svg>
-  );
-}
-function SendIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_ICON}>
-      <path d="m22 2-7 20-4-9-9-4Z" />
-      <path d="M22 2 11 13" />
-    </svg>
-  );
-}
-function BookmarkIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_ICON}>
-      <path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" />
-    </svg>
-  );
-}
-function VerifiedBadge() {
-  return (
-    <span className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-[#3897f0]">
-      <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M5 12l4 4L19 7" />
-      </svg>
-    </span>
-  );
-}
-
-// Карточка-превью в стиле поста Instagram.
-function CardBody({ el }: { el: El }) {
-  const c = el.card!;
-  const handle = igHandle(c.brandLabel);
-  const photos = c.photos?.length ? c.photos : c.photo ? [c.photo] : [];
-  const [idx, setIdx] = useState(0);
-  const cur = photos.length ? idx % photos.length : 0;
-  return (
-    <div className="flex h-full w-full cursor-grab flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm active:cursor-grabbing">
-      {/* Шапка: аватар + ник + галочка (тонкая) */}
-      <div className="flex items-center gap-1.5 px-2" style={{ height: CARD_HEADER }}>
-        <span className="shrink-0 rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 p-[1.5px]">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] font-bold uppercase text-slate-700">
-            {handle[0]}
-          </span>
-        </span>
-        <div className="flex min-w-0 items-center gap-1">
-          <span className="truncate text-[11px] font-semibold leading-none text-slate-900">{handle}</span>
-          <VerifiedBadge />
-        </div>
-        <span className="ml-auto text-[13px] leading-none text-slate-500">⋯</span>
-      </div>
-
-      {/* Фото — карусель, если их несколько (как в Instagram) */}
-      <div className="group/ph relative min-h-0 w-full flex-1 overflow-hidden bg-slate-100">
-        {photos.length > 0 ? (
-          <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={photos[cur]} alt="" loading="lazy" draggable={false} className="h-full w-full object-cover" />
-            {photos.length > 1 && (
-              <>
-                <button
-                  type="button"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => { e.stopPropagation(); setIdx((i) => (i - 1 + photos.length) % photos.length); }}
-                  className="absolute left-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-base text-slate-700 opacity-0 shadow transition group-hover/ph:opacity-100"
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => { e.stopPropagation(); setIdx((i) => (i + 1) % photos.length); }}
-                  className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-base text-slate-700 opacity-0 shadow transition group-hover/ph:opacity-100"
-                >
-                  ›
-                </button>
-                <div className="absolute right-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white">
-                  {cur + 1}/{photos.length}
-                </div>
-                <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-1">
-                  {photos.slice(0, 8).map((_, i) => (
-                    <span key={i} className={`h-1.5 rounded-full transition-all ${i === cur ? "w-3 bg-white" : "w-1.5 bg-white/60"}`} />
-                  ))}
-                </div>
-              </>
-            )}
-          </>
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 px-2 text-center text-[11px] text-slate-500">
-            {c.name}
-          </div>
-        )}
-      </div>
-
-      {/* Подвал: панель действий + подпись + статус (тонкий) */}
-      <div className="flex flex-col gap-0.5 px-2 pb-1.5 pt-1" style={{ height: CARD_FOOTER }}>
-        <div className="flex items-center">
-          <span className="flex items-center gap-2.5">
-            <HeartIcon />
-            <CommentIcon />
-            <SendIcon />
-          </span>
-          <span className="ml-auto">
-            <BookmarkIcon />
-          </span>
-        </div>
-        <div className="line-clamp-1 text-[11px] leading-tight text-slate-900">
-          <span className="font-semibold">{handle}</span> {c.name}
-        </div>
-        <div className="mt-auto flex items-center justify-between gap-1">
-          <span className="inline-flex items-center gap-1 truncate text-[10px] text-slate-500">
-            <span className="inline-block h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: c.statusDot }} />
-            {c.statusLabel}
-          </span>
-          {c.colorChips.length > 0 && (
-            <span className="flex shrink-0 items-center gap-0.5">
-              {c.colorChips.slice(0, 5).map((cc, i) => (
-                <span key={i} className="inline-block h-2.5 w-2.5 rounded-full ring-1 ring-slate-200" style={{ backgroundColor: cc.hex }} />
-              ))}
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Текстовый блок ─────────────────────────────────────────────────────
-function TextBody({ el, editing, onCommit }: { el: El; editing: boolean; onCommit: (t: string) => void }) {
-  const family = scriptCss(el.fontFamily);
-  const style: React.CSSProperties = {
-    fontSize: el.fontSize ?? 28,
-    fontWeight: el.fontWeight ?? 600,
-    color: el.color ?? "var(--foreground)",
-    textAlign: (el.align ?? "left") as React.CSSProperties["textAlign"],
-    lineHeight: family ? 1.15 : 1.2,
-    ...(family ? { fontFamily: family } : {}),
-  };
-  if (editing) return <EditArea el={el} style={style} transparent onCommit={onCommit} />;
-  return (
-    <div className="h-full w-full cursor-grab overflow-hidden whitespace-pre-wrap break-words p-1 active:cursor-grabbing" style={style}>
-      {el.text || "Текст"}
-    </div>
-  );
-}
-
-// ── Стикер ─────────────────────────────────────────────────────────────
-function StickyBody({ el, editing, onCommit }: { el: El; editing: boolean; onCommit: (t: string) => void }) {
-  const color = el.color ?? DEFAULT_STICKY;
-  const tilt = editing ? 0 : tiltFromId(el.id);
-  const style: React.CSSProperties = {
-    fontSize: el.fontSize ?? 18,
-    fontWeight: el.fontWeight ?? 500,
-    color: STICKY_TEXT,
-    textAlign: (el.align ?? "left") as React.CSSProperties["textAlign"],
-    lineHeight: 1.3,
-  };
-  return (
-    <div
-      className="relative h-full w-full cursor-grab active:cursor-grabbing"
-      style={{ transform: `rotate(${tilt}deg)`, transformOrigin: "center" }}
-    >
-      {/* «washi-скотч» сверху — как будто стикер приклеен к доске */}
-      <div
-        className="pointer-events-none absolute left-1/2 top-0 z-10"
-        style={{
-          width: 58,
-          height: 18,
-          transform: "translateX(-50%) rotate(-5deg)",
-          background: "linear-gradient(180deg, rgba(255,255,255,0.55), rgba(255,255,255,0.32))",
-          border: "1px solid rgba(255,255,255,0.6)",
-          borderRadius: 2,
-          boxShadow: "0 1px 3px rgba(0,0,0,0.10)",
-        }}
-      />
-      {/* сам листок-заметка */}
-      <div
-        className="absolute inset-x-0 bottom-0 overflow-hidden rounded-2xl"
-        style={{
-          top: 11,
-          background: `linear-gradient(155deg, rgba(255,255,255,0.48), rgba(0,0,0,0.05)), ${color}`,
-          boxShadow: "0 10px 24px rgba(0,0,0,0.14), 0 2px 6px rgba(0,0,0,0.08)",
-        }}
-      >
-        {editing ? (
-          <div className="h-full w-full p-3.5">
-            <EditArea el={el} style={style} transparent onCommit={onCommit} />
-          </div>
-        ) : el.text ? (
-          <div className="h-full w-full overflow-hidden whitespace-pre-wrap break-words p-3.5" style={style}>
-            {el.text}
-          </div>
-        ) : (
-          <div className="flex h-full w-full items-center justify-center p-3.5 text-center text-[12px] italic" style={{ color: "rgba(58,55,51,0.4)" }}>
-            двойной клик — добавить текст
-          </div>
-        )}
-        {/* загнутый уголок */}
-        <span
-          className="pointer-events-none absolute bottom-0 right-0"
-          style={{
-            width: 0,
-            height: 0,
-            borderStyle: "solid",
-            borderWidth: "0 0 18px 18px",
-            borderColor: "transparent transparent rgba(0,0,0,0.10) rgba(255,255,255,0.5)",
-          }}
-        />
-      </div>
-    </div>
-  );
-}
-
-// ── Поле редактирования (textarea поверх элемента) ─────────────────────
-function EditArea({ el, style, transparent, onCommit }: { el: El; style: React.CSSProperties; transparent?: boolean; onCommit: (t: string) => void }) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  const [val, setVal] = useState(el.text ?? "");
-  useEffect(() => {
-    const t = ref.current;
-    if (t) { t.focus(); t.select(); }
-  }, []);
-  return (
-    <textarea
-      ref={ref}
-      value={val}
-      onChange={(e) => setVal(e.target.value)}
-      onPointerDown={(e) => e.stopPropagation()}
-      onBlur={() => onCommit(val)}
-      onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); onCommit(val); } e.stopPropagation(); }}
-      className="h-full w-full resize-none border-0 p-1 outline-none"
-      style={{ ...style, background: transparent ? "transparent" : "white" }}
-    />
-  );
-}
-
-// ── Контекстные контролы выделения ─────────────────────────────────────
+// ── Контекстные контролы выделения ─────────────────────────────
 function SelectionControls({
   el, onFontSize, onBold, onAlign, onColor, onFontFamily, onFront, onDuplicate, onDelete, onOpen, onResetSize, onEdit,
 }: {
