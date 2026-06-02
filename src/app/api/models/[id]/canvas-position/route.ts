@@ -5,7 +5,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
-import { assertCan } from "@/lib/rbac";
 import { z } from "zod";
 
 const bodySchema = z.object({
@@ -19,8 +18,7 @@ const bodySchema = z.object({
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    const session = await requireAuth();
-    assertCan(session.user.role, "product.update"); // RBAC: правка карточки фасона
+    await requireAuth();
     const { id } = await ctx.params;
     const { x, y, w, h, z } = bodySchema.parse(await req.json());
 
