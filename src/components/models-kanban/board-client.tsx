@@ -31,9 +31,9 @@ export type KanbanCard = {
   colorChips: Array<{ name: string; hex: string }>;
   /** Все фото фасона — для карусели в карточке. */
   photos?: string[];
-  /** Кол-во комментов к фасону + превью последнего. */
+  /** Кол-во комментов к фасону + превью 2 последних. */
   commentCount?: number;
-  lastComment?: { author: string; snippet: string; photos: number } | null;
+  lastComments?: Array<{ author: string; snippet: string; photos: number }>;
   /** Тип карточки: фасон (модель + опц. заказ) или заказ упаковки целиком.
    *  Для packaging-order: photo = первое фото PackagingItem, modelName = orderNumber,
    *  href ведёт в /packaging-orders/[id]. Drag-n-drop отключён. */
@@ -256,36 +256,11 @@ export function BoardClient({
   );
 }
 
-// ── Карточка фасона в стиле Instagram (компактная) ──────────────────────
-function igHandle(brandLabel: string): string {
-  const l = (brandLabel || "").toLowerCase();
-  if (l.includes("white") || l.includes("white_one") || l === "white_one") return "white_one_love";
-  if (l.includes("сердц") || l.includes("serdc")) return "serdcebienie";
-  return l.replace(/\s+/g, "_") || "white_one_love";
-}
-
-function IgVerified() {
-  return (
-    <span className="inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full bg-[#3897f0]">
-      <svg viewBox="0 0 24 24" width="8" height="8" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M5 12l4 4L19 7" />
-      </svg>
-    </span>
-  );
-}
-
-const IG_MINI = "shrink-0 text-slate-900";
-function MiniHeart() {
-  return <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_MINI}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.5 4.04 3 5.5l7 7Z" /></svg>;
-}
+// ── Карточка фасона (компактная, без инста-обёртки) ──────────────────────
+// Иконка комментария оставлена для пустого состояния блока комментов.
+const IG_MINI = "shrink-0 text-slate-400";
 function MiniComment() {
-  return <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_MINI}><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg>;
-}
-function MiniSend() {
-  return <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_MINI}><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>;
-}
-function MiniBookmark() {
-  return <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_MINI}><path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z" /></svg>;
+  return <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={IG_MINI}><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg>;
 }
 
 function KanbanCardView({
@@ -317,8 +292,8 @@ function KanbanCardView({
   const photos = c.photos?.length ? c.photos : c.photo ? [c.photo] : [];
   const [idx, setIdx] = useState(0);
   const cur = photos.length ? idx % photos.length : 0;
-  const handle = igHandle(c.brandLabel);
   const commentCount = c.commentCount ?? 0;
+  const lastComments = c.lastComments ?? [];
 
   const wrapper = (
     <div
@@ -329,18 +304,6 @@ function KanbanCardView({
         dragEnabled ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
       } ${dragging === c.modelId ? "rotate-1 opacity-40" : ""}`}
     >
-      {/* Шапка */}
-      {!isPackaging && (
-        <div className="flex items-center gap-1.5 px-2 py-1.5">
-          <span className="shrink-0 rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 p-[1.5px]">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] font-bold uppercase text-slate-700">{handle[0]}</span>
-          </span>
-          <span className="truncate text-[11px] font-semibold text-slate-900">{handle}</span>
-          <IgVerified />
-          <span className="ml-auto text-slate-400">⋯</span>
-        </div>
-      )}
-
       <Link href={href} className="block" onClick={(e) => { if (dragging) e.preventDefault(); }}>
         {/* Фото / карусель */}
         <div className="group/ph relative w-full bg-slate-100">
@@ -364,19 +327,8 @@ function KanbanCardView({
           )}
         </div>
 
-        {/* Панель действий (декоративная, как в инсте) */}
-        {!isPackaging && (
-          <div className="flex items-center gap-2.5 px-2 pb-0.5 pt-1.5">
-            <MiniHeart />
-            <MiniComment />
-            <MiniSend />
-            <span className="ml-auto"><MiniBookmark /></span>
-          </div>
-        )}
-
-        <div className="space-y-1 px-2 pb-2 pt-0.5">
-          <div className="line-clamp-1 text-[12px] leading-tight text-slate-900">
-            {!isPackaging && <span className="font-semibold">{handle} </span>}
+        <div className="space-y-1 px-2 pb-2 pt-2">
+          <div className="line-clamp-1 text-[12px] font-medium leading-tight text-slate-900">
             {c.modelName}
           </div>
           {c.colorChips.length > 0 && (
@@ -400,16 +352,20 @@ function KanbanCardView({
           onClick={onOpenComments}
           className="block w-full border-t border-slate-100 px-2 py-1.5 text-left hover:bg-slate-50"
         >
-          {commentCount > 0 && c.lastComment ? (
-            <span className="block">
-              <span className="line-clamp-1 text-[11px] text-slate-700">
-                <span className="font-semibold">{c.lastComment.author}:</span> {c.lastComment.snippet}
-                {c.lastComment.photos > 0 && <span className="text-slate-400"> 📷{c.lastComment.photos}</span>}
-              </span>
-              {commentCount > 1 && <span className="text-[10px] text-blue-600">Показать все {commentCount} →</span>}
+          {commentCount > 0 && lastComments.length > 0 ? (
+            <span className="block space-y-0.5">
+              {lastComments.map((cm, i) => (
+                <span key={i} className="line-clamp-1 text-[11px] text-slate-700">
+                  <span className="font-semibold">{cm.author}:</span> {cm.snippet}
+                  {cm.photos > 0 && <span className="text-slate-400"> 📷{cm.photos}</span>}
+                </span>
+              ))}
+              {commentCount > lastComments.length && (
+                <span className="block text-[10px] text-blue-600">Показать все {commentCount} →</span>
+              )}
             </span>
           ) : (
-            <span className="flex items-center gap-1 text-[11px] text-slate-400"><MiniComment /> Добавить комментарий</span>
+            <span className="flex items-center gap-1 text-[11px] text-slate-400"><MiniComment /> Оставить комментарий</span>
           )}
         </button>
       )}
