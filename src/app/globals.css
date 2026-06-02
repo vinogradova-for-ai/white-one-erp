@@ -176,3 +176,11 @@ section:target {
     border-radius: 1rem;
   }
 }
+
+/* Доска коллекции: флэт-контур SVG масштабируется по высоте ряда.
+   Заливка контура = currentColor → перекрашивается цветом родителя (.flat-svg style.color). */
+.flat-svg svg {
+  height: 100%;
+  width: auto;
+  display: block;
+}

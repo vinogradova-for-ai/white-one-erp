@@ -11,6 +11,7 @@ const NAV = [
   { href: "/models", label: "Фасоны", icon: "⬢" },
   { href: "/models/kanban", label: "Канбан фасонов", icon: "▦" },
   { href: "/models/board", label: "Доска фасонов", icon: "▢" },
+  { href: "/models/collection", label: "Раскладка по цветам", icon: "◧" },
   { href: "/variants", label: "Цветомодели", icon: "◎" },
   { href: "/orders", label: "Заказы", icon: "⬡" },
   { href: "/packaging", label: "Упаковка", icon: "▯" },
