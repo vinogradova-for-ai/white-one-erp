@@ -14,6 +14,30 @@ export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   ON_SALE: [],
 };
 
+// Линейный порядок статусов — единый источник истины для «вперёд/назад».
+export const ORDER_STATUS_SEQUENCE: OrderStatus[] = [
+  "PREPARATION",
+  "FABRIC_ORDERED",
+  "SEWING",
+  "QC",
+  "READY_SHIP",
+  "IN_TRANSIT",
+  "WAREHOUSE_MSK",
+  "PACKING",
+  "SHIPPED_WB",
+  "ON_SALE",
+];
+
+// Переход «вперёд» по ленте статусов (to строго дальше from).
+// Используется авто-статусом по таймлайну, чтобы НИКОГДА не откатывать
+// вручную продвинутый заказ назад.
+export function isForwardOrderStatus(from: OrderStatus, to: OrderStatus): boolean {
+  const fi = ORDER_STATUS_SEQUENCE.indexOf(from);
+  const ti = ORDER_STATUS_SEQUENCE.indexOf(to);
+  if (fi < 0 || ti < 0) return false;
+  return ti > fi;
+}
+
 export function canMoveOrderStatus(
   from: OrderStatus,
   to: OrderStatus,
@@ -21,7 +45,9 @@ export function canMoveOrderStatus(
 ): { ok: boolean; reason?: string; requiresComment?: boolean } {
   if (from === to) return { ok: false, reason: "Статус не изменился" };
 
-  if (ORDER_TRANSITIONS[from].includes(to)) {
+  // Защита от мусорного from (вызов из нетипизированного слоя): мягкий отказ, не краш.
+  const allowed = ORDER_TRANSITIONS[from] ?? [];
+  if (allowed.includes(to)) {
     return { ok: true };
   }
 
@@ -36,19 +62,7 @@ export function canMoveOrderStatus(
 }
 
 function isOrderRollback(from: OrderStatus, to: OrderStatus): boolean {
-  const order: OrderStatus[] = [
-    "PREPARATION",
-    "FABRIC_ORDERED",
-    "SEWING",
-    "QC",
-    "READY_SHIP",
-    "IN_TRANSIT",
-    "WAREHOUSE_MSK",
-    "PACKING",
-    "SHIPPED_WB",
-    "ON_SALE",
-  ];
-  return order.indexOf(to) < order.indexOf(from);
+  return ORDER_STATUS_SEQUENCE.indexOf(to) < ORDER_STATUS_SEQUENCE.indexOf(from);
 }
 
 // Автоматическое поле даты при переходе
