@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { assertCan } from "@/lib/rbac";
 import { z } from "zod";
 
 const createSchema = z.object({
@@ -24,6 +25,7 @@ const createSchema = z.object({
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth();
+    assertCan(session.user.role, "product.update"); // RBAC: правка доски фасонов
     const data = createSchema.parse(await req.json());
 
     const item = await prisma.boardItem.create({

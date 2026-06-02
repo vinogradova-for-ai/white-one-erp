@@ -30,6 +30,8 @@ export type Action =
   | "payment.update"
   | "payment.markPaid"
   | "payment.delete"
+  // Packaging (упаковка + заказы упаковки): PM + ASSISTANT (Настя) + админы
+  | "packaging.manage"
   // Admin
   | "user.read"
   | "user.manage"
@@ -64,8 +66,6 @@ export function can(
   // Админы могут всё
   if (ADMINS.includes(role)) return true;
 
-  const isOwner = !!resourceOwnerId && !!actorId && resourceOwnerId === actorId;
-
   switch (action) {
     // Чтение — все авторизованные
     case "product.read":
@@ -90,12 +90,17 @@ export function can(
     case "order.create":
       return PM.includes(role);
 
-    // Обновление и смена статуса — владелец или PM (для своих)
+    // Обновление и смена статуса — только PM (и админы выше).
+    // Владение ресурсом само по себе НЕ даёт запись read-only ролям.
     case "product.update":
     case "product.updateStatus":
     case "order.update":
     case "order.updateStatus":
-      return isOwner || PM.includes(role);
+      return PM.includes(role);
+
+    // Упаковка и заказы упаковки — PM + ASSISTANT (Настя) + админы
+    case "packaging.manage":
+      return PM.includes(role) || role === "ASSISTANT";
 
     // Откат статуса — только админы (отработано выше)
     case "product.rollbackStatus":

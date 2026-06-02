@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { assertCan } from "@/lib/rbac";
 import { z } from "zod";
 
 const bodySchema = z.object({
@@ -23,7 +24,8 @@ const bodySchema = z.object({
 
 export async function PATCH(req: NextRequest) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    assertCan(session.user.role, "product.update"); // RBAC-гард
     const { positions } = bodySchema.parse(await req.json());
 
     await prisma.$transaction(

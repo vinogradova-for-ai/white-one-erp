@@ -99,12 +99,25 @@ describe("rbac · owner-scoped: PM правит свой ресурс", () => {
     expect(can(PM, "order.update", "user-1", "user-1")).toBe(true); // владелец
     expect(can(PM, "order.update", "user-2", "user-1")).toBe(true); // PM может и не свои
   });
-  it("ТЕКУЩЕЕ поведение: владение ресурсом даёт запись любой роли (латентная дыра)", () => {
-    // TODO[rbac-wave]: ветка order.update = `isOwner || PM` пускает на запись
-    // даже read-only роль, если она — владелец ресурса. Read-only отделы заказами
-    // не владеют, поэтому сейчас не стреляет, но это противоречит правилу
-    // «другие отделы только смотрят». Закрыть, убрав isOwner из write-веток.
-    expect(can("LOGISTICS", "order.update", "user-1", "user-1")).toBe(true);
+  it("дыра закрыта: владение ресурсом НЕ даёт запись read-only роли", () => {
+    // isOwner убран из write-веток — read-only отделы не пишут даже свой ресурс.
+    expect(can("LOGISTICS", "order.update", "user-1", "user-1")).toBe(false);
+    expect(can("CONTENT_MANAGER", "product.update", "u1", "u1")).toBe(false);
+    expect(can("INTERN", "order.updateStatus", "u1", "u1")).toBe(false);
+  });
+});
+
+describe("rbac · packaging.manage — упаковка (PM + Настя + админы)", () => {
+  it("PM, ASSISTANT и админы управляют упаковкой", () => {
+    expect(can("PRODUCT_MANAGER", "packaging.manage")).toBe(true);
+    expect(can("ASSISTANT", "packaging.manage")).toBe(true);
+    expect(can("OWNER", "packaging.manage")).toBe(true);
+    expect(can("DIRECTOR", "packaging.manage")).toBe(true);
+  });
+  it("read-only отделы НЕ управляют упаковкой", () => {
+    for (const r of ["CONTENT_MANAGER", "LOGISTICS", "CUSTOMS", "WB_MANAGER", "INTERN"] as Role[]) {
+      expect(can(r, "packaging.manage")).toBe(false);
+    }
   });
 });
 

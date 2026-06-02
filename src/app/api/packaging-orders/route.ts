@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { assertCan } from "@/lib/rbac";
 import { packagingOrderCreateSchema } from "@/lib/validators/packaging-order";
 import { normalizePackagingDates } from "@/lib/normalize-phase-dates";
 
@@ -57,6 +58,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth();
+    assertCan(session.user.role, "packaging.manage"); // RBAC-гард
     const data = packagingOrderCreateSchema.parse(await req.json());
 
     const created = await prisma.$transaction(async (tx) => {

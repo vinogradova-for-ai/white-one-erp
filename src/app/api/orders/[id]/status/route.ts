@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { assertCan } from "@/lib/rbac";
 import { orderStatusChangeSchema } from "@/lib/validators/order";
 import { OrderStatus } from "@prisma/client";
 
@@ -33,6 +34,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   try {
     const session = await requireAuth();
     const { id } = await ctx.params;
+    assertCan(session.user.role, "order.updateStatus"); // RBAC: смена статуса заказа
 
     const order = await prisma.order.findFirst({
       where: { id, deletedAt: null },

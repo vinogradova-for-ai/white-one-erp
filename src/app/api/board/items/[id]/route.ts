@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { assertCan } from "@/lib/rbac";
 import { z } from "zod";
 
 const patchSchema = z.object({
@@ -23,7 +24,8 @@ const patchSchema = z.object({
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    assertCan(session.user.role, "product.update"); // гард RBAC
     const { id } = await ctx.params;
     const data = patchSchema.parse(await req.json());
 
@@ -42,7 +44,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    assertCan(session.user.role, "product.update"); // гард RBAC
     const { id } = await ctx.params;
 
     const existing = await prisma.boardItem.findFirst({

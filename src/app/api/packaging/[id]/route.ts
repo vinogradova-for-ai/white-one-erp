@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { assertCan } from "@/lib/rbac";
 import { packagingUpdateSchema } from "@/lib/validators/packaging";
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -39,7 +40,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    assertCan(session.user.role, "packaging.manage"); // RBAC-гард
     const { id } = await ctx.params;
     const data = packagingUpdateSchema.parse(await req.json());
     const existing = await prisma.packagingItem.findUnique({ where: { id } });
@@ -68,7 +70,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    assertCan(session.user.role, "packaging.manage"); // RBAC-гард
     const { id } = await ctx.params;
     const item = await prisma.packagingItem.findUnique({
       where: { id },

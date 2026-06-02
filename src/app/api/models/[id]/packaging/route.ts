@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { assertCan } from "@/lib/rbac";
 import { z } from "zod";
 
 const schema = z.object({
@@ -25,7 +26,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    assertCan(session.user.role, "packaging.manage"); // RBAC-гард
     const { id } = await ctx.params;
     const data = schema.parse(await req.json());
 

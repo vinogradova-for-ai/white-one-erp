@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { assertCan } from "@/lib/rbac";
 import { packagingStatusChangeSchema } from "@/lib/validators/packaging";
 import { PACKAGING_TRANSITIONS, PACKAGING_DATE_ON_STATUS } from "@/lib/status-machine/packaging-statuses";
 
@@ -8,6 +9,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const session = await requireAuth();
     const { id } = await params;
+    assertCan(session.user.role, "packaging.manage"); // RBAC-гард
 
     const item = await prisma.packagingItem.findUnique({ where: { id } });
     if (!item) return NextResponse.json({ error: { code: "not_found" } }, { status: 404 });
