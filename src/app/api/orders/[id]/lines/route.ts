@@ -4,6 +4,7 @@ import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { orderLineAddSchema } from "@/lib/validators/order";
 import { calculateOrderEconomics } from "@/lib/calculations/product-cost";
+import { logAudit } from "@/server/audit";
 
 // POST /api/orders/[id]/lines — добавить позицию (цвет) в заказ
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -49,6 +50,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         plannedRevenue: eco.plannedRevenue,
       },
     });
+
+    await logAudit({
+      action: "CREATE",
+      entityType: "OrderLine",
+      entityId: id,
+      userId: session.user.id,
+      changes: {
+        orderLineId: line.id,
+        productVariantId: data.productVariantId,
+        quantity: data.quantity,
+      },
+    });
+
     return NextResponse.json(line, { status: 201 });
   } catch (e) {
     return apiError(e);

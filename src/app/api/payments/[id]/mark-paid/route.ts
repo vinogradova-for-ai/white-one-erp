@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { paymentMarkPaidSchema } from "@/lib/validators/payment";
+import { logAudit } from "@/server/audit";
 
 // POST /api/payments/[id]/mark-paid { paidAt? }
 // Отмечает платёж как оплаченный. Если paidAt не передан — ставим сейчас.
@@ -22,6 +23,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         paidById: session.user.id,
       },
     });
+    await logAudit({
+      action: "STATUS_CHANGE",
+      entityType: "Payment",
+      entityId: id,
+      userId: session.user.id,
+      changes: { to: "PAID" },
+    });
     return NextResponse.json(updated);
   } catch (e) {
     return apiError(e);
@@ -37,6 +45,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const updated = await prisma.payment.update({
       where: { id },
       data: { status: "PENDING", paidAt: null, paidById: null },
+    });
+    await logAudit({
+      action: "STATUS_CHANGE",
+      entityType: "Payment",
+      entityId: id,
+      userId: session.user.id,
+      changes: { to: "PENDING" },
     });
     return NextResponse.json(updated);
   } catch (e) {

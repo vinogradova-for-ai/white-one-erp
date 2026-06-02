@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { assertCan } from "@/lib/rbac";
 import { orderUpdateSchema } from "@/lib/validators/order";
 import { computeOrderStatus } from "@/lib/order-auto-status";
+import { isForwardOrderStatus } from "@/lib/status-machine/order-statuses";
 import { logAudit } from "@/server/audit";
 import { z } from "zod";
 
@@ -68,6 +70,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAuth();
+    assertCan(session.user.role, "order.update"); // RBAC: редактирование заказа
     const { id } = await ctx.params;
 
     const existing = await prisma.order.findFirst({ where: { id, deletedAt: null } });
@@ -104,14 +107,17 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       changes: processed,
     });
 
-    // Автостатус из положения в Ганте
+    // Автостатус из положения в Ганте — ТОЛЬКО ВПЕРЁД.
+    // Раньше пересчёт мог молча откатить вручную продвинутый заказ назад
+    // (например, отметили «на складе», потом подвинули дату — и статус прыгал обратно).
+    // Теперь авто-статус двигает заказ только вперёд по ленте; назад — лишь руками.
     const newStatus = computeOrderStatus({
       readyAtFactoryDate: updated.readyAtFactoryDate,
       qcDate: updated.qcDate,
       arrivalPlannedDate: updated.arrivalPlannedDate,
       arrivalActualDate: updated.arrivalActualDate,
     });
-    if (newStatus !== updated.status) {
+    if (newStatus !== updated.status && isForwardOrderStatus(updated.status, newStatus)) {
       const prev = updated.status;
       updated = await prisma.order.update({ where: { id }, data: { status: newStatus } });
       await prisma.orderStatusLog.create({
@@ -120,7 +126,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
           fromStatus: prev,
           toStatus: newStatus,
           changedById: session.user.id,
-          comment: "Автостатус по таймлайну",
+          comment: "Автостатус по таймлайну (вперёд)",
         },
       });
     }
@@ -157,9 +163,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAuth();
-    if (session.user.role !== "OWNER" && session.user.role !== "DIRECTOR") {
-      return NextResponse.json({ error: { code: "forbidden", message: "Удаление доступно только руководителям" } }, { status: 403 });
-    }
+    assertCan(session.user.role, "order.delete"); // RBAC: удаление заказа
     const { id } = await ctx.params;
     await prisma.order.update({ where: { id }, data: { deletedAt: new Date() } });
     await logAudit({

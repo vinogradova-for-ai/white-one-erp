@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { paymentUpdateSchema } from "@/lib/validators/payment";
+import { logAudit } from "@/server/audit";
 
 // PATCH /api/payments/[id]
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -24,6 +25,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         ...(data.invoiceUrl !== undefined ? { invoiceUrl: data.invoiceUrl } : {}),
       },
     });
+    await logAudit({
+      action: "UPDATE",
+      entityType: "Payment",
+      entityId: id,
+      userId: session.user.id,
+      changes: data,
+    });
     return NextResponse.json(updated);
   } catch (e) {
     return apiError(e);
@@ -37,6 +45,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     assertCan(session.user.role, "payment.delete");
     const { id } = await params;
     await prisma.payment.delete({ where: { id } });
+    await logAudit({
+      action: "DELETE",
+      entityType: "Payment",
+      entityId: id,
+      userId: session.user.id,
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return apiError(e);

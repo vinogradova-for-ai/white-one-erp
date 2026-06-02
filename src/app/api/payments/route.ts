@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { paymentCreateSchema } from "@/lib/validators/payment";
+import { logAudit } from "@/server/audit";
 
 // GET /api/payments?from=2026-04-01&to=2026-05-01&type=ORDER|PACKAGING&status=PENDING|PAID
 export async function GET(req: NextRequest) {
@@ -92,6 +93,13 @@ export async function POST(req: NextRequest) {
         supplierName: data.supplierName ?? null,
         createdById: session.user.id,
       },
+    });
+    await logAudit({
+      action: "CREATE",
+      entityType: "Payment",
+      entityId: payment.id,
+      userId: session.user.id,
+      changes: { type: payment.type, amount: payment.amount, currency: payment.currency },
     });
     return NextResponse.json(payment, { status: 201 });
   } catch (e) {

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { assertCan } from "@/lib/rbac";
 import { packagingCreateSchema } from "@/lib/validators/packaging";
+import { logAudit } from "@/server/audit";
 
 export async function GET() {
   try {
@@ -18,7 +20,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
+    assertCan(session.user.role, "packaging.manage"); // гард RBAC
     const data = packagingCreateSchema.parse(await req.json());
     const item = await prisma.packagingItem.create({
       data: {
@@ -32,6 +35,13 @@ export async function POST(req: NextRequest) {
         notes: data.notes ?? null,
         isActive: data.isActive ?? true,
       },
+    });
+    await logAudit({
+      action: "CREATE",
+      entityType: "PackagingItem",
+      entityId: item.id,
+      userId: session.user.id,
+      changes: { name: item.name, type: item.type, sku: item.sku },
     });
     return NextResponse.json(item, { status: 201 });
   } catch (e) {

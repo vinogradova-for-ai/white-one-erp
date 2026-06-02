@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { assertCan } from "@/lib/rbac";
 import { packagingStatusChangeSchema } from "@/lib/validators/packaging";
 import { PACKAGING_TRANSITIONS, PACKAGING_DATE_ON_STATUS } from "@/lib/status-machine/packaging-statuses";
+import { logAudit } from "@/server/audit";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await requireAuth();
     const { id } = await params;
+    assertCan(session.user.role, "packaging.manage"); // RBAC-гард
 
     const item = await prisma.packagingItem.findUnique({ where: { id } });
     if (!item) return NextResponse.json({ error: { code: "not_found" } }, { status: 404 });
@@ -49,6 +52,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         comment: comment ?? null,
         changedById: session.user.id,
       },
+    });
+
+    await logAudit({
+      action: "STATUS_CHANGE",
+      entityType: "PackagingItem",
+      entityId: id,
+      userId: session.user.id,
+      changes: { from: item.status, to: toStatus },
     });
 
     // Платежи больше не создаются при смене статуса PackagingItem — они идут через PackagingOrder.

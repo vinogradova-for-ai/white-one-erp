@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { assertCan } from "@/lib/rbac";
 
 /**
  * Принудительный пересинк: для всех ModelPackaging данной модели создаёт
@@ -13,8 +14,9 @@ import { requireAuth, apiError } from "@/server/api-helpers";
  */
 export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
     const { id: productModelId } = await ctx.params;
+    assertCan(session.user.role, "packaging.manage");
 
     const links = await prisma.modelPackaging.findMany({
       where: { productModelId },

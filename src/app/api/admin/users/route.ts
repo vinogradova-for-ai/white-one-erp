@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { logAudit } from "@/server/audit";
 import { Role } from "@prisma/client";
 
 const ROLES: ReadonlyArray<Role> = [
@@ -42,6 +43,17 @@ export async function POST(req: Request) {
         isActive: true,
       },
       select: { id: true, name: true, email: true },
+    });
+    await logAudit({
+      action: "CREATE",
+      entityType: "User",
+      entityId: user.id,
+      userId: session.user.id,
+      changes: {
+        name: data.name,
+        email: data.email.toLowerCase(),
+        role: data.role ?? "ASSISTANT",
+      },
     });
     return NextResponse.json(user);
   } catch (e) {

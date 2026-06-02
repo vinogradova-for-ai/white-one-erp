@@ -13,17 +13,23 @@ const TZ = "Europe/Moscow"; // ТЗ: всё отображаем в MSK
 
 export function formatDate(value: Date | string | null | undefined): string {
   if (!value) return "—";
-  return dayjs(value).tz(TZ).format("DD.MM.YYYY");
+  const d = dayjs(value).tz(TZ);
+  if (!d.isValid()) return "—";
+  return d.format("DD.MM.YYYY");
 }
 
 export function formatDateTime(value: Date | string | null | undefined): string {
   if (!value) return "—";
-  return dayjs(value).tz(TZ).format("DD.MM.YYYY HH:mm");
+  const d = dayjs(value).tz(TZ);
+  if (!d.isValid()) return "—";
+  return d.format("DD.MM.YYYY HH:mm");
 }
 
 export function formatRelative(value: Date | string | null | undefined): string {
   if (!value) return "—";
-  return dayjs(value).tz(TZ).fromNow();
+  const d = dayjs(value).tz(TZ);
+  if (!d.isValid()) return "—";
+  return d.fromNow();
 }
 
 export function formatCurrency(
@@ -64,16 +70,20 @@ export function formatPercent(
 }
 
 export function yearMonthToLabel(yyyymm: number): string {
+  if (!Number.isFinite(yyyymm)) return "—";
   const y = Math.floor(yyyymm / 100);
   const m = yyyymm % 100;
+  if (m < 1 || m > 12 || y < 1) return "—";
   const date = dayjs(`${y}-${String(m).padStart(2, "0")}-01`);
+  if (!date.isValid()) return "—";
   return date.format("MMMM YYYY");
 }
 
 export function daysUntil(value: Date | string | null | undefined): number | null {
   if (!value) return null;
-  const now = dayjs().tz(TZ).startOf("day");
   const target = dayjs(value).tz(TZ).startOf("day");
+  if (!target.isValid()) return null;
+  const now = dayjs().tz(TZ).startOf("day");
   return target.diff(now, "day");
 }
 

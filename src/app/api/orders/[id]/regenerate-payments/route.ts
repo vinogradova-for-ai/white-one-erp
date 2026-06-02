@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { generatePaymentsForOrder } from "@/lib/payments/generate-for-order";
+import { logAudit } from "@/server/audit";
 
 // POST /api/orders/[id]/regenerate-payments
 // Удаляет PENDING-платежи по заказу и создаёт их заново по текущим paymentTerms/batchCost.
@@ -30,10 +31,6 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: { code: "not_found", message: "Заказ не найден" } }, { status: 404 });
     }
 
-    await prisma.payment.deleteMany({
-      where: { orderId: id, status: "PENDING" },
-    });
-
     const totalBatchCost = order.lines.reduce((a, l) => a + Number(l.batchCost ?? 0), 0);
     const generated = generatePaymentsForOrder({
       id: order.id,
@@ -44,25 +41,42 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       readyAtFactoryDate: order.readyAtFactoryDate,
       launchMonth: order.launchMonth,
     });
-    if (generated.length > 0) {
-      await prisma.payment.createMany({
-        data: generated.map((p) => ({
-          type: p.type,
-          plannedDate: p.plannedDate,
-          amount: p.amount,
-          label: p.label,
-          notes: p.notes,
-          orderId: p.orderId,
-          factoryId: p.factoryId,
-          createdById: session.user.id,
-        })),
+
+    // Атомарно: удаление старых PENDING и создание новых — чтобы при обрыве
+    // заказ не остался вообще без графика оплат. PAID-платежи не трогаем.
+    await prisma.$transaction(async (tx) => {
+      await tx.payment.deleteMany({
+        where: { orderId: id, status: "PENDING" },
       });
-    }
+      if (generated.length > 0) {
+        await tx.payment.createMany({
+          data: generated.map((p) => ({
+            type: p.type,
+            plannedDate: p.plannedDate,
+            amount: p.amount,
+            label: p.label,
+            notes: p.notes,
+            orderId: p.orderId,
+            factoryId: p.factoryId,
+            createdById: session.user.id,
+          })),
+        });
+      }
+    });
 
     const payments = await prisma.payment.findMany({
       where: { orderId: id },
       orderBy: { plannedDate: "asc" },
     });
+
+    await logAudit({
+      action: "UPDATE",
+      entityType: "Payment",
+      entityId: id,
+      userId: session.user.id,
+      changes: { regenerated: true },
+    });
+
     return NextResponse.json(payments);
   } catch (e) {
     return apiError(e);

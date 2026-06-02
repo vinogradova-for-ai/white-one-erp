@@ -34,8 +34,12 @@ export function resolveModelCost(m: ModelCostInput): number | null {
   const rub = n(m.purchasePriceRub);
   if (rub != null) return rub;
 
+  // Курс ¥→₽ должен быть положительным: 0 или отрицательный курс — ошибка ввода,
+  // а не «бесплатно». При невалидном курсе ¥-источники пропускаем (откат дальше).
+  const rateRaw = n(m.cnyRubRate);
+  const rate = rateRaw != null && rateRaw > 0 ? rateRaw : null;
+
   const cny = n(m.purchasePriceCny);
-  const rate = n(m.cnyRubRate);
   if (cny != null && rate != null) return cny * rate;
 
   const full = n(m.fullCost);

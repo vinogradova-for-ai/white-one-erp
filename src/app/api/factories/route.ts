@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { factoryCreateSchema } from "@/lib/validators/factory";
+import { logAudit } from "@/server/audit";
 
 export async function GET() {
   try {
@@ -44,6 +45,13 @@ export async function POST(req: NextRequest) {
         notes: data.notes ?? null,
         isActive: data.isActive ?? true,
       },
+    });
+    await logAudit({
+      action: "CREATE",
+      entityType: "Factory",
+      entityId: factory.id,
+      userId: session.user.id,
+      changes: { name: factory.name, country: factory.country },
     });
     return NextResponse.json(factory, { status: 201 });
   } catch (e) {

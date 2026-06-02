@@ -50,8 +50,15 @@ export function generatePaymentsForOrder(order: OrderForPayments): GeneratedPaym
 
   const dates = allocatePaymentDates(parsed, opening, closing);
 
+  // Последний платёж добирает остаток округления, чтобы сумма всех платежей
+  // ТОЧНО равнялась batchCost (иначе доли вроде 33/33/34 теряют/добавляют копейки).
+  let allocated = new Prisma.Decimal(0);
   return parsed.map((share, i) => {
-    const amount = batchCost.mul(share).toDecimalPlaces(2);
+    const isLast = i === parsed.length - 1;
+    const amount = isLast
+      ? batchCost.sub(allocated)
+      : batchCost.mul(share).toDecimalPlaces(2);
+    allocated = allocated.add(amount);
     return {
       orderId: order.id,
       factoryId: order.factoryId,

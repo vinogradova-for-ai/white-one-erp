@@ -5,8 +5,11 @@ import type { AuditAction } from "@prisma/client";
 /**
  * Запись действия в журнал.
  *
- * Используется во всех API-роутах, которые меняют важные сущности:
- * orders, models, variants, payments, packaging-orders, factories, users.
+ * Покрывает мутации важных сущностей: orders (вкл. статусы, позиции, упаковку),
+ * models, variants, payments (вкл. «оплачено»), packaging + packaging-orders,
+ * factories, users, и bulk-операции admin/*.
+ * Сознательно НЕ логируются UI-операции (перетаскивание карточек на борде/канбане,
+ * canvas-position, comments) — это шум, не аудит-значимые действия.
  *
  * Идея: один источник правды о том, кто что когда поменял.
  * НЕ блокирующий — ошибка логирования не должна валить запись.
