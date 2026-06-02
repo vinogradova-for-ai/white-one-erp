@@ -42,9 +42,8 @@ describe("formatDate", () => {
     expect(formatDate("")).toBe("—");
   });
 
-  it("для невалидной строки возвращает «Invalid Date» (текущее поведение)", () => {
-    // TODO: выглядит как баг — невалидный ввод даёт «Invalid Date», а не «—»
-    expect(formatDate("not-a-date")).toBe("Invalid Date");
+  it("для невалидной строки возвращает «—»", () => {
+    expect(formatDate("not-a-date")).toBe("—");
   });
 });
 
@@ -71,8 +70,8 @@ describe("formatDateTime", () => {
     expect(formatDateTime("")).toBe("—");
   });
 
-  it("для невалидной строки возвращает «Invalid Date» (текущее поведение)", () => {
-    expect(formatDateTime("xxx")).toBe("Invalid Date");
+  it("для невалидной строки возвращает «—»", () => {
+    expect(formatDateTime("xxx")).toBe("—");
   });
 });
 
@@ -93,10 +92,8 @@ describe("formatRelative", () => {
     expect(formatRelative(farFuture)).toContain("через");
   });
 
-  it("для невалидной даты возвращает «месяц назад» (текущее поведение)", () => {
-    // TODO: выглядит как баг — невалидная дата даёт осмысленный «месяц назад»
-    // вместо «—» / Invalid Date, потому что fromNow() от Invalid Date == NaN мс.
-    expect(formatRelative("not-a-date")).toBe("месяц назад");
+  it("для невалидной даты возвращает «—»", () => {
+    expect(formatRelative("not-a-date")).toBe("—");
   });
 });
 
@@ -248,10 +245,9 @@ describe("yearMonthToLabel", () => {
     expect(yearMonthToLabel(202606)).toBe("июнь 2026");
   });
 
-  it("m=0 (202600) откатывается на предыдущий месяц: «декабрь 2025»", () => {
-    // TODO: выглядит как баг — месяц 00 даёт строку «2026-00-01»,
-    // которую dayjs трактует как декабрь предыдущего года.
-    expect(yearMonthToLabel(202600)).toBe("декабрь 2025");
+  it("мусорный месяц (m=0 / m>12) возвращает «—», а не съезжает на другой год", () => {
+    expect(yearMonthToLabel(202600)).toBe("—");
+    expect(yearMonthToLabel(202613)).toBe("—");
   });
 });
 
@@ -281,9 +277,7 @@ describe("daysUntil", () => {
     expect(result as number).toBeLessThan(-3000);
   });
 
-  it("для невалидной даты возвращает NaN (текущее поведение)", () => {
-    // TODO: выглядит как баг — невалидный ввод даёт NaN, а не null.
-    // null отсеивается через if(!value), но «not-a-date» проходит дальше.
-    expect(daysUntil("not-a-date")).toBeNaN();
+  it("для невалидной даты возвращает null", () => {
+    expect(daysUntil("not-a-date")).toBeNull();
   });
 });
