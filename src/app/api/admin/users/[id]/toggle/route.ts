@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { logAudit } from "@/server/audit";
 
 // Только OWNER/DIRECTOR могут переключать активность.
 export async function PATCH(_req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -13,6 +14,13 @@ export async function PATCH(_req: Request, ctx: { params: Promise<{ id: string }
     const u = await prisma.user.findUnique({ where: { id }, select: { isActive: true } });
     if (!u) return NextResponse.json({ error: { code: "not_found" } }, { status: 404 });
     await prisma.user.update({ where: { id }, data: { isActive: !u.isActive } });
+    await logAudit({
+      action: "UPDATE",
+      entityType: "User",
+      entityId: id,
+      userId: session.user.id,
+      changes: { active: !u.isActive },
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return apiError(e);

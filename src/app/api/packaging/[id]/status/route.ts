@@ -4,6 +4,7 @@ import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { packagingStatusChangeSchema } from "@/lib/validators/packaging";
 import { PACKAGING_TRANSITIONS, PACKAGING_DATE_ON_STATUS } from "@/lib/status-machine/packaging-statuses";
+import { logAudit } from "@/server/audit";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -51,6 +52,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         comment: comment ?? null,
         changedById: session.user.id,
       },
+    });
+
+    await logAudit({
+      action: "STATUS_CHANGE",
+      entityType: "PackagingItem",
+      entityId: id,
+      userId: session.user.id,
+      changes: { from: item.status, to: toStatus },
     });
 
     // Платежи больше не создаются при смене статуса PackagingItem — они идут через PackagingOrder.

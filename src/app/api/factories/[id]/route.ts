@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { factoryUpdateSchema } from "@/lib/validators/factory";
+import { logAudit } from "@/server/audit";
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -40,6 +41,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
 
     const updated = await prisma.factory.update({ where: { id }, data });
+    await logAudit({
+      action: "UPDATE",
+      entityType: "Factory",
+      entityId: id,
+      userId: session.user.id,
+      changes: data,
+    });
     return NextResponse.json(updated);
   } catch (e) {
     return apiError(e);
@@ -73,6 +81,12 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     }
 
     await prisma.factory.delete({ where: { id } });
+    await logAudit({
+      action: "DELETE",
+      entityType: "Factory",
+      entityId: id,
+      userId: session.user.id,
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return apiError(e);

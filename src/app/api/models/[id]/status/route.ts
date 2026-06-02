@@ -4,6 +4,7 @@ import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { modelStatusChangeSchema } from "@/lib/validators/model";
 import { canMoveModelStatus, MODEL_STATUS_DATE_FIELDS } from "@/lib/status-machine/product-statuses";
+import { logAudit } from "@/server/audit";
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -92,6 +93,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         },
       });
       return upd;
+    });
+
+    await logAudit({
+      action: "STATUS_CHANGE",
+      entityType: "ProductModel",
+      entityId: id,
+      userId: session.user.id,
+      changes: { from: model.status, to: toStatus },
     });
 
     return NextResponse.json(updated);

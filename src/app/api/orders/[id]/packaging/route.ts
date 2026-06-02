@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { orderPackagingSchema } from "@/lib/validators/packaging";
+import { logAudit } from "@/server/audit";
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -61,6 +62,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       (a, l) => a + l.quantity,
       0,
     );
+    await logAudit({
+      action: "CREATE",
+      entityType: "OrderPackaging",
+      entityId: id,
+      userId: session.user.id,
+      changes: {
+        packagingItemId: data.packagingItemId,
+        quantityPerUnit: data.quantityPerUnit != null ? Number(data.quantityPerUnit) : 1,
+      },
+    });
     return NextResponse.json(
       {
         ...link,

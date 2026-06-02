@@ -4,6 +4,7 @@ import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { packagingOrderCreateSchema } from "@/lib/validators/packaging-order";
 import { normalizePackagingDates } from "@/lib/normalize-phase-dates";
+import { logAudit } from "@/server/audit";
 
 async function nextPackagingOrderNumber() {
   const year = new Date().getUTCFullYear();
@@ -155,6 +156,14 @@ export async function POST(req: NextRequest) {
       }
 
       return order;
+    });
+
+    await logAudit({
+      action: "CREATE",
+      entityType: "PackagingOrder",
+      entityId: created.id,
+      userId: session.user.id,
+      changes: { orderNumber: created.orderNumber, status: "ORDERED" },
     });
 
     return NextResponse.json(created);

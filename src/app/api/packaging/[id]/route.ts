@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { packagingUpdateSchema } from "@/lib/validators/packaging";
+import { logAudit } from "@/server/audit";
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -62,6 +63,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
 
     const updated = await prisma.packagingItem.update({ where: { id }, data: processed });
+    await logAudit({
+      action: "UPDATE",
+      entityType: "PackagingItem",
+      entityId: id,
+      userId: session.user.id,
+      changes: data,
+    });
     return NextResponse.json(updated);
   } catch (e) {
     return apiError(e);
@@ -90,6 +98,12 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
       );
     }
     await prisma.packagingItem.delete({ where: { id } });
+    await logAudit({
+      action: "DELETE",
+      entityType: "PackagingItem",
+      entityId: id,
+      userId: session.user.id,
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return apiError(e);

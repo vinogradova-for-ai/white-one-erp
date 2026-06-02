@@ -4,6 +4,7 @@ import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { orderLineUpdateSchema } from "@/lib/validators/order";
 import { calculateOrderEconomics } from "@/lib/calculations/product-cost";
+import { logAudit } from "@/server/audit";
 
 // PATCH /api/orders/[id]/lines/[lineId]
 export async function PATCH(
@@ -41,6 +42,13 @@ export async function PATCH(
     }
 
     const updated = await prisma.orderLine.update({ where: { id: lineId }, data: patch });
+    await logAudit({
+      action: "UPDATE",
+      entityType: "OrderLine",
+      entityId: lineId,
+      userId: session.user.id,
+      changes: patch,
+    });
     return NextResponse.json(updated);
   } catch (e) {
     return apiError(e);
@@ -67,6 +75,12 @@ export async function DELETE(
     }
 
     await prisma.orderLine.delete({ where: { id: lineId } });
+    await logAudit({
+      action: "DELETE",
+      entityType: "OrderLine",
+      entityId: lineId,
+      userId: session.user.id,
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return apiError(e);

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/server/api-helpers";
+import { logAudit } from "@/server/audit";
 
 // Принимает массив объектов с датами по конкретным заказам и применяет их.
 // Идентификация — по orderNumber (так Алёне удобнее, чем по UUID).
@@ -60,6 +61,14 @@ export async function POST(req: Request) {
         errors.push({ orderNumber: it.orderNumber, message: (err as Error).message });
       }
     }
+
+    await logAudit({
+      action: "UPDATE",
+      entityType: "Order",
+      entityId: "batch",
+      userId: session.user.id,
+      changes: { updated, notFound, errors: errors.length },
+    });
 
     return NextResponse.json({ ok: true, updated, notFound, errors });
   } catch (err) {

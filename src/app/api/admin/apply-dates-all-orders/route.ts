@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/server/api-helpers";
+import { logAudit } from "@/server/audit";
 
 // Применяет один таймлайн (5 дат) ко ВСЕМ активным заказам.
 // Только OWNER. Используется когда Алёна сказала: «у всех заказов одни и те же
@@ -42,6 +43,22 @@ export async function POST(req: Request) {
       });
       updated += 1;
     }
+
+    await logAudit({
+      action: "UPDATE",
+      entityType: "Order",
+      entityId: "ALL",
+      userId: session.user.id,
+      changes: {
+        updated,
+        total: orders.length,
+        decisionDate: dates.decisionDate,
+        handedToFactoryDate: dates.handedToFactoryDate,
+        readyAtFactoryDate: dates.readyAtFactoryDate,
+        qcDate: dates.qcDate,
+        arrivalPlannedDate: dates.arrivalPlannedDate,
+      },
+    });
 
     return NextResponse.json({ ok: true, updated, total: orders.length });
   } catch (err) {

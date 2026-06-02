@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/server/api-helpers";
+import { logAudit } from "@/server/audit";
 import {
   normalizeOrderDates,
   orderDatesChanged,
@@ -81,6 +82,14 @@ export async function POST() {
     } catch (err) {
       console.warn("[normalize-phase-dates] packaging skipped:", (err as Error).message);
     }
+
+    await logAudit({
+      action: "UPDATE",
+      entityType: "Order",
+      entityId: "bulk:normalize-phase-dates",
+      userId: session.user.id,
+      changes: { ordersChanged, packagingChanged },
+    });
 
     return NextResponse.json({
       ok: true,

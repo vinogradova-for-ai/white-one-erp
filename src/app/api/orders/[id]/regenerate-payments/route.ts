@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { generatePaymentsForOrder } from "@/lib/payments/generate-for-order";
+import { logAudit } from "@/server/audit";
 
 // POST /api/orders/[id]/regenerate-payments
 // Удаляет PENDING-платежи по заказу и создаёт их заново по текущим paymentTerms/batchCost.
@@ -67,6 +68,15 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       where: { orderId: id },
       orderBy: { plannedDate: "asc" },
     });
+
+    await logAudit({
+      action: "UPDATE",
+      entityType: "Payment",
+      entityId: id,
+      userId: session.user.id,
+      changes: { regenerated: true },
+    });
+
     return NextResponse.json(payments);
   } catch (e) {
     return apiError(e);
