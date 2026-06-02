@@ -211,28 +211,32 @@ export default async function ModelsKanbanPage() {
     select: { entityId: true, body: true, authorId: true, photoUrls: true },
   });
   const commentCountByModel = new Map<string, number>();
-  const latestByModel = new Map<string, { body: string; authorId: string; photos: number }>();
+  // До 2 последних комментариев на фасон (для превью на карточке).
+  const latestByModel = new Map<string, Array<{ body: string; authorId: string; photos: number }>>();
   for (const cm of modelComments) {
     commentCountByModel.set(cm.entityId, (commentCountByModel.get(cm.entityId) ?? 0) + 1);
-    if (!latestByModel.has(cm.entityId)) {
-      latestByModel.set(cm.entityId, { body: cm.body, authorId: cm.authorId, photos: cm.photoUrls?.length ?? 0 });
+    const arr = latestByModel.get(cm.entityId) ?? [];
+    if (arr.length < 2) {
+      arr.push({ body: cm.body, authorId: cm.authorId, photos: cm.photoUrls?.length ?? 0 });
+      latestByModel.set(cm.entityId, arr);
     }
   }
-  const lastAuthorIds = [...new Set([...latestByModel.values()].map((v) => v.authorId))];
+  const lastAuthorIds = [...new Set([...latestByModel.values()].flat().map((v) => v.authorId))];
   const lastAuthors = lastAuthorIds.length === 0 ? [] : await prisma.user.findMany({
     where: { id: { in: lastAuthorIds } },
     select: { id: true, name: true },
   });
   const authorNameById = new Map(lastAuthors.map((a) => [a.id, a.name]));
-  function commentMetaFor(modelId: string): Pick<KanbanCard, "commentCount" | "lastComment"> {
+  function commentMetaFor(modelId: string): Pick<KanbanCard, "commentCount" | "lastComments"> {
     const count = commentCountByModel.get(modelId) ?? 0;
-    const last = latestByModel.get(modelId);
-    return {
-      commentCount: count,
-      lastComment: last
-        ? { author: authorNameById.get(last.authorId) ?? "—", snippet: last.body.slice(0, 90), photos: last.photos }
-        : null,
-    };
+    const arr = latestByModel.get(modelId) ?? [];
+    // Показываем в хронологическом порядке (старший из двух — сверху, как в ленте).
+    const lastComments = [...arr].reverse().map((c) => ({
+      author: authorNameById.get(c.authorId) ?? "—",
+      snippet: c.body.slice(0, 90),
+      photos: c.photos,
+    }));
+    return { commentCount: count, lastComments };
   }
 
   // Раскидать карточки по колонкам
