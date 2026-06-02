@@ -94,6 +94,7 @@ type OrderForKanban = {
   id: string;
   orderNumber: string;
   status: OrderStatus;
+  handedToFactoryDate: Date | null;
   readyAtFactoryDate: Date | null;
   qcDate: Date | null;
   arrivalPlannedDate: Date | null;
@@ -169,6 +170,7 @@ export default async function ModelsKanbanPage() {
         where: { deletedAt: null },
         select: {
           id: true, orderNumber: true, status: true,
+          handedToFactoryDate: true,
           readyAtFactoryDate: true, qcDate: true,
           arrivalPlannedDate: true, arrivalActualDate: true,
           saleStartDate: true,
@@ -292,10 +294,27 @@ export default async function ModelsKanbanPage() {
     // Активная сторона: самый продвинутый из live-заказов определяет колонку.
     // Если live-заказов нет — колонка по статусу фасона.
     const liveOrder = mostAdvanced(liveOrders);
-    const hasLiveOrder = !!liveOrder && liveOrder.status !== "PREPARATION";
-    const liveColumn = hasLiveOrder
-      ? ORDER_STATUS_TO_COL[liveOrder!.status]
-      : modelToColumn(m.status, m.sizeChartReady);
+    // Ранний заказ (ткань заказана, но пошив ещё НЕ начался) с датой передачи на
+    // фабрику в будущем — это ещё фаза РАЗРАБОТКИ по Ганту. Держим карточку в колонке
+    // разработки фасона, а не прыгаем в «Производство» сразу при создании заказа.
+    // Важно: только для FABRIC_ORDERED — заказы от пошива и дальше (SEWING/QC/...)
+    // всегда идут по статусу, даже если в данных стоит будущая дата передачи.
+    const handedIso = liveOrder ? isoDate(liveOrder.handedToFactoryDate) : null;
+    const stillInDevelopment =
+      !!liveOrder && liveOrder.status === "FABRIC_ORDERED" && !!handedIso && handedIso > todayIso;
+    const hasLiveOrder = !!liveOrder && liveOrder.status !== "PREPARATION" && !stillInDevelopment;
+    let liveColumn: string;
+    if (stillInDevelopment) {
+      // Ранний заказ до передачи на фабрику не должен висеть в «Производстве».
+      // Если фасон уже помечен IN_PRODUCTION (modelToColumn вернул бы production) —
+      // показываем как «Размерная сетка» (последняя стадия разработки на Ганте).
+      const mc = modelToColumn(m.status, m.sizeChartReady);
+      liveColumn = mc === "production" ? "sizing_done" : mc;
+    } else if (hasLiveOrder) {
+      liveColumn = ORDER_STATUS_TO_COL[liveOrder!.status];
+    } else {
+      liveColumn = modelToColumn(m.status, m.sizeChartReady);
+    }
     // Если все заказы фасона уже в done и нет активных — не дублируем карточку
     // в колонку разработки. Иначе она появится одновременно в «Завершено» и
     // в исходной IDEA, что путает.
