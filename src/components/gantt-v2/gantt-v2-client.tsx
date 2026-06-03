@@ -6,6 +6,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { GanttV2Chart } from "./gantt-v2-chart";
 import { FilterDropdown } from "@/components/common/filter-dropdown";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import type {
   GanttRowV2,
   GanttFilterOptions,
@@ -41,8 +42,10 @@ export function GanttV2Client({
   isOwner: boolean;
 }) {
   const router = useRouter();
-  const [filters, setFilters] = useState<GanttFilters>(initialFilters);
-  const [zoom, setZoom] = useState<GanttZoom>("3m");
+  // Фильтры и зум запоминаются между заходами на страницу (localStorage),
+  // чтобы «выбрала фильтр → провалилась в заказ → назад» не сбрасывало вид.
+  const [filters, setFilters] = usePersistedState<GanttFilters>("gantt-v2:filters:v1", initialFilters);
+  const [zoom, setZoom] = usePersistedState<GanttZoom>("gantt-v2:zoom:v1", "3m");
   // pending — буфер изменений: drag → попадает сюда, через 600мс улетает в API.
   // Хранится и в state (для подсветки на барах), и в ref (для дебаунс-таймера —
   // он читает актуальный снэпшот без stale closure).

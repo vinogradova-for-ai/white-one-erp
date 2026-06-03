@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_TYPE_LABELS } from "@/lib/constants";
@@ -8,6 +8,7 @@ import { VariantVisual } from "@/components/common/variant-visual";
 import { ColorChip } from "@/components/common/color-chip";
 import { ClickableRow } from "@/components/common/clickable-row";
 import { FilterDropdown } from "@/components/common/filter-dropdown";
+import { usePersistedState } from "@/lib/use-persisted-state";
 import { OrderStatus, OrderType } from "@prisma/client";
 
 export type OrdersListRow = {
@@ -45,11 +46,12 @@ export function OrdersListClient({
   orders: OrdersListRow[];
   filterOptions: OrdersListFilterOptions;
 }) {
-  const [filters, setFilters] = useState<{
+  // Фильтры запоминаются между заходами (localStorage) — см. usePersistedState.
+  const [filters, setFilters] = usePersistedState<{
     category: string[];
     ownerId: string[];
     status: string[];
-  }>({ category: [], ownerId: [], status: [] });
+  }>("orders:filters:v1", { category: [], ownerId: [], status: [] });
 
   const filtered = useMemo(() => {
     return orders.filter((o) => {

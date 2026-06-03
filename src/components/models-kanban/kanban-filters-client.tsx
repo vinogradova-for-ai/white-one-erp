@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { BoardClient, type KanbanCard, type KanbanColumn } from "./board-client";
 import { FilterDropdown } from "@/components/common/filter-dropdown";
+import { usePersistedState } from "@/lib/use-persisted-state";
 
 export type KanbanFilterOptions = {
   categories: Array<{ value: string; label: string; count: number }>;
@@ -30,11 +31,12 @@ export function KanbanFiltersClient({
   currentUserId?: string;
   isAdmin?: boolean;
 }) {
-  const [filters, setFilters] = useState<{
+  // Фильтры запоминаются между заходами (localStorage) — см. usePersistedState.
+  const [filters, setFilters] = usePersistedState<{
     category: string[];
     ownerId: string[];
     status: string[];
-  }>({ category: [], ownerId: [], status: [] });
+  }>("kanban:filters:v1", { category: [], ownerId: [], status: [] });
 
   const filteredBuckets = useMemo(() => {
     const out: Record<string, KanbanCard[]> = {};
