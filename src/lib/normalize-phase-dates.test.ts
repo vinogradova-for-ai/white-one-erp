@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   normalizeOrderDates,
   normalizePackagingDates,
+  fillMissingOrderDates,
+  fillMissingPackagingDates,
   orderDatesChanged,
   packagingDatesChanged,
   NORMALIZE_DEFAULTS,
@@ -333,6 +335,75 @@ describe("packagingDatesChanged", () => {
     });
     const n = normalizePackagingDates(p, TODAY);
     expect(packagingDatesChanged(p, n)).toBe(true);
+  });
+});
+
+describe("fillMissingOrderDates — уважает заданные даты, не подтягивает к минимуму", () => {
+  it("СОХРАНЯЕТ плотный план короче дефолтных длительностей (баг «сроки в Ганте неправильные»)", () => {
+    // Пользователь расставил цикл плотнее, чем 14/35/5/30: dev=7, prod=30, qc=3, ship=19.
+    // normalizeOrderDates раздул бы всё до минимумов — fillMissing обязан сохранить как есть.
+    const o: OrderDateFields = {
+      decisionDate: d("2026-06-03T00:00:00Z"),
+      handedToFactoryDate: d("2026-06-10T00:00:00Z"), // +7 (< 14)
+      readyAtFactoryDate: d("2026-07-10T00:00:00Z"),  // +30 (< 35)
+      qcDate: d("2026-07-13T00:00:00Z"),              // +3 (< 5)
+      arrivalPlannedDate: d("2026-08-01T00:00:00Z"),  // +19 (< 30)
+      createdAt: d("2026-06-03T00:00:00Z"),
+    };
+    const n = fillMissingOrderDates(o);
+    expect(n.decisionDate.toISOString()).toBe("2026-06-03T00:00:00.000Z");
+    expect(n.handedToFactoryDate.toISOString()).toBe("2026-06-10T00:00:00.000Z");
+    expect(n.readyAtFactoryDate.toISOString()).toBe("2026-07-10T00:00:00.000Z");
+    expect(n.qcDate.toISOString()).toBe("2026-07-13T00:00:00.000Z");
+    expect(n.arrivalPlannedDate.toISOString()).toBe("2026-08-01T00:00:00.000Z");
+  });
+
+  it("уважает заданный decisionDate (не форсит «сегодня»)", () => {
+    const o: OrderDateFields = {
+      decisionDate: d("2026-05-01T00:00:00Z"),
+      handedToFactoryDate: null,
+      readyAtFactoryDate: null,
+      qcDate: null,
+      arrivalPlannedDate: null,
+      createdAt: d("2026-06-03T00:00:00Z"),
+    };
+    const n = fillMissingOrderDates(o);
+    // decision уважён, пустые фазы достроены дефолтами от него: +14 +35 +5 +30
+    expect(n.decisionDate.toISOString()).toBe("2026-05-01T00:00:00.000Z");
+    expect(n.handedToFactoryDate.toISOString()).toBe("2026-05-15T00:00:00.000Z");
+    expect(n.readyAtFactoryDate.toISOString()).toBe("2026-06-19T00:00:00.000Z");
+  });
+
+  it("пустой decisionDate → берётся createdAt; пустые фазы достраиваются дефолтами", () => {
+    const o: OrderDateFields = {
+      decisionDate: null,
+      handedToFactoryDate: null,
+      readyAtFactoryDate: null,
+      qcDate: null,
+      arrivalPlannedDate: null,
+      createdAt: d("2026-06-03T00:00:00Z"),
+    };
+    const n = fillMissingOrderDates(o);
+    expect(n.decisionDate.toISOString()).toBe("2026-06-03T00:00:00.000Z");
+    expect(n.arrivalPlannedDate.toISOString()).toBe(
+      // +14 +35 +5 +30 = +84 дня
+      new Date(Date.UTC(2026, 5, 3) + 84 * 86400000).toISOString(),
+    );
+  });
+});
+
+describe("fillMissingPackagingDates — уважает заданные даты упаковки", () => {
+  it("СОХРАНЯЕТ плотные productionEndDate/expectedDate короче дефолтов", () => {
+    const p: PackagingDateFields = {
+      decisionDate: null,
+      orderedDate: null,
+      productionEndDate: d("2026-06-15T00:00:00Z"),
+      expectedDate: d("2026-06-25T00:00:00Z"),
+      createdAt: d("2026-06-03T00:00:00Z"),
+    };
+    const n = fillMissingPackagingDates(p);
+    expect(n.productionEndDate.toISOString()).toBe("2026-06-15T00:00:00.000Z");
+    expect(n.expectedDate.toISOString()).toBe("2026-06-25T00:00:00.000Z");
   });
 });
 

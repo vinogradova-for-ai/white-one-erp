@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { packagingOrderCreateSchema } from "@/lib/validators/packaging-order";
-import { normalizePackagingDates } from "@/lib/normalize-phase-dates";
+import { fillMissingPackagingDates } from "@/lib/normalize-phase-dates";
 import { logAudit } from "@/server/audit";
 
 async function nextPackagingOrderNumber() {
@@ -74,10 +74,11 @@ export async function POST(req: NextRequest) {
       }
       const itemsById = new Map(items.map((i) => [i.id, i]));
 
-      // Дефолтные таймлайны 3 фаз упаковки: Разработка → Производство → Доставка
-      // (без ОТК). Подставляем 7/21/14 дн чтобы у нового заказа упаковки
-      // сразу были осмысленные сроки.
-      const packPhases = normalizePackagingDates({
+      // 3 фазы упаковки: Разработка → Производство → Доставка (без ОТК).
+      // Заданные пользователем productionEndDate/expectedDate уважаем точь-в-точь;
+      // дефолты (7/21/14 дн) — только для пустых полей, без «подтягивания» к минимуму
+      // (та же причина, что и у заказов: иначе плотный план раздувается).
+      const packPhases = fillMissingPackagingDates({
         decisionDate: null,
         orderedDate: null,
         productionEndDate: data.productionEndDate ? new Date(data.productionEndDate) : null,

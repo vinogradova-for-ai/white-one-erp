@@ -6,7 +6,7 @@ import { assertCan } from "@/lib/rbac";
 import { orderCreateSchema } from "@/lib/validators/order";
 import { calculateOrderEconomics } from "@/lib/calculations/product-cost";
 import { generatePaymentsForOrder } from "@/lib/payments/generate-for-order";
-import { normalizeOrderDates } from "@/lib/normalize-phase-dates";
+import { fillMissingOrderDates } from "@/lib/normalize-phase-dates";
 import { logAudit } from "@/server/audit";
 
 async function nextOrderNumber(client: Prisma.TransactionClient = prisma) {
@@ -82,11 +82,14 @@ export async function POST(req: NextRequest) {
 
     const toDate = (s?: string | null) => (s ? new Date(s) : null);
 
-    // Дефолтные таймлайны для всех 4 фаз: Разработка → Производство → ОТК → Доставка.
-    // Если в форме что-то не заполнено — нормализуем по дефолтным длительностям
-    // (14/35/5/30 дн), чтобы у каждого нового заказа сразу была разумная картинка.
-    const phases = normalizeOrderDates({
-      decisionDate: null,
+    // Фазы Разработка → Производство → ОТК → Доставка.
+    // ВАЖНО: даты, которые Алёна расставила ползунками в форме, сохраняем
+    // ТОЧЬ-В-ТОЧЬ (включая старт «Разработки» = decisionDate). Дефолтные
+    // длительности (14/35/5/30 дн) подставляются ТОЛЬКО для пустых полей —
+    // никакого «подтягивания» к минимуму, иначе плотный план раздувается и
+    // в Ганте видны не те сроки, что задал пользователь.
+    const phases = fillMissingOrderDates({
+      decisionDate: toDate(data.decisionDate),
       handedToFactoryDate: toDate(data.handedToFactoryDate),
       readyAtFactoryDate: toDate(data.readyAtFactoryDate),
       qcDate: toDate(data.qcDate),
