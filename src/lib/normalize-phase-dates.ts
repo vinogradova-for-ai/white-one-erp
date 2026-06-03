@@ -72,6 +72,34 @@ export function normalizeOrderDates(o: OrderDateFields, today: Date = new Date()
   return { decisionDate, handedToFactoryDate, readyAtFactoryDate, qcDate, arrivalPlannedDate };
 }
 
+/**
+ * Заполняет ТОЛЬКО пустые фазовые даты заказа дефолтами, НЕ трогая то, что
+ * пользователь задал явно — в т.ч. «плотные» сроки короче дефолтных длительностей.
+ *
+ * Используется при СОЗДАНИИ заказа: форма-таймлайн обычно присылает все 5 дат
+ * (юзер расставил ползунками) — их сохраняем как есть; дефолты (14/35/5/30 дн)
+ * нужны лишь для пустых полей (быстрое создание без таймлайна).
+ *
+ * Отличие от normalizeOrderDates: здесь НЕТ «подтягивания вперёд» до минимальной
+ * длительности. Заданные даты уважаются точь-в-точь — правило «никаких clamp'ов,
+ * сроки как поставила Алёна». normalizeOrderDates (с минимумами) остаётся для
+ * админского бэкфилла, где надо причесать исторический бардак.
+ */
+export function fillMissingOrderDates(o: OrderDateFields): NormalizedOrderDates {
+  const decisionDate = startOfDay(o.decisionDate ?? o.createdAt);
+  const handedToFactoryDate = o.handedToFactoryDate
+    ? startOfDay(o.handedToFactoryDate)
+    : addDays(decisionDate, DEV_DAYS);
+  const readyAtFactoryDate = o.readyAtFactoryDate
+    ? startOfDay(o.readyAtFactoryDate)
+    : addDays(handedToFactoryDate, PROD_DAYS);
+  const qcDate = o.qcDate ? startOfDay(o.qcDate) : addDays(readyAtFactoryDate, QC_DAYS);
+  const arrivalPlannedDate = o.arrivalPlannedDate
+    ? startOfDay(o.arrivalPlannedDate)
+    : addDays(qcDate, SHIP_DAYS);
+  return { decisionDate, handedToFactoryDate, readyAtFactoryDate, qcDate, arrivalPlannedDate };
+}
+
 export function orderDatesChanged(o: OrderDateFields, n: NormalizedOrderDates): boolean {
   return (
     !sameDay(o.decisionDate, n.decisionDate) ||
@@ -116,6 +144,21 @@ export function normalizePackagingDates(p: PackagingDateFields, today: Date = ne
     ? startOfDay(p.expectedDate)
     : expectedExpected;
 
+  return { decisionDate, orderedDate, productionEndDate, expectedDate };
+}
+
+/**
+ * Аналог fillMissingOrderDates для упаковки (3 фазы, без ОТК): заданные даты
+ * уважаются точь-в-точь, дефолтами (7/21/14 дн) заполняются только пустые.
+ * Без «подтягивания к минимуму».
+ */
+export function fillMissingPackagingDates(p: PackagingDateFields): NormalizedPackagingDates {
+  const decisionDate = startOfDay(p.decisionDate ?? p.createdAt);
+  const orderedDate = p.orderedDate ? startOfDay(p.orderedDate) : addDays(decisionDate, PACK_DEV_DAYS);
+  const productionEndDate = p.productionEndDate
+    ? startOfDay(p.productionEndDate)
+    : addDays(orderedDate, PACK_PROD_DAYS);
+  const expectedDate = p.expectedDate ? startOfDay(p.expectedDate) : addDays(productionEndDate, PACK_SHIP_DAYS);
   return { decisionDate, orderedDate, productionEndDate, expectedDate };
 }
 
