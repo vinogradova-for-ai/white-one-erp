@@ -57,10 +57,9 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // База артикула (vendorCode на WB) — алфавит выбирает страна, номер для России авто.
+    // База артикула (vendorCode на WB) — алфавит выбирает КАТЕГОРИЯ, номер для пальто/полупальто авто.
     const artikulBase = await generateArtikulBase({
       category: data.category,
-      country: data.countryOfOrigin,
       name: data.name,
       styleWord: artikulStyle,
     });

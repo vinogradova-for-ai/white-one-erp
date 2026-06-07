@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORIES, BRAND_LABELS } from "@/lib/constants";
-import { isLatinCountry, buildLatinBase, styleCandidates, colorCode, PREFIX_CYR, findBannedBrand } from "@/lib/artikul";
+import { isLatinCategory, buildLatinBase, styleCandidates, colorCode, PREFIX_CYR, findBannedBrand } from "@/lib/artikul";
 import { PackagingType } from "@prisma/client";
 import { DropzonePhotos } from "@/components/common/dropzone-photos";
 import { SizeGridPicker } from "@/components/common/size-grid-picker";
@@ -46,6 +46,8 @@ export function ModelForm({
   // как только пользователь правит руками — фиксируем его ввод (touched).
   const [artikulStyleTouched, setArtikulStyleTouched] = useState(false);
   const [styleIdx, setStyleIdx] = useState(0);
+  // Реальный следующий номер для пальто/полупальто (П_052) — тянем с сервера для превью.
+  const [russiaBase, setRussiaBase] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -99,6 +101,18 @@ export function ModelForm({
     setArtikulStyleTouched(false); // вернуться к авто-предложениям
     setStyleIdx((i) => (styleVariants.length ? (i + 1) % styleVariants.length : 0));
   }
+
+  // Для пальто/полупальто тянем реальный следующий номер (П_052) для превью.
+  useEffect(() => {
+    if (isLatinCategory(form.category)) { setRussiaBase(null); return; }
+    let cancelled = false;
+    setRussiaBase(null);
+    fetch(`/api/models/next-artikul?category=${encodeURIComponent(form.category)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d?.base) setRussiaBase(d.base); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [form.category]);
 
   // --- Комплект упаковки ---
   function addPackagingPick() {
@@ -183,13 +197,13 @@ export function ModelForm({
   const usedPackagingIds = new Set(form.packagingPicks.map((p) => p.packagingItemId).filter(Boolean));
 
   // --- Превью артикула (vendorCode на WB) ---
-  const latin = isLatinCountry(form.countryOfOrigin);
-  const basePreview = latin
-    ? buildLatinBase(form.category, styleUsed)
-    : `${PREFIX_CYR[form.category] ?? "?"}_###`;
+  // Алфавит решает КАТЕГОРИЯ: латиница для всего, кроме пальто/полупальто.
+  const latin = isLatinCategory(form.category);
+  const cyrBase = russiaBase ?? `${PREFIX_CYR[form.category] ?? "?"}_…`;
+  const basePreview = latin ? buildLatinBase(form.category, styleUsed) : cyrBase;
   const skuExample = latin
     ? `${buildLatinBase(form.category, styleUsed)}_${colorCode("шоколад", true)}`
-    : `${PREFIX_CYR[form.category] ?? "?"}_040_шоколад`;
+    : `${cyrBase}_шоколад`;
   // Чужой бренд в артикуле запрещён (товарный знак, WB блокирует).
   const bannedBrand = findBannedBrand(styleUsed) || findBannedBrand(form.name);
 
@@ -283,9 +297,9 @@ export function ModelForm({
           </div>
           <span className="mt-1 block text-xs text-slate-500">
             {latin ? (
-              <>Латиница (страна ≠ Россия). Пример: <b>{skuExample}</b></>
+              <>Латиница (словами). Пример: <b>{skuExample}</b></>
             ) : (
-              <>Россия — кириллица, номер присвоится автоматически. Пример: <b>{skuExample}</b></>
+              <>Кириллица-номер (пальто/полупальто). Номер присвоится при сохранении. Пример: <b>{skuExample}</b></>
             )}
           </span>
           {bannedBrand && (
