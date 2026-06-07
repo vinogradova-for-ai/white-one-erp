@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORIES, BRAND_LABELS } from "@/lib/constants";
-import { isLatinCountry, buildLatinBase, styleSuggest, colorCode, PREFIX_CYR, findBannedBrand } from "@/lib/artikul";
+import { isLatinCountry, buildLatinBase, styleCandidates, colorCode, PREFIX_CYR, findBannedBrand } from "@/lib/artikul";
 import { PackagingType } from "@prisma/client";
 import { DropzonePhotos } from "@/components/common/dropzone-photos";
 import { SizeGridPicker } from "@/components/common/size-grid-picker";
@@ -42,6 +42,10 @@ export function ModelForm({
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [apiErr, setApiErr] = useState<ApiErrorResult | null>(null);
+  // Метка артикула: предлагаем из названия; «Перегенерировать» перебирает варианты;
+  // как только пользователь правит руками — фиксируем его ввод (touched).
+  const [artikulStyleTouched, setArtikulStyleTouched] = useState(false);
+  const [styleIdx, setStyleIdx] = useState(0);
 
   const [form, setForm] = useState({
     name: "",
@@ -87,6 +91,15 @@ export function ModelForm({
     }
   }
 
+  // Варианты метки артикула из названия+особенностей и текущая выбранная метка.
+  const styleVariants = styleCandidates(form.name, form.category, form.subcategory);
+  const autoStyle = styleVariants.length ? styleVariants[styleIdx % styleVariants.length] : "";
+  const styleUsed = artikulStyleTouched ? form.artikulStyle.trim() : autoStyle;
+  function regenerateStyle() {
+    setArtikulStyleTouched(false); // вернуться к авто-предложениям
+    setStyleIdx((i) => (styleVariants.length ? (i + 1) % styleVariants.length : 0));
+  }
+
   // --- Комплект упаковки ---
   function addPackagingPick() {
     setForm((f) => ({
@@ -114,7 +127,7 @@ export function ModelForm({
         brand: form.brand,
         category: form.category,
         subcategory: form.subcategory || null,
-        artikulStyle: form.artikulStyle || null, // метка для артикула (латиница)
+        artikulStyle: styleUsed || null, // метка для артикула (латиница)
         countryOfOrigin: form.countryOfOrigin,
         preferredFactoryId: form.preferredFactoryId || null,
         sizeGridId: form.sizeGridId || null,
@@ -171,15 +184,14 @@ export function ModelForm({
 
   // --- Превью артикула (vendorCode на WB) ---
   const latin = isLatinCountry(form.countryOfOrigin);
-  const styleForPreview = form.artikulStyle.trim() || styleSuggest(form.name, form.category);
   const basePreview = latin
-    ? buildLatinBase(form.category, styleForPreview)
+    ? buildLatinBase(form.category, styleUsed)
     : `${PREFIX_CYR[form.category] ?? "?"}_###`;
   const skuExample = latin
-    ? `${buildLatinBase(form.category, styleForPreview)}_${colorCode("шоколад", true)}`
+    ? `${buildLatinBase(form.category, styleUsed)}_${colorCode("шоколад", true)}`
     : `${PREFIX_CYR[form.category] ?? "?"}_040_шоколад`;
   // Чужой бренд в артикуле запрещён (товарный знак, WB блокирует).
-  const bannedBrand = findBannedBrand(styleForPreview) || findBannedBrand(form.name);
+  const bannedBrand = findBannedBrand(styleUsed) || findBannedBrand(form.name);
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
@@ -240,14 +252,27 @@ export function ModelForm({
       <Section title="Артикул (vendorCode на WB)">
         {latin && (
           <Field label="Метка фасона (англ.)">
-            <input
-              value={form.artikulStyle}
-              onChange={(e) => update("artikulStyle", e.target.value)}
-              className={inputCls}
-              placeholder={styleSuggest(form.name, form.category) || "kimono / halter / atlas"}
-            />
+            <div className="flex items-stretch gap-2">
+              <input
+                value={styleUsed}
+                onChange={(e) => { setArtikulStyleTouched(true); update("artikulStyle", e.target.value); }}
+                className={`${inputCls} flex-1`}
+                placeholder="kimono / halter / atlas"
+              />
+              <button
+                type="button"
+                onClick={regenerateStyle}
+                disabled={styleVariants.length < 2}
+                title="Предложить другой вариант метки из названия"
+                className="shrink-0 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              >
+                🔄 Перегенерировать
+              </button>
+            </div>
             <span className="mt-1 block text-xs text-slate-500">
-              Вторая часть артикула. Пусто — возьмём из названия.
+              {styleVariants.length > 1 && !artikulStyleTouched
+                ? `Предложено из названия (вариант ${(styleIdx % styleVariants.length) + 1} из ${styleVariants.length}). Не нравится — «Перегенерировать» или впишите своё.`
+                : "Вторая часть артикула. Предлагаем из названия — можно поправить руками."}
             </span>
           </Field>
         )}
