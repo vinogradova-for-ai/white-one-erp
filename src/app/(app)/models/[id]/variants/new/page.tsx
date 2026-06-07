@@ -17,7 +17,12 @@ export default async function NewVariantPage({ params }: { params: Promise<{ id:
         <h1 className="text-2xl font-semibold text-slate-900">{model.name}</h1>
       </div>
       <div className="rounded-2xl border border-slate-200 bg-white p-6">
-        <VariantForm modelId={model.id} modelName={model.name} />
+        <VariantForm
+          modelId={model.id}
+          modelName={model.name}
+          artikulBase={model.artikulBase}
+          country={model.countryOfOrigin}
+        />
       </div>
     </div>
   );

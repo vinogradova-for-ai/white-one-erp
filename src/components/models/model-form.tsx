@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORIES, BRAND_LABELS } from "@/lib/constants";
+import { isLatinCountry, buildLatinBase, styleSuggest, colorCode, PREFIX_CYR } from "@/lib/artikul";
 import { PackagingType } from "@prisma/client";
 import { DropzonePhotos } from "@/components/common/dropzone-photos";
 import { SizeGridPicker } from "@/components/common/size-grid-picker";
@@ -47,6 +48,7 @@ export function ModelForm({
     brand: "WHITE_ONE" as "WHITE_ONE" | "SERDCEBIENIE",
     category: "Пальто",
     subcategory: "",
+    artikulStyle: "", // метка для латинского артикула (kimono/halter/atlas); пусто = из названия
     countryOfOrigin: "Китай",
     preferredFactoryId: factories.find((f) => f.country === "Китай")?.id ?? factories[0]?.id ?? "",
     sizeGridId: sizeGrids[0]?.id ?? "",
@@ -112,6 +114,7 @@ export function ModelForm({
         brand: form.brand,
         category: form.category,
         subcategory: form.subcategory || null,
+        artikulStyle: form.artikulStyle || null, // метка для артикула (латиница)
         countryOfOrigin: form.countryOfOrigin,
         preferredFactoryId: form.preferredFactoryId || null,
         sizeGridId: form.sizeGridId || null,
@@ -166,6 +169,16 @@ export function ModelForm({
 
   const usedPackagingIds = new Set(form.packagingPicks.map((p) => p.packagingItemId).filter(Boolean));
 
+  // --- Превью артикула (vendorCode на WB) ---
+  const latin = isLatinCountry(form.countryOfOrigin);
+  const styleForPreview = form.artikulStyle.trim() || styleSuggest(form.name, form.category);
+  const basePreview = latin
+    ? buildLatinBase(form.category, styleForPreview)
+    : `${PREFIX_CYR[form.category] ?? "?"}_###`;
+  const skuExample = latin
+    ? `${buildLatinBase(form.category, styleForPreview)}_${colorCode("шоколад", true)}`
+    : `${PREFIX_CYR[form.category] ?? "?"}_040_шоколад`;
+
   return (
     <form onSubmit={onSubmit} className="space-y-6">
       <Section title="Основное">
@@ -218,6 +231,35 @@ export function ModelForm({
           />
           <span className="mt-1 block text-xs text-slate-500">
             Штуки по размерам раскладываются позже, при создании заказа.
+          </span>
+        </Field>
+      </Section>
+
+      <Section title="Артикул (vendorCode на WB)">
+        {latin && (
+          <Field label="Метка фасона (англ.)">
+            <input
+              value={form.artikulStyle}
+              onChange={(e) => update("artikulStyle", e.target.value)}
+              className={inputCls}
+              placeholder={styleSuggest(form.name, form.category) || "kimono / halter / atlas"}
+            />
+            <span className="mt-1 block text-xs text-slate-500">
+              Вторая часть артикула. Пусто — возьмём из названия.
+            </span>
+          </Field>
+        )}
+        <Field label="Превью артикула" full={!latin}>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-sm text-slate-800">
+            {basePreview}
+            <span className="text-slate-400">_цвет</span>
+          </div>
+          <span className="mt-1 block text-xs text-slate-500">
+            {latin ? (
+              <>Латиница (страна ≠ Россия). Пример: <b>{skuExample}</b></>
+            ) : (
+              <>Россия — кириллица, номер присвоится автоматически. Пример: <b>{skuExample}</b></>
+            )}
           </span>
         </Field>
       </Section>

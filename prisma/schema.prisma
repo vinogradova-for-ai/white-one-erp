@@ -232,6 +232,12 @@ model ProductModel {
   category     String                                           // Пальто / Брюки / Лето / Новые товары
   subcategory  String?                                          // Пальто Классика Миди / Палаццо оверсайз / ...
 
+  // Базовая часть артикула (= vendorCode на WB), общая для всех цветов фасона.
+  // Алфавит выбирает страна (Честный знак печатается на производстве):
+  //   Китай/Кыргызстан → латиница: dress_kimono ; Россия → кириллица: П_040.
+  // Цвет дописывается на варианте: ProductVariant.sku = artikulBase + "_" + цвет.
+  artikulBase  String?
+
   // Размерная сетка
   sizeGridId   String?
   sizeGrid     SizeGrid?       @relation(fields: [sizeGridId], references: [id])
@@ -347,6 +353,7 @@ model ProductModel {
   @@index([category])
   @@index([deletedAt])
   @@index([plannedLaunchMonth])
+  @@index([artikulBase])
 }
 
 // Комплект упаковки на уровне фасона — шаблон, автоматически применяется
