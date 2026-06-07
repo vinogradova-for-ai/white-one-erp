@@ -179,19 +179,43 @@ export function colorCode(colorName: string, latin: boolean): string {
 }
 
 /**
- * Подсказка «метки фасона» (вторая часть латинского артикула) из названия.
- * Берём название без ведущего слова-категории, первое значимое слово, транслит.
- * Напр. «Платье Кимоно» → "kimono", «Пальто Классика Миди» → "klassika".
- * Это лишь дефолт — человек правит на понятное англ. слово (kimono/halter/atlas/straight).
+ * Кандидаты «метки фасона» (вторая часть латинского артикула) из названия + особенностей.
+ * Берём значимые слова (без слова-категории), транслитерируем, + вариант «всё слитно».
+ * Кнопка «Перегенерировать» в форме перебирает этот список.
+ * Напр. «Платье Кимоно Длинное» → ["kimono", "dlinnoe", "kimonodlinnoe"].
+ * Чужие бренды отфильтрованы. Это дефолты — человек всегда может вписать своё.
  */
-export function styleSuggest(modelName: string, category: string): string {
-  const catWord = normalize(category).replace(/ы$|и$|а$/, ""); // грубое «пальто/платья» → корень
-  const words = normalize(modelName)
-    .split(/[\s\-_]+/)
+export function styleCandidates(modelName: string, category: string, subcategory?: string | null): string[] {
+  const catWord = normalize(category).replace(/ы$|и$|а$|ие$|ые$/, ""); // «пальто/платья/трикотажные» → корень
+  const raw = `${modelName ?? ""} ${subcategory ?? ""}`;
+  const words = normalize(raw)
+    .split(/[\s\-_,/]+/)
     .filter(Boolean)
-    .filter((w) => !w.startsWith(catWord.slice(0, 4)) || catWord.length < 3);
-  const pick = words[0] ?? normalize(modelName);
-  return translit(pick);
+    .filter((w) => catWord.length < 3 || !w.startsWith(catWord.slice(0, 4))) // выкидываем слово-категорию
+    .filter((w) => w.length >= 2);
+
+  const toks: string[] = [];
+  for (const w of words) {
+    const t = translit(w);
+    if (t.length >= 2 && !toks.includes(t) && !findBannedBrand(t)) toks.push(t);
+  }
+  // вариант «всё слитно» — на случай, если одиночные слова не нравятся
+  const joined = translit(words.join(""));
+  if (joined.length >= 2 && !toks.includes(joined) && !findBannedBrand(joined)) toks.push(joined);
+
+  if (toks.length === 0) {
+    const fallback = translit(normalize(modelName));
+    return fallback ? [fallback] : [];
+  }
+  return toks;
+}
+
+/**
+ * Первый (дефолтный) вариант метки. Используется на сервере как фолбэк,
+ * если пользователь не прислал метку.
+ */
+export function styleSuggest(modelName: string, category: string, subcategory?: string | null): string {
+  return styleCandidates(modelName, category, subcategory)[0] ?? translit(normalize(modelName));
 }
 
 /** Латинская база: {тип}_{метка}.  Напр. dress_kimono. */
