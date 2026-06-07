@@ -238,3 +238,50 @@ export function parseRussiaNumber(category: string, base: string): number | null
   const m = base.match(new RegExp(`^${prefix}_(\\d+)(?:_|$)`));
   return m ? Number(m[1]) : null;
 }
+
+// ======================================================
+// СТОП-ЛИСТ БРЕНДОВ
+// ======================================================
+// В артикул (vendorCode на WB) нельзя вписывать чужие товарные знаки —
+// WB такие карточки блокирует, плюс юридический риск. Проверяем «метку» фасона
+// и название. Список курируемый и дополняемый. Слова ≥4 символов ищем как
+// подстроку в «слитой» форме (ловит dress_maxmara_black), короткие аббревиатуры —
+// только как отдельный токен (иначе ck/lv/hm ловились бы внутри обычных слов).
+
+export const BANNED_BRANDS: string[] = [
+  // латиница
+  "chanel", "dior", "gucci", "prada", "versace", "balenciaga", "bottega", "veneta",
+  "loewe", "celine", "givenchy", "balmain", "chloe", "lanvin", "kenzo", "moschino",
+  "hermes", "birkin", "kelly", "burberry", "fendi", "valentino", "armani",
+  "dolcegabbana", "gabbana", "miumiu", "saintlaurent", "louisvuitton", "vuitton",
+  "cartier", "tiffany", "bvlgari", "bulgari", "maxmara", "massimodutti",
+  "zara", "bershka", "stradivarius", "pullbear", "uniqlo", "lacoste",
+  "nike", "adidas", "puma", "reebok", "newbalance", "tommyhilfiger", "calvinklein",
+  "ralphlauren", "michaelkors", "offwhite", "stoneisland", "moncler", "canadagoose",
+  "jacquemus", "toteme", "nanushka", "therow", "ganni",
+  // кириллица
+  "шанель", "диор", "гуччи", "прада", "версаче", "баленсиага", "боттега",
+  "эрмес", "гермес", "биркин", "барбери", "бербери", "фенди", "валентино", "армани",
+  "дольче", "габбана", "сенлоран", "живанши", "луивиттон", "виттон", "максмара",
+  "зара", "бершка", "найк", "адидас", "пума", "рибок", "лакост", "москино",
+  "картье", "тиффани", "монклер",
+];
+
+// Аббревиатуры брендов — матчим только как целый токен (не подстрока).
+export const BANNED_ACRONYMS: string[] = ["ck", "lv", "dg", "mk", "ysl", "dkny"];
+
+/**
+ * Ищет чужой бренд в тексте (метка/название). Возвращает найденный бренд или null.
+ */
+export function findBannedBrand(text: string | null | undefined): string | null {
+  const low = (text ?? "").toLowerCase().replace(/ё/g, "е");
+  const letters = low.replace(/[^a-zа-я0-9]+/g, "");
+  for (const b of BANNED_BRANDS) {
+    if (b.length >= 4 && letters.includes(b)) return b;
+  }
+  const tokens = low.split(/[^a-zа-я0-9]+/).filter(Boolean);
+  for (const a of BANNED_ACRONYMS) {
+    if (tokens.includes(a)) return a;
+  }
+  return null;
+}

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireAuth, apiError } from "@/server/api-helpers";
+import { requireAuth, apiError, ValidationError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { modelCreateSchema } from "@/lib/validators/model";
 import { logAudit } from "@/server/audit";
 import { generateArtikulBase } from "@/server/artikul";
+import { findBannedBrand, styleSuggest } from "@/lib/artikul";
 import { Prisma } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
@@ -45,6 +46,16 @@ export async function POST(req: NextRequest) {
     // Метка для латинского артикула приходит отдельно (не колонка БД). Пусто = возьмём из названия.
     const artikulStyle = typeof body.artikulStyle === "string" ? body.artikulStyle : "";
     const data = modelCreateSchema.parse(body);
+
+    // Чужие бренды в артикул нельзя (товарный знак, WB блокирует). Проверяем то, что
+    // реально попадёт в код: метку (или название, если метка пустая → берётся из него).
+    const styleUsed = artikulStyle.trim() || styleSuggest(data.name, data.category);
+    const banned = findBannedBrand(styleUsed) || findBannedBrand(data.name);
+    if (banned) {
+      throw new ValidationError({
+        artikulStyle: [`Нельзя использовать чужой бренд в артикуле: «${banned}». Замените метку/название.`],
+      });
+    }
 
     // База артикула (vendorCode на WB) — алфавит выбирает страна, номер для России авто.
     const artikulBase = await generateArtikulBase({

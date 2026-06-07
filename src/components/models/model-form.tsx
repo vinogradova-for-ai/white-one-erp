@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORIES, BRAND_LABELS } from "@/lib/constants";
-import { isLatinCountry, buildLatinBase, styleSuggest, colorCode, PREFIX_CYR } from "@/lib/artikul";
+import { isLatinCountry, buildLatinBase, styleSuggest, colorCode, PREFIX_CYR, findBannedBrand } from "@/lib/artikul";
 import { PackagingType } from "@prisma/client";
 import { DropzonePhotos } from "@/components/common/dropzone-photos";
 import { SizeGridPicker } from "@/components/common/size-grid-picker";
@@ -178,6 +178,8 @@ export function ModelForm({
   const skuExample = latin
     ? `${buildLatinBase(form.category, styleForPreview)}_${colorCode("шоколад", true)}`
     : `${PREFIX_CYR[form.category] ?? "?"}_040_шоколад`;
+  // Чужой бренд в артикуле запрещён (товарный знак, WB блокирует).
+  const bannedBrand = findBannedBrand(styleForPreview) || findBannedBrand(form.name);
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
@@ -261,6 +263,11 @@ export function ModelForm({
               <>Россия — кириллица, номер присвоится автоматически. Пример: <b>{skuExample}</b></>
             )}
           </span>
+          {bannedBrand && (
+            <span className="mt-2 block rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              ⛔ В артикуле нельзя использовать чужой бренд: <b>«{bannedBrand}»</b>. Поменяйте метку или название — иначе WB заблокирует карточку.
+            </span>
+          )}
         </Field>
       </Section>
 
@@ -391,8 +398,8 @@ export function ModelForm({
         <button type="button" onClick={() => router.back()} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700">
           Отмена
         </button>
-        <button type="submit" disabled={saving} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
-          {saving ? "Сохранение…" : "Создать фасон"}
+        <button type="submit" disabled={saving || !!bannedBrand} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+          {saving ? "Сохранение…" : bannedBrand ? "Уберите чужой бренд" : "Создать фасон"}
         </button>
       </div>
     </form>
