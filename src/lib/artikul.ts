@@ -186,6 +186,24 @@ export function translit(raw: string): string {
   return out;
 }
 
+// Исключения для метки: международные фасон-термины, у которых транслит даёт кашу
+// (палаццо→palatstso) или есть устоявшееся латинское написание. Остальные термины
+// просто транслитерируются (bochki/klassika/kozha) — так понятнее русской команде.
+const STYLE_OVERRIDES: Record<string, string> = {
+  "палаццо": "palazzo",
+  "овер": "oversize",
+  "оверсайз": "oversize",
+  "плиссе": "plisse",
+  "кюлоты": "culottes",
+  "карго": "cargo",
+  "чинос": "chinos",
+};
+
+/** Латинский токен для слова метки: исключение из словаря или транслит. */
+export function styleToken(word: string): string {
+  return STYLE_OVERRIDES[normalize(word)] ?? translit(word);
+}
+
 // ---------- Сборка частей ----------
 
 /** Код цвета: латиница из словаря (или транслит), либо полное русское слово для России. */
@@ -213,11 +231,11 @@ export function styleCandidates(modelName: string, category: string, subcategory
 
   const toks: string[] = [];
   for (const w of words) {
-    const t = translit(w);
+    const t = styleToken(w); // исключения (палаццо→palazzo) или транслит
     if (t.length >= 2 && !toks.includes(t) && !findBannedBrand(t)) toks.push(t);
   }
   // вариант «всё слитно» — на случай, если одиночные слова не нравятся
-  const joined = translit(words.join(""));
+  const joined = words.map(styleToken).join("");
   if (joined.length >= 2 && !toks.includes(joined) && !findBannedBrand(joined)) toks.push(joined);
 
   if (toks.length === 0) {
@@ -294,8 +312,8 @@ export const BANNED_BRANDS: string[] = [
   "loewe", "celine", "givenchy", "balmain", "chloe", "lanvin", "kenzo", "moschino",
   "hermes", "birkin", "kelly", "burberry", "fendi", "valentino", "armani",
   "dolcegabbana", "gabbana", "miumiu", "saintlaurent", "louisvuitton", "vuitton",
-  "cartier", "tiffany", "bvlgari", "bulgari", "maxmara", "massimodutti",
-  "zara", "bershka", "stradivarius", "pullbear", "uniqlo", "lacoste",
+  "cartier", "tiffany", "bvlgari", "bulgari", "maxmara", "massimodutti", "massimo",
+  "zara", "bershka", "stradivarius", "pullbear", "uniqlo", "lacoste", "pinko",
   "nike", "adidas", "puma", "reebok", "newbalance", "tommyhilfiger", "calvinklein",
   "ralphlauren", "michaelkors", "offwhite", "stoneisland", "moncler", "canadagoose",
   "jacquemus", "toteme", "nanushka", "therow", "ganni",
@@ -304,7 +322,7 @@ export const BANNED_BRANDS: string[] = [
   "эрмес", "гермес", "биркин", "барбери", "бербери", "фенди", "валентино", "армани",
   "дольче", "габбана", "сенлоран", "живанши", "луивиттон", "виттон", "максмара",
   "зара", "бершка", "найк", "адидас", "пума", "рибок", "лакост", "москино",
-  "картье", "тиффани", "монклер",
+  "картье", "тиффани", "монклер", "пинко", "массимо",
 ];
 
 // Аббревиатуры брендов — матчим только как целый токен (не подстрока).
