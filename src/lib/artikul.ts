@@ -19,9 +19,25 @@
 
 // ---------- Страна → алфавит ----------
 
-/** true = латиница (Китай, Кыргызстан, всё кроме России). */
+/** true = латиница (Китай, Кыргызстан, всё кроме России). Историческое — алфавит теперь решает категория. */
 export function isLatinCountry(country: string | null | undefined): boolean {
   return normalize(country ?? "") !== "россия";
+}
+
+// ---------- Алфавит артикула решает КАТЕГОРИЯ ----------
+// Кириллица (номерная П_/ПП_) — ТОЛЬКО пальто и полупальто: их так зовут в России.
+// Все остальные категории — латиница, даже если шьются в России.
+
+export const CYRILLIC_CATEGORIES = new Set(["Пальто", "Полупальто"]);
+
+/** true = категория ведётся кириллицей-номером (только пальто/полупальто). */
+export function usesCyrillicScheme(category: string | null | undefined): boolean {
+  return CYRILLIC_CATEGORIES.has((category ?? "").trim());
+}
+
+/** Латиница ли артикул по категории (всё кроме пальто/полупальто). */
+export function isLatinCategory(category: string | null | undefined): boolean {
+  return !usesCyrillicScheme(category);
 }
 
 // ---------- Тип товара (категория) → слово/буква ----------
@@ -237,19 +253,18 @@ export function buildSku(base: string, colorName: string, latin: boolean): strin
 }
 
 /**
- * Полная сборка базы артикула фасона по стране.
- * Для России нужен следующий свободный номер категории (см. nextRussiaNumber в API).
+ * Полная сборка базы артикула фасона по КАТЕГОРИИ.
+ * Пальто/полупальто → кириллица-номер; остальное → латиница-метка.
  */
 export function buildModelBase(opts: {
   category: string;
-  country: string | null | undefined;
-  styleWord: string; // метка для латиницы (для России игнорируется)
-  russiaNumber?: number; // следующий номер для России
+  styleWord: string; // метка для латиницы (для пальто/полупальто игнорируется)
+  russiaNumber?: number; // следующий номер для пальто/полупальто
 }): string {
-  if (isLatinCountry(opts.country)) {
-    return buildLatinBase(opts.category, opts.styleWord);
+  if (usesCyrillicScheme(opts.category)) {
+    return buildRussiaBase(opts.category, opts.russiaNumber ?? 1);
   }
-  return buildRussiaBase(opts.category, opts.russiaNumber ?? 1);
+  return buildLatinBase(opts.category, opts.styleWord);
 }
 
 /**

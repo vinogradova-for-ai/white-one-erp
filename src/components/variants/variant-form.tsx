@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { DropzonePhotos } from "@/components/common/dropzone-photos";
 import { parseApiError, type ApiErrorResult } from "@/lib/api-error";
 import { FormErrorBanner, FieldError } from "@/components/common/form-errors";
-import { colorCode, isLatinCountry } from "@/lib/artikul";
+import { colorCode } from "@/lib/artikul";
 
 // Минимальная форма создания цвета: артикул + цвет + фото + (опционально артикул ткани / ТНВЭД).
 // Пропорция, габариты, факт-выкуп — на форме редактирования, когда понадобятся.
@@ -13,12 +13,11 @@ export function VariantForm({
   modelId,
   modelName,
   artikulBase,
-  country,
 }: {
   modelId: string;
   modelName: string;
   artikulBase?: string | null;
-  country?: string | null;
+  country?: string | null; // не используется (алфавит цвета берём из самой базы), оставлен для совместимости пропсов
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -35,10 +34,12 @@ export function VariantForm({
   const [skuTouched, setSkuTouched] = useState(false);
 
   // Авто-артикул. Новые фасоны: база фасона (dress_kimono / П_040) + код цвета по словарю.
-  // Алфавит выбирает страна. Легаси (фасон без базы) — старая транслитерация имени.
+  // Алфавит цвета берём из самой базы: есть кириллица (П_/ПП_) → русский цвет, иначе латиница.
+  // Легаси (фасон без базы) — старая транслитерация имени.
   function buildSku(color: string) {
     if (artikulBase) {
-      const code = colorCode(color, isLatinCountry(country));
+      const latin = !/[Ѐ-ӿ]/.test(artikulBase);
+      const code = colorCode(color, latin);
       return code ? `${artikulBase}_${code}` : artikulBase;
     }
     const base = slugifyToAscii(modelName);
