@@ -4,6 +4,7 @@ import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { modelCreateSchema } from "@/lib/validators/model";
 import { logAudit } from "@/server/audit";
+import { generateArtikulBase } from "@/server/artikul";
 import { Prisma } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
@@ -41,12 +42,23 @@ export async function POST(req: NextRequest) {
     const session = await requireAuth();
     assertCan(session.user.role, "product.create");
     const body = await req.json();
+    // Метка для латинского артикула приходит отдельно (не колонка БД). Пусто = возьмём из названия.
+    const artikulStyle = typeof body.artikulStyle === "string" ? body.artikulStyle : "";
     const data = modelCreateSchema.parse(body);
+
+    // База артикула (vendorCode на WB) — алфавит выбирает страна, номер для России авто.
+    const artikulBase = await generateArtikulBase({
+      category: data.category,
+      country: data.countryOfOrigin,
+      name: data.name,
+      styleWord: artikulStyle,
+    });
 
     // Маржу/ROI/наценку не считаем — Алёна явно убрала это из скоупа сервиса.
     const model = await prisma.productModel.create({
       data: {
         ...data,
+        artikulBase,
         patternsUrl: data.patternsUrl || null,
       } as Prisma.ProductModelUncheckedCreateInput,
     });
