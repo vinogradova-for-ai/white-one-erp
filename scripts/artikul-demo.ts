@@ -29,9 +29,10 @@ const china: { name: string; category: string; style?: string; colors: string[] 
   { name: "Трикотажный комплект (джемпер+штаны)", category: "Трикотажные костюмы", style: "jumper", colors: ["молочный", "беж", "графит", "бордо"] },
 ];
 
+let demoNum = 0;
 for (const m of china) {
   const style = m.style ?? styleSuggest(m.name, m.category);
-  const base = buildLatinBase(m.category, style);
+  const base = buildLatinBase(m.category, ++demoNum, style); // демо: сквозной номер (в проде свой счётчик у категории)
   const autoHint = m.style ? "" : `  (метка авто из названия: «${style}»)`;
   console.log(`▸ ${m.name}  [${m.category}]  →  база: ${base}${autoHint}`);
   for (const c of m.colors) {

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { CATEGORIES, BRAND_LABELS } from "@/lib/constants";
-import { isLatinCategory, buildLatinBase, styleCandidates, colorCode, PREFIX_CYR, findBannedBrand } from "@/lib/artikul";
+import { isLatinCategory, buildLatinBase, styleCandidates, colorCode, PREFIX_CYR, TYPE_LAT, translit, findBannedBrand } from "@/lib/artikul";
 import { PackagingType } from "@prisma/client";
 import { DropzonePhotos } from "@/components/common/dropzone-photos";
 import { SizeGridPicker } from "@/components/common/size-grid-picker";
@@ -48,6 +48,7 @@ export function ModelForm({
   const [styleIdx, setStyleIdx] = useState(0);
   // Реальный следующий номер для пальто/полупальто (П_052) — тянем с сервера для превью.
   const [russiaBase, setRussiaBase] = useState<string | null>(null);
+  const [latinNum, setLatinNum] = useState<number | null>(null);
 
   const [form, setForm] = useState({
     name: "",
@@ -102,14 +103,18 @@ export function ModelForm({
     setStyleIdx((i) => (styleVariants.length ? (i + 1) % styleVariants.length : 0));
   }
 
-  // Для пальто/полупальто тянем реальный следующий номер (П_052) для превью.
+  // Тянем реальный следующий номер для превью: кириллица → база П_052, латиница → номер (8 → trs08…).
   useEffect(() => {
-    if (isLatinCategory(form.category)) { setRussiaBase(null); return; }
     let cancelled = false;
     setRussiaBase(null);
+    setLatinNum(null);
     fetch(`/api/models/next-artikul?category=${encodeURIComponent(form.category)}`)
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => { if (!cancelled && d?.base) setRussiaBase(d.base); })
+      .then((d) => {
+        if (cancelled || !d) return;
+        if (d.base) setRussiaBase(d.base);
+        if (typeof d.number === "number") setLatinNum(d.number);
+      })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [form.category]);
@@ -200,10 +205,12 @@ export function ModelForm({
   // Алфавит решает КАТЕГОРИЯ: латиница для всего, кроме пальто/полупальто.
   const latin = isLatinCategory(form.category);
   const cyrBase = russiaBase ?? `${PREFIX_CYR[form.category] ?? "?"}_…`;
-  const basePreview = latin ? buildLatinBase(form.category, styleUsed) : cyrBase;
-  const skuExample = latin
-    ? `${buildLatinBase(form.category, styleUsed)}_${colorCode("шоколад", true)}`
-    : `${cyrBase}_шоколад`;
+  // Латиница: номер двухзначный из БД. Пока не подгрузился — показываем плейсхолдер «NN».
+  const latBase = latinNum != null
+    ? buildLatinBase(form.category, latinNum, styleUsed)
+    : `${TYPE_LAT[form.category] ?? "?"}NN${styleUsed ? "_" + translit(styleUsed) : ""}`;
+  const basePreview = latin ? latBase : cyrBase;
+  const skuExample = latin ? `${latBase}_${colorCode("шоколад", true)}` : `${cyrBase}_шоколад`;
   // Чужой бренд в артикуле запрещён (товарный знак, WB блокирует).
   const bannedBrand = findBannedBrand(styleUsed) || findBannedBrand(form.name);
 

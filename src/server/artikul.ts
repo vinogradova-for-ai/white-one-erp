@@ -5,7 +5,9 @@ import {
   buildRussiaBase,
   styleSuggest,
   parseRussiaNumber,
+  parseLatinNumber,
   PREFIX_CYR,
+  TYPE_LAT,
 } from "@/lib/artikul";
 
 /**
@@ -40,10 +42,41 @@ export async function nextRussiaArtikulBase(category: string): Promise<string> {
 }
 
 /**
+ * Следующий свободный двухзначный номер для латинской категории (брюки/платья/…).
+ * Счётчик свой у каждого типа: считаем максимум из artikulBase фасонов и sku вариантов,
+ * где номер идёт сразу за кодом типа (trs08…, trs1atlas…). Продолжаем существующую нумерацию.
+ */
+export async function nextLatinNumber(category: string): Promise<number> {
+  const type = TYPE_LAT[category];
+  if (!type) return 1;
+  const [models, variants] = await Promise.all([
+    prisma.productModel.findMany({
+      where: { artikulBase: { startsWith: type }, deletedAt: null },
+      select: { artikulBase: true },
+    }),
+    prisma.productVariant.findMany({
+      where: { sku: { startsWith: type }, deletedAt: null },
+      select: { sku: true },
+    }),
+  ]);
+  const MAX = 10000;
+  let max = 0;
+  for (const m of models) {
+    const num = parseLatinNumber(category, m.artikulBase ?? "");
+    if (num != null && num < MAX) max = Math.max(max, num);
+  }
+  for (const v of variants) {
+    const num = parseLatinNumber(category, v.sku);
+    if (num != null && num < MAX) max = Math.max(max, num);
+  }
+  return max + 1;
+}
+
+/**
  * Генерирует базовую часть артикула фасона (ProductModel.artikulBase).
  * Алфавит решает КАТЕГОРИЯ:
  * - Пальто/Полупальто → кириллица {буква}_{номер} (авто-номер).
- * - Остальное → латиница {тип}_{метка}, с проверкой уникальности (…-2, …-3).
+ * - Остальное → латиница {тип}{NN}_{метка} (авто-номер двухзначный, слитно), с проверкой уникальности (…-2, …-3).
  */
 export async function generateArtikulBase(opts: {
   category: string;
@@ -57,7 +90,8 @@ export async function generateArtikulBase(opts: {
   }
 
   const style = opts.styleWord?.trim() ? opts.styleWord : styleSuggest(name, category);
-  const base = buildLatinBase(category, style);
+  const num = await nextLatinNumber(category);
+  const base = buildLatinBase(category, num, style);
   const existing = await prisma.productModel.findMany({
     where: { artikulBase: { startsWith: base }, deletedAt: null },
     select: { artikulBase: true },

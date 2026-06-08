@@ -10,15 +10,32 @@ import {
   buildRussiaBase,
   styleSuggest,
   parseRussiaNumber,
+  parseLatinNumber,
   PREFIX_CYR,
+  TYPE_LAT,
 } from "../src/lib/artikul";
 
 const prisma = new PrismaClient();
 
+async function nextLatinNum(category: string): Promise<number> {
+  const type = TYPE_LAT[category];
+  if (!type) return 1;
+  const [models, variants] = await Promise.all([
+    prisma.productModel.findMany({ where: { artikulBase: { startsWith: type }, deletedAt: null }, select: { artikulBase: true } }),
+    prisma.productVariant.findMany({ where: { sku: { startsWith: type }, deletedAt: null }, select: { sku: true } }),
+  ]);
+  const MAX = 10000;
+  let max = 0;
+  for (const m of models) { const n = parseLatinNumber(category, m.artikulBase ?? ""); if (n != null && n < MAX) max = Math.max(max, n); }
+  for (const v of variants) { const n = parseLatinNumber(category, v.sku); if (n != null && n < MAX) max = Math.max(max, n); }
+  return max + 1;
+}
+
 async function genBase(category: string, country: string, name: string, styleWord?: string) {
   if (isLatinCountry(country)) {
     const style = styleWord?.trim() ? styleWord : styleSuggest(name, category);
-    const base = buildLatinBase(category, style);
+    const num = await nextLatinNum(category);
+    const base = buildLatinBase(category, num, style);
     const existing = await prisma.productModel.findMany({
       where: { artikulBase: { startsWith: base }, deletedAt: null },
       select: { artikulBase: true },
