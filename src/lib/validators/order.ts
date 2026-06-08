@@ -17,6 +17,13 @@ export const orderCreateSchema = z.object({
   productModelId: z.string().min(1, "Фасон обязателен"),
   lines: z.array(orderLineInputSchema).min(1, "Нужна хотя бы одна позиция"),
   orderType: z.enum(["SEASONAL", "RESTOCK", "TEST"]),
+  // Этап, на который сразу встаёт заказ (= колонка канбана). Нужен, когда
+  // заводим заказ, который в реальности уже шьётся/в пути. Если не задан —
+  // PREPARATION (Разработка). См. lib/order-stage.ORDER_CREATE_STAGES.
+  status: z.enum([
+    "PREPARATION", "FABRIC_ORDERED", "SEWING", "QC", "READY_SHIP",
+    "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE",
+  ]).optional(),
   season: z.string().optional().nullable(),
   launchMonth: z.number().int().min(202501).max(203012),
   factoryId: z.string().optional().nullable(),

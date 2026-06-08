@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ORDER_TYPE_LABELS, DELIVERY_METHOD_LABELS } from "@/lib/constants";
+import { ORDER_CREATE_STAGES } from "@/lib/order-stage";
 import { formatCurrency } from "@/lib/format";
 import { PhotoThumb } from "@/components/common/photo-thumb";
 import { VariantVisual } from "@/components/common/variant-visual";
@@ -89,6 +90,7 @@ export function OrderForm({
   users,
   preselectedModelId,
   preselectedVariantId,
+  preselectedStage,
   defaultOwnerId,
 }: {
   models: ModelOption[];
@@ -96,6 +98,7 @@ export function OrderForm({
   users: Option[];
   preselectedModelId?: string;
   preselectedVariantId?: string;
+  preselectedStage?: string;
   defaultOwnerId?: string | null;
 }) {
   const router = useRouter();
@@ -132,8 +135,14 @@ export function OrderForm({
     const pref = models.find((m) => m.id === (preselectedModelId ?? models[0]?.id))?.preferredFactoryId;
     return pref && factories.some((f) => f.id === pref) ? pref : "";
   })();
+  // Этап, на который встанет заказ (= колонка канбана). По умолчанию «Разработка»,
+  // либо предвыбранный (например, когда тащим фасон на колонку «Производство»).
+  const initialStage = ORDER_CREATE_STAGES.some((s) => s.value === preselectedStage)
+    ? (preselectedStage as string)
+    : "PREPARATION";
   const [common, setCommon] = useState({
     orderType: "SEASONAL",
+    stage: initialStage,
     launchMonth: defaultLaunchMonth,
     factoryId: initialFactoryId,
     ownerId: (defaultOwnerId && users.some((u) => u.id === defaultOwnerId)) ? defaultOwnerId : (users[0]?.id ?? ""),
@@ -303,6 +312,7 @@ export function OrderForm({
           sizeDistribution: Object.keys(l.sizeDistribution).length > 0 ? l.sizeDistribution : null,
         })),
         orderType: common.orderType,
+        status: common.stage,
         launchMonth: Number(common.launchMonth.replace("-", "")),
         factoryId: common.factoryId || null,
         ownerId: common.ownerId,
@@ -618,6 +628,14 @@ export function OrderForm({
           <select value={common.orderType} onChange={(e) => setCommon({ ...common, orderType: e.target.value })} className={inputCls}>
             {Object.entries(ORDER_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
+        </Field>
+        <Field label="Этап (колонка канбана) *">
+          <select value={common.stage} onChange={(e) => setCommon({ ...common, stage: e.target.value })} className={inputCls}>
+            {ORDER_CREATE_STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+          <p className="mt-1 text-xs text-slate-500">
+            На какую колонку встанет заказ. По умолчанию «Разработка» — поставь дальше, если заказ уже шьётся или в пути.
+          </p>
         </Field>
       </Section>
 
