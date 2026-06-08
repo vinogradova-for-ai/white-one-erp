@@ -47,7 +47,6 @@ export function isLatinCategory(category: string | null | undefined): boolean {
 export const TYPE_LAT: Record<string, string> = {
   "Платья": "d",          // dress
   "Летние платья": "d",
-  "Сарафаны": "sf",       // sundress
   "Брюки": "trs",         // trousers
   "Джинсы": "jns",        // jeans
   "Костюмы": "st",        // suit
@@ -66,7 +65,6 @@ export const PREFIX_CYR: Record<string, string> = {
   "Полупальто": "ПП",
   "Платья": "ПЛ",
   "Летние платья": "ПЛ",
-  "Сарафаны": "С",
   "Брюки": "Б",
   "Джинсы": "ДЖ",
   "Костюмы": "К",
@@ -77,116 +75,53 @@ export const PREFIX_CYR: Record<string, string> = {
   "Юбки": "Ю",
 };
 
-// ---------- Словарь цветов: русское название → латинский код для артикула ----------
-// ИСТОЧНИК ИСТИНЫ: справочник «Цвет» нацкаталога Честного знака (77 закрытых значений).
-// На производстве на наклейке ЧЗ печатается артикул (vendorCode) — китаец должен прочитать,
-// поэтому код латиницей. Само поле артикула ЧЗ не сверяет (свободный текст), но коды берём
-// строго под 77 цветов нацкаталога, чтобы цвет в карточке и в артикуле совпадали 1:1.
-// Маппинг согласован с Алёной (см. ~/Desktop/White-One-артикулы/цвета.csv).
+// ---------- Словарь цветов: русское название → код для артикула ----------
+// РАБОЧАЯ ПАЛИТРА White One — 23 цвета, которые бренд реально шьёт (финал 2026-06-09).
+// На наклейке ЧЗ печатается артикул (vendorCode) — китаец читает, поэтому код латиницей.
+// Цвет вне этих 23 (графит, песочный, индиго…) уходит в транслит (grafit, pesochniy…).
+// ⚠️ голубой=blue, синий=darkblue — историческая схема бренда (НЕ англ-буквальная).
 // Ключи нормализованы (нижний регистр, ё→е). Ниже — алиасы разговорных форм.
-// Цвета вне этих 77 (графит, пудровый, индиго, марсала…) уходят в транслит (grafit, …).
 
 export const COLOR_LAT: Record<string, string> = {
-  // — Нейтральные: белый / чёрный / серый —
+  // — Нейтральные —
   "белый": "white",
   "молочный": "milk",
-  "слоновая кость": "ivory",
   "черный": "black",
   "серый": "gray",
-  "светло-серый": "lightgray",
   "темно-серый": "darkgray",
-  "серый меланж": "graymelange",
-  "светло-серый меланж": "lightgraymelange",
-  "темно-серый меланж": "darkgraymelange",
-  "антрацитовый": "anthracite",
-  "никель": "nickel",
   // — Бежевые / коричневые —
   "бежевый": "beige",
-  "бежевый меланж": "beigemelange",
-  "светло-бежевый": "lightbeige",
-  "темно-бежевый": "darkbeige",
-  "песочный": "sand",
-  "ваниль": "vanilla",
-  "кремовый": "cream",
   "капучино": "cappuccino",
   "коричневый": "brown",
-  "светло-коричневый": "lightbrown",
-  "темно-коричневый": "darkbrown",
   "шоколадный": "chocolate",
   "хаки": "khaki",
-  // — Красные / розовые / бордо —
+  // — Красные / розовые —
   "красный": "red",
   "бордовый": "bordo",
   "вишня": "cherry",
-  "малиновый": "raspberry",
-  "коралловый": "coral",
-  "терракотовый": "terracotta",
-  "кирпичный": "brick",
   "розовый": "pink",
-  "светло-розовый": "lightpink",
-  "темно-розовый": "darkpink",
-  "бело-розовый": "whitepink",
-  "розово-бежевый": "pinkbeige",
-  "фуксия": "fuchsia",
-  // — Жёлтые / оранжевые / золото —
+  // — Жёлтые / золото —
   "желтый": "yellow",
   "оранжевый": "orange",
-  "персиковый": "peach",
-  "рыжий": "ginger",
-  "золотистый": "golden",
   "золотой": "gold",
   // — Зелёные —
   "зеленый": "green",
-  "светло-зеленый": "lightgreen",
-  "темно-зеленый": "darkgreen",
   "оливковый": "olive",
-  "изумрудный": "emerald",
-  "мятный": "mint",
-  "лайм": "lime",
-  "бирюзовый": "turquoise",
-  // — Синие / голубые —
-  "синий": "blue",
-  "светло-синий": "lightblue",
-  "темно-синий": "darkblue",
-  "голубой": "skyblue",
-  "серо-голубой": "grayblue",
+  // — Синие (схема White One: голубой светлее синего) —
+  "синий": "darkblue",
+  "голубой": "blue",
   // — Фиолетовые —
   "фиолетовый": "purple",
-  "светло-фиолетовый": "lightpurple",
-  "темно-фиолетовый": "darkpurple",
-  "лиловый": "mauve",
-  "сиреневый": "lilac",
-  "пурпурный": "magenta",
-  "сливовый": "plum",
-  // — Металлик / спец —
+  // — Металлик —
   "серебряный": "silver",
-  "бронзовый": "bronze",
-  "медный": "copper",
-  "прозрачный": "transparent",
-  "леопард": "leopard",
-  // — Составные / прочее (поле «Цвет» нацкаталога, до 3 через «/») —
-  "серо-желтый": "grayyellow",
-  "белый/серый": "whitegray",
-  "хаки/оливковый": "khakiolive",
-  "черный/белый": "blackwhite",
-  "черный/золотистый": "blackgold",
-  "черный/серый": "blackgray",
-  "разноцветный": "multicolor",
-  "в ассортименте": "assorted",
 
-  // — Алиасы: короткие разговорные формы → тот же ЧЗ-код —
+  // — Алиасы: короткие разговорные формы → тот же код —
   "молоко": "milk",
   "шоколад": "chocolate",
   "беж": "beige",
   "бордо": "bordo",
-  "терракот": "terracotta",
-  "коралл": "coral",
-  "изумруд": "emerald",
   "золото": "gold",
   "олива": "olive",
-  "мята": "mint",
-  "бирюза": "turquoise",
-  "сирень": "lilac",
 };
 
 // ---------- Транслитерация (запасной вариант, если цвета нет в словаре) ----------
@@ -220,8 +155,17 @@ export function translit(raw: string): string {
 // просто транслитерируются (bochki/klassika/kozha) — так понятнее русской команде.
 const STYLE_OVERRIDES: Record<string, string> = {
   "палаццо": "palazzo",
-  "овер": "oversize",
-  "оверсайз": "oversize",
+  "классика": "classic",
+  "бочки": "barrel",
+  "баска": "baska",
+  "кожа": "leather",
+  "лен": "linen",          // нормализация ё→е делает «лён» → «лен»
+  "овер": "over",
+  "оверсайз": "over",
+  "алладин": "aladdin",
+  "аладдин": "aladdin",
+  "офис": "office",
+  "репаблик": "republic",
   "плиссе": "plisse",
   "кюлоты": "culottes",
   "карго": "cargo",
@@ -282,11 +226,18 @@ export function styleSuggest(modelName: string, category: string, subcategory?: 
   return styleCandidates(modelName, category, subcategory)[0] ?? translit(normalize(modelName));
 }
 
-/** Латинская база: {тип}_{метка}.  Напр. dress_kimono. */
-export function buildLatinBase(category: string, styleWord: string): string {
+/** Двухзначный номер с ведущим нулём: 8 → "08", 12 → "12". */
+export function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/** Латинская база: {тип}{NN}_{метка}.  Напр. trs08_palazzo.
+ *  Категория+номер пишутся СЛИТНО, номер двухзначный (свой счётчик у категории). */
+export function buildLatinBase(category: string, num: number, styleWord: string): string {
   const type = TYPE_LAT[category] ?? translit(category);
+  const head = `${type}${pad2(num)}`;
   const style = translit(styleWord);
-  return style ? `${type}_${style}` : type;
+  return style ? `${head}_${style}` : head;
 }
 
 /** Русская база: {буква}_{номер(3 знака)}.  Напр. П_040. */
@@ -308,11 +259,12 @@ export function buildModelBase(opts: {
   category: string;
   styleWord: string; // метка для латиницы (для пальто/полупальто игнорируется)
   russiaNumber?: number; // следующий номер для пальто/полупальто
+  latinNumber?: number; // следующий номер для латиницы (брюки/платья/…)
 }): string {
   if (usesCyrillicScheme(opts.category)) {
     return buildRussiaBase(opts.category, opts.russiaNumber ?? 1);
   }
-  return buildLatinBase(opts.category, opts.styleWord);
+  return buildLatinBase(opts.category, opts.latinNumber ?? 1, opts.styleWord);
 }
 
 /**
@@ -323,6 +275,17 @@ export function parseRussiaNumber(category: string, base: string): number | null
   const prefix = PREFIX_CYR[category];
   if (!prefix) return null;
   const m = base.match(new RegExp(`^${prefix}_(\\d+)(?:_|$)`));
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * Извлечь номер из латинской базы («trs08_palazzo» → 8, «trs1atlas» → 1), иначе null.
+ * Номер идёт сразу за кодом типа (слитно). Используется для счётчика категории.
+ */
+export function parseLatinNumber(category: string, base: string): number | null {
+  const type = TYPE_LAT[category];
+  if (!type) return null;
+  const m = base.match(new RegExp(`^${type}(\\d+)`));
   return m ? Number(m[1]) : null;
 }
 
