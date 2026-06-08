@@ -53,3 +53,21 @@ export function resolveModelCost(m: ModelCostInput): number | null {
 
   return null;
 }
+
+/**
+ * Эффективная цена единицы для ЗАКАЗА: ручной override (стоимость единицы,
+ * введённая в форме заказа) важнее всего; иначе — resolveModelCost(фасон).
+ *
+ * ВАЖНО: этим значением надо считать И snapshotFullCost (что кладём в БД),
+ * И batchCost (сумму партии) — из ОДНОГО числа. Раньше snapshot брал override,
+ * а batchCost шёл через resolveModelCost, который игнорировал override
+ * (отдавал purchasePriceRub) → сумма заказа в БД расходилась с показанной.
+ */
+export function effectiveOrderUnitCost(
+  m: ModelCostInput,
+  override?: Numeric,
+): number | null {
+  const o = n(override);
+  if (o != null) return o;
+  return resolveModelCost(m);
+}

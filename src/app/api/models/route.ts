@@ -26,7 +26,8 @@ export async function GET(req: NextRequest) {
         include: {
           owner: { select: { id: true, name: true } },
           preferredFactory: { select: { id: true, name: true } },
-          _count: { select: { variants: true } },
+          // Только живые варианты — без soft-deleted (иначе «N цветов» завышено).
+          _count: { select: { variants: { where: { deletedAt: null } } } },
         },
       }),
       prisma.productModel.count({ where }),

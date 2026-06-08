@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
+import { Prisma } from "@prisma/client";
 import { orderLineAddSchema } from "@/lib/validators/order";
 import { calculateOrderEconomics } from "@/lib/calculations/product-cost";
+import { effectiveOrderUnitCost } from "@/lib/calculations/resolve-model-cost";
 import { logAudit } from "@/server/audit";
 
 // POST /api/orders/[id]/lines — добавить позицию (цвет) в заказ
@@ -32,7 +34,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       );
     }
 
-    const eco = calculateOrderEconomics(order.productModel, data.quantity);
+    // Эффективная себестоимость фасона (resolveModelCost) — ЕЮ считаем И snapshot,
+    // И batchCost, как при создании заказа и в backfill. Раньше snapshotFullCost брал
+    // СЫРОЙ model.fullCost (часто null, если задан только purchasePriceRub), из-за чего
+    // снимок расходился с batchCost.
+    const unitCost = effectiveOrderUnitCost(order.productModel);
+    const eco = calculateOrderEconomics(order.productModel, data.quantity, unitCost);
 
     const line = await prisma.orderLine.create({
       data: {
@@ -40,7 +47,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         productVariantId: data.productVariantId,
         quantity: data.quantity,
         sizeDistribution: data.sizeDistribution ?? undefined,
-        snapshotFullCost: order.productModel.fullCost,
+        snapshotFullCost: unitCost != null ? new Prisma.Decimal(unitCost) : null,
         snapshotWbPrice: order.productModel.wbPrice,
         snapshotCustomerPrice: order.productModel.customerPrice,
         snapshotWbCommissionPct: order.productModel.wbCommissionPct,

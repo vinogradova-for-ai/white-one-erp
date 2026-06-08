@@ -40,15 +40,47 @@ function round(n: number, digits = 2): number {
 export function calculateOrderEconomics(
   model: OrderEconomicsModel,
   quantity: number,
+  // Эффективная цена единицы для ЭТОГО заказа (override из формы или
+  // resolveModelCost). Если передана — batchCost считаем строго от неё, а не
+  // через resolveModelCost (который ставит purchasePriceRub выше override).
+  unitCost?: number | null,
 ): {
   batchCost: number | null;
   plannedRevenue: number | null;
 } {
-  const fullCost = resolveModelCost(model);
+  const fullCost = unitCost != null && Number.isFinite(unitCost) ? unitCost : resolveModelCost(model);
   const customerPrice = toNum(model.customerPrice);
   const redemption = (toNum(model.plannedRedemptionPct) ?? 0) / 100;
 
   const batchCost = fullCost !== null ? round(fullCost * quantity, 2) : null;
+  const plannedRevenue = customerPrice !== null && redemption > 0
+    ? round(customerPrice * redemption * quantity, 2)
+    : null;
+
+  return { batchCost, plannedRevenue };
+}
+
+/**
+ * Экономика линии заказа ИЗ ЕЁ СНИМКА цен (snapshot*), а не из живого фасона.
+ * Снимок — это «что мы зафиксировали в момент заказа»; при изменении кол-ва
+ * batchCost/plannedRevenue должны масштабироваться от снимка, иначе сумма
+ * заказа поедет за текущей ценой фасона (рассинхрон snapshot ↔ batchCost).
+ */
+export type OrderLineSnapshot = {
+  snapshotFullCost?: Prisma.Decimal | number | string | null;
+  snapshotCustomerPrice?: Prisma.Decimal | number | string | null;
+  snapshotRedemptionPct?: Prisma.Decimal | number | string | null;
+};
+
+export function lineEconomicsFromSnapshot(
+  line: OrderLineSnapshot,
+  quantity: number,
+): { batchCost: number | null; plannedRevenue: number | null } {
+  const unit = toNum(line.snapshotFullCost);
+  const customerPrice = toNum(line.snapshotCustomerPrice);
+  const redemption = (toNum(line.snapshotRedemptionPct) ?? 0) / 100;
+
+  const batchCost = unit !== null ? round(unit * quantity, 2) : null;
   const plannedRevenue = customerPrice !== null && redemption > 0
     ? round(customerPrice * redemption * quantity, 2)
     : null;

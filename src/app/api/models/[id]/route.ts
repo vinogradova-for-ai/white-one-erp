@@ -75,7 +75,18 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     const session = await requireAuth();
     assertCan(session.user.role, "product.delete");
     const { id } = await ctx.params;
-    await prisma.productModel.update({ where: { id }, data: { deletedAt: new Date() } });
+    // Soft-delete каскадим на варианты: цвет не может «жить» без своего фасона,
+    // иначе он остаётся в /variants, дропдаунах и счётчиках как живой.
+    // Заказы НАМЕРЕННО не трогаем — у них своя финансовая жизнь (платежи, история);
+    // их закрытие — отдельное решение, а не побочный эффект удаления фасона.
+    const now = new Date();
+    await prisma.$transaction([
+      prisma.productVariant.updateMany({
+        where: { productModelId: id, deletedAt: null },
+        data: { deletedAt: now },
+      }),
+      prisma.productModel.update({ where: { id }, data: { deletedAt: now } }),
+    ]);
     await logAudit({
       action: "DELETE",
       entityType: "ProductModel",
