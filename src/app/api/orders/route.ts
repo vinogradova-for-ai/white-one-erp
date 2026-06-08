@@ -105,6 +105,8 @@ export async function POST(req: NextRequest) {
           orderNumber: await nextOrderNumber(tx),
           productModelId: data.productModelId,
           orderType: data.orderType,
+          // Этап, выбранный в форме (= колонка канбана). По умолчанию — Разработка.
+          status: data.status ?? "PREPARATION",
           season: data.season ?? null,
           launchMonth: data.launchMonth,
           factoryId: data.factoryId || model.preferredFactoryId || null,

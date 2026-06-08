@@ -5,7 +5,7 @@ import { OrderForm } from "@/components/orders/order-form";
 export default async function NewOrderPage({
   searchParams,
 }: {
-  searchParams: Promise<{ modelId?: string; variantId?: string }>;
+  searchParams: Promise<{ modelId?: string; variantId?: string; stage?: string }>;
 }) {
   const sp = await searchParams;
   const session = await auth();
@@ -126,6 +126,7 @@ export default async function NewOrderPage({
           users={users}
           preselectedModelId={preselectedModelId}
           preselectedVariantId={sp.variantId}
+          preselectedStage={sp.stage}
           defaultOwnerId={currentUserId}
         />
       </div>

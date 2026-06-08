@@ -5,10 +5,18 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CommentsDrawer } from "./comments-drawer";
 
-// Колонки куда МОЖНО таскать (drag-target). Колонки 5–8 (после заказа)
-// в этот список не входят — они только показывают результат, изменения
-// идут через Гант.
+// Колонки разработки — бросок фасона сюда меняет стадию фасона (PATCH kanban-stage).
 const DEV_TARGETS = new Set(["idea", "sample", "ideal_sample", "sizing_done"]);
+
+// Пост-заказные колонки: бросок фасона сюда создаёт заказ СРАЗУ на этом этапе —
+// форма создания открывается с предвыбранным этапом (= этой колонкой).
+// Статусы соответствуют ORDER_CREATE_STAGES из lib/order-stage.
+const ORDER_CREATE_TARGETS: Record<string, { status: string; label: string }> = {
+  production: { status: "SEWING", label: "Производство" },
+  qc: { status: "QC", label: "ОТК" },
+  delivery: { status: "IN_TRANSIT", label: "Доставка" },
+  done: { status: "WAREHOUSE_MSK", label: "Завершено" },
+};
 
 export type KanbanCard = {
   modelId: string;
@@ -79,17 +87,18 @@ export function BoardClient({
   async function handleDrop(targetKey: string, modelId: string) {
     setDropZone(null);
     setDragging(null);
-    if (targetKey === "production") {
-      // На колонку «Производство» — редирект в форму создания заказа с
-      // предзаполненной моделью. После сохранения карточка сама окажется
-      // в Производстве через ORDER_STATUS_TO_COL.
-      const ok = window.confirm("Создать заказ для этой модели?");
+    const createTarget = ORDER_CREATE_TARGETS[targetKey];
+    if (createTarget) {
+      // Пост-заказная колонка — открываем форму создания заказа с
+      // предвыбранным этапом. После сохранения карточка встанет ровно сюда
+      // (этап = колонка, единый источник правды в lib/order-stage).
+      const ok = window.confirm(`Создать заказ для этой модели на этапе «${createTarget.label}»?`);
       if (!ok) return;
-      router.push(`/orders/new?modelId=${modelId}`);
+      router.push(`/orders/new?modelId=${modelId}&stage=${createTarget.status}`);
       return;
     }
     if (!DEV_TARGETS.has(targetKey)) {
-      // ОТК/Доставка/В продаже — drag запрещён, тихо игнорируем
+      // прочие колонки — drag не поддержан, тихо игнорируем
       return;
     }
     setSaving(true);
@@ -182,8 +191,8 @@ export function BoardClient({
         {columns.map((col) => {
           const cards = buckets[col.key] ?? [];
           const isDevTarget = DEV_TARGETS.has(col.key);
-          const isProduction = col.key === "production";
-          const canDrop = isDevTarget || isProduction;
+          const isOrderCreateTarget = col.key in ORDER_CREATE_TARGETS;
+          const canDrop = isDevTarget || isOrderCreateTarget;
           const isOver = dropZone === col.key;
           const isMobileActive = col.key === mobileCol;
 

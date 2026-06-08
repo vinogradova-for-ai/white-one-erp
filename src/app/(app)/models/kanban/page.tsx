@@ -5,6 +5,7 @@ import { OrderStatus, PackagingOrderStatus, ProductModelStatus } from "@prisma/c
 import { type KanbanCard, type KanbanColumn } from "@/components/models-kanban/board-client";
 import { KanbanFiltersClient, type KanbanFilterOptions } from "@/components/models-kanban/kanban-filters-client";
 import { colorHexFromName } from "@/lib/color-map";
+import { orderKanbanColumn } from "@/lib/order-stage";
 
 // 8 колонок: 4 под-этапа Разработки + 3 этапа после заказа + Завершено.
 // Этапы Разработки видны ТОЛЬКО на канбане (не на Ганте) — детализация
@@ -43,19 +44,10 @@ const PKG_ORDER_STATUS_TO_COL: Partial<Record<PackagingOrderStatus, string>> = {
   ARRIVED: "done",
 };
 
-const ORDER_STATUS_TO_COL: Record<OrderStatus, string> = {
-  PREPARATION: "production",
-  FABRIC_ORDERED: "production",
-  SEWING: "production",
-  QC: "qc",
-  READY_SHIP: "qc",
-  IN_TRANSIT: "delivery",
-  // Всё после прибытия — Завершено. Дальше работа склада/упаковки/ВБ, не продукта.
-  WAREHOUSE_MSK: "done",
-  PACKING: "done",
-  SHIPPED_WB: "done",
-  ON_SALE: "done",
-};
+// Статус заказа → колонка канбана берётся из ЕДИНОГО маппера
+// `orderKanbanColumn` (lib/order-stage), общего с Гантом — чтобы карточка и
+// Гант не расходились. Для фазы «Разработка» он возвращает null: карточка
+// остаётся в колонке разработки по стадии фасона (modelToColumn).
 
 // Заказы, которые отделу продукта уже не нужны как живые — статусы «Завершено».
 const DONE_STATUSES: ReadonlyArray<OrderStatus> = [
@@ -296,28 +288,22 @@ export default async function ModelsKanbanPage() {
     }
 
     // Активная сторона: самый продвинутый из live-заказов определяет колонку.
-    // Если live-заказов нет — колонка по статусу фасона.
+    // Колонку считает ЕДИНЫЙ маппер orderKanbanColumn (общий с Гантом):
+    //   • заказ в фазе «Разработка» (PREPARATION / FABRIC_ORDERED) → null →
+    //     карточка остаётся в колонке разработки по стадии фасона;
+    //   • Производство / ОТК / Доставка → соответствующая пост-заказная колонка.
+    // Если live-заказа нет — колонка по статусу фасона.
     const liveOrder = mostAdvanced(liveOrders);
-    // Ранний заказ (ткань заказана, но пошив ещё НЕ начался) с датой передачи на
-    // фабрику в будущем — это ещё фаза РАЗРАБОТКИ по Ганту. Держим карточку в колонке
-    // разработки фасона, а не прыгаем в «Производство» сразу при создании заказа.
-    // Важно: только для FABRIC_ORDERED — заказы от пошива и дальше (SEWING/QC/...)
-    // всегда идут по статусу, даже если в данных стоит будущая дата передачи.
-    const handedIso = liveOrder ? isoDate(liveOrder.handedToFactoryDate) : null;
-    const stillInDevelopment =
-      !!liveOrder && liveOrder.status === "FABRIC_ORDERED" && !!handedIso && handedIso > todayIso;
-    const hasLiveOrder = !!liveOrder && liveOrder.status !== "PREPARATION" && !stillInDevelopment;
+    const postOrderCol = liveOrder ? orderKanbanColumn(liveOrder.status) : null;
     let liveColumn: string;
-    if (stillInDevelopment) {
-      // Ранний заказ до передачи на фабрику не должен висеть в «Производстве».
-      // Если фасон уже помечен IN_PRODUCTION (modelToColumn вернул бы production) —
-      // показываем как «Размерная сетка» (последняя стадия разработки на Ганте).
+    if (!liveOrder || postOrderCol === null) {
+      // Заказ ещё в Разработке (или его нет) — колонка по стадии фасона.
+      // Но живой заказ в Разработке не должен висеть в пост-заказной «Производство»
+      // (если фасон уже помечен IN_PRODUCTION) — прижимаем к «Размерной сетке».
       const mc = modelToColumn(m.status, m.sizeChartReady);
-      liveColumn = mc === "production" ? "sizing_done" : mc;
-    } else if (hasLiveOrder) {
-      liveColumn = ORDER_STATUS_TO_COL[liveOrder!.status];
+      liveColumn = liveOrder && mc === "production" ? "sizing_done" : mc;
     } else {
-      liveColumn = modelToColumn(m.status, m.sizeChartReady);
+      liveColumn = postOrderCol;
     }
     // Если все заказы фасона уже в done и нет активных — не дублируем карточку
     // в колонку разработки. Иначе она появится одновременно в «Завершено» и

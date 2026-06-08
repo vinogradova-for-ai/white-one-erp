@@ -3,15 +3,19 @@ import { auth } from "@/lib/auth";
 import { GanttV2Client } from "@/components/gantt-v2/gantt-v2-client";
 import type { GanttRowV2, GanttBarV2, BarState, GanttFilterOptions } from "@/components/gantt-v2/types";
 import { ORDER_STATUS_LABELS, BRAND_LABELS } from "@/lib/constants";
+import { orderActivePhaseIndex } from "@/lib/order-stage";
 
 // Фазы заказа: 4 фиксированных этапа от Разработки до Доставки.
 // Каждой фазе соответствует пара полей в БД (start/end), причём end предыдущей
-// фазы = start следующей (одно поле в БД).
+// фазы = start следующей (одно поле в БД). Порядок строго совпадает с
+// ORDER_GANTT_PHASES в lib/order-stage: какая фаза «активна», решает ОДИН
+// общий маппер по статусу заказа (а не локальный словарь — это был источник
+// рассинхрона Ганта и канбана).
 const PHASES = [
-  { key: "preparation", title: "Разработка",   color: "bg-slate-400",    startKey: "decisionDate",        endKey: "handedToFactoryDate", doneAt: ["IN_PRODUCTION", "QC", "READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
-  { key: "production",  title: "Производство", color: "bg-blue-500",    startKey: "handedToFactoryDate", endKey: "readyAtFactoryDate",  doneAt: ["QC", "READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
-  { key: "qc",          title: "ОТК",          color: "bg-amber-500",   startKey: "readyAtFactoryDate",  endKey: "qcDate",              doneAt: ["READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
-  { key: "shipping",    title: "Доставка",     color: "bg-emerald-500", startKey: "qcDate",              endKey: "arrivalPlannedDate",  doneAt: ["WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"] },
+  { key: "preparation", title: "Разработка",   color: "bg-slate-400",    startKey: "decisionDate",        endKey: "handedToFactoryDate" },
+  { key: "production",  title: "Производство", color: "bg-blue-500",    startKey: "handedToFactoryDate", endKey: "readyAtFactoryDate" },
+  { key: "qc",          title: "ОТК",          color: "bg-amber-500",   startKey: "readyAtFactoryDate",  endKey: "qcDate" },
+  { key: "shipping",    title: "Доставка",     color: "bg-emerald-500", startKey: "qcDate",              endKey: "arrivalPlannedDate" },
 ] as const;
 
 const PACKAGING_STATUS_LABELS: Record<string, string> = {
@@ -148,26 +152,21 @@ export default async function GanttV2Page() {
       { name: "конец Доставки", d: o.arrivalPlannedDate },
     ]);
 
+    // Активная фаза — ОДИН маппер по статусу заказа (см. lib/order-stage).
+    // -1 ⇒ заказ завершён (все полосы закрашиваем как «done»).
+    const activeIdx = orderActivePhaseIndex(o.status);
     let prevEnd: string | null = null;
-    let activeIdx = -1;
-
-    type BarSrc = { ph: typeof PHASES[number]; s: string; e: string; done: boolean };
-    const allBars: BarSrc[] = [];
-    for (let pi = 0; pi < PHASES.length; pi++) {
-      const ph = PHASES[pi];
-      const startRaw = (o as Record<string, unknown>)[ph.startKey] as Date | null | undefined;
-      const endRaw = (o as Record<string, unknown>)[ph.endKey] as Date | null | undefined;
-      const s: string = iso(startRaw) ?? prevEnd ?? todayIso;
-      const e: string = iso(endRaw) ?? s;
-      const done = (ph.doneAt as readonly string[]).includes(o.status);
-      allBars.push({ ph, s, e, done });
-      prevEnd = e;
-      if (!done && activeIdx === -1) activeIdx = pi;
-    }
 
     const bars: GanttBarV2[] = [];
-    for (let i = 0; i < allBars.length; i++) {
-      const { ph, s: startIso, e: endIso, done } = allBars[i];
+    for (let i = 0; i < PHASES.length; i++) {
+      const ph = PHASES[i];
+      const startRaw = (o as Record<string, unknown>)[ph.startKey] as Date | null | undefined;
+      const endRaw = (o as Record<string, unknown>)[ph.endKey] as Date | null | undefined;
+      const startIso: string = iso(startRaw) ?? prevEnd ?? todayIso;
+      const endIso: string = iso(endRaw) ?? startIso;
+      prevEnd = endIso;
+      // Фаза «закрыта», если заказ её уже прошёл (i < активной) или завершён.
+      const done = activeIdx === -1 || i < activeIdx;
       const isActive = i === activeIdx;
       const state: BarState = done ? "done" : isActive ? "active" : "future";
       const overdue = !done && endIso < todayIso;
