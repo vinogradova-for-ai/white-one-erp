@@ -88,7 +88,7 @@ export const PREFIX_CYR: Record<string, string> = {
 export const COLOR_LAT: Record<string, string> = {
   // Белые / нейтральные
   "белый": "white",
-  "молочный": "milk", // не ivory — milk понятнее
+  "молочный": "milk",
   "молоко": "milk",
   "кремовый": "krem",
   "слоновая кость": "milk",
@@ -96,7 +96,7 @@ export const COLOR_LAT: Record<string, string> = {
   "серый": "grey",
   "темно-серый": "temnoseriy",
   "светло-серый": "svetloseriy",
-  "графит": "grafit", // не charcoal — grafit понятен русским, латиница для китайца
+  "графит": "grafit",
   "антрацит": "antracit",
   // Коричневые / тёплые нейтральные
   "шоколад": "shokolad",
@@ -112,13 +112,14 @@ export const COLOR_LAT: Record<string, string> = {
   "хаки": "khaki",
   // Красные / розовые
   "красный": "red",
-  "бордо": "bordo", // НЕ burgundy (мудрёно) — bordo понятно
+  "бордо": "bordo",
   "бордовый": "bordo",
   "винный": "vinniy",
   "марсала": "marsala",
-  "терракот": "terrakot",
-  "кирпичный": "kirpich",
-  "ягодный": "yagodniy",
+  "терракот": "terracotta",
+  "терракотовый": "terracotta",
+  "кирпичный": "terracotta", // = терракотовый
+  "ягодный": "pink", // красный/розовый → pink
   "коралл": "korall",
   "коралловый": "korall",
   "оранжевый": "orange",
@@ -128,38 +129,29 @@ export const COLOR_LAT: Record<string, string> = {
   "пыльная роза": "pudra",
   // Жёлтые
   "желтый": "yellow",
-  "горчица": "gorchica",
-  "горчичный": "gorchica",
   "золото": "gold",
   "золотой": "gold",
   // Зелёные
   "зеленый": "green",
-  "оливковый": "green", // НЕ olive (мудрёно) — упрощаем до green по просьбе Алёны
+  "оливковый": "green",
   "олива": "green",
   "изумруд": "izumrud",
-  "мята": "myata",
-  "мятный": "myata",
   // Синие / холодные
-  "синий": "blue", // НЕ navy — blue понятно
-  "темно-синий": "temnosiniy",
-  "голубой": "goluboy", // НЕ sky — goluboy понятно русским
-  "небо": "goluboy",
-  "бирюза": "biryuza",
-  "бирюзовый": "biryuza",
-  "джинс": "denim",
-  "деним": "denim",
+  "синий": "darkblue",
+  "темно-синий": "darkblue",
+  "голубой": "blue",
+  "небо": "blue",
+  "джинс": "darkblue", // джинсовый = синий
+  "деним": "darkblue",
   "индиго": "indigo",
   // Фиолетовые
-  "фиолетовый": "fioletoviy",
-  "сирень": "siren",
-  "сиреневый": "siren",
-  "лаванда": "lavanda",
-  "лавандовый": "lavanda",
+  "фиолетовый": "purple",
   "лиловый": "liloviy",
   // Прочее
   "мрамор": "marble",
   "мраморный": "marble",
 };
+// Убраны по просьбе Алёны: мята, бирюза, лаванда, сирень, горчица.
 
 // ---------- Транслитерация (запасной вариант, если цвета нет в словаре) ----------
 
