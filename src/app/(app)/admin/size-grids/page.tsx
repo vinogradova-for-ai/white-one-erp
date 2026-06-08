@@ -12,7 +12,7 @@ export default async function SizeGridsAdminPage() {
 
   const grids = await prisma.sizeGrid.findMany({
     orderBy: { name: "asc" },
-    include: { _count: { select: { models: true } } },
+    include: { _count: { select: { models: { where: { deletedAt: null } } } } },
   });
 
   const rows: SizeGridRow[] = grids.map((g) => ({

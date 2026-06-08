@@ -5,6 +5,7 @@ import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { orderCreateSchema } from "@/lib/validators/order";
 import { calculateOrderEconomics } from "@/lib/calculations/product-cost";
+import { effectiveOrderUnitCost } from "@/lib/calculations/resolve-model-cost";
 import { generatePaymentsForOrder } from "@/lib/payments/generate-for-order";
 import { fillMissingOrderDates } from "@/lib/normalize-phase-dates";
 import { logAudit } from "@/server/audit";
@@ -50,20 +51,19 @@ export async function POST(req: NextRequest) {
     }
 
     // Расчёт экономики по каждой позиции.
-    // Если передан unitCost — используем его как стоимость единицы (переопределяет fullCost с фасона).
-    const effectiveUnitCost = data.unitCost != null
-      ? new Prisma.Decimal(data.unitCost)
-      : model.fullCost;
+    // Эффективная цена единицы: override из формы важнее, иначе resolveModelCost.
+    // ЭТИМ ЖЕ числом считаем И snapshotFullCost, И batchCost — иначе сумма заказа
+    // в БД расходится с показанной (раньше batchCost шёл через resolveModelCost,
+    // который игнорировал override, отдавая purchasePriceRub).
+    const unitCost = effectiveOrderUnitCost(model, data.unitCost ?? null);
+    const unitCostDecimal = unitCost != null ? new Prisma.Decimal(unitCost) : null;
     const linesData = data.lines.map((line) => {
-      const eco = calculateOrderEconomics(
-        { ...model, fullCost: effectiveUnitCost },
-        line.quantity,
-      );
+      const eco = calculateOrderEconomics(model, line.quantity, unitCost);
       return {
         productVariantId: line.productVariantId,
         quantity: line.quantity,
         sizeDistribution: line.sizeDistribution ?? undefined,
-        snapshotFullCost: effectiveUnitCost,
+        snapshotFullCost: unitCostDecimal,
         snapshotWbPrice: model.wbPrice,
         snapshotCustomerPrice: model.customerPrice,
         snapshotWbCommissionPct: model.wbCommissionPct,

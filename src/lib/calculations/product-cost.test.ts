@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Prisma } from "@prisma/client";
-import { calculateOrderEconomics } from "@/lib/calculations/product-cost";
+import { calculateOrderEconomics, lineEconomicsFromSnapshot } from "@/lib/calculations/product-cost";
+import { effectiveOrderUnitCost } from "@/lib/calculations/resolve-model-cost";
 
 /**
  * REGRESSION-тест на calculateOrderEconomics.
@@ -347,5 +348,70 @@ describe("calculateOrderEconomics", () => {
       const r = calculateOrderEconomics({ purchasePriceRub: 100 }, 1);
       expect(Object.keys(r).sort()).toEqual(["batchCost", "plannedRevenue"]);
     });
+  });
+});
+
+// === Override стоимости единицы (фикс рассинхрона snapshot ↔ batchCost) ===
+describe("calculateOrderEconomics — override стоимости единицы (unitCost)", () => {
+  it("override важнее purchasePriceRub: batchCost считается от override", () => {
+    // Раньше purchasePriceRub перебивал переданную цену → сумма заказа была неверной.
+    const r = calculateOrderEconomics({ purchasePriceRub: 1000, fullCost: 200 }, 3, 80);
+    expect(r.batchCost).toBe(240); // 80 × 3, а НЕ 1000 × 3
+  });
+
+  it("без override поведение прежнее (purchasePriceRub приоритетнее)", () => {
+    const r = calculateOrderEconomics({ purchasePriceRub: 1000, fullCost: 200 }, 2);
+    expect(r.batchCost).toBe(2000);
+  });
+
+  it("override не влияет на plannedRevenue (та по customerPrice)", () => {
+    const r = calculateOrderEconomics(
+      { purchasePriceRub: 1000, customerPrice: 2000, plannedRedemptionPct: 50 },
+      2,
+      80,
+    );
+    expect(r.batchCost).toBe(160); // 80 × 2
+    expect(r.plannedRevenue).toBe(2000); // 2000 × 0.5 × 2 — не зависит от override
+  });
+
+  it("override null / Infinity / NaN игнорируется → resolveModelCost", () => {
+    expect(calculateOrderEconomics({ purchasePriceRub: 1000 }, 1, null).batchCost).toBe(1000);
+    expect(calculateOrderEconomics({ purchasePriceRub: 1000 }, 1, Infinity).batchCost).toBe(1000);
+    expect(calculateOrderEconomics({ purchasePriceRub: 1000 }, 1, NaN).batchCost).toBe(1000);
+  });
+});
+
+describe("effectiveOrderUnitCost — единая цена для snapshot и batchCost", () => {
+  it("override важнее всего", () => {
+    expect(effectiveOrderUnitCost({ purchasePriceRub: 1000, fullCost: 200 }, 80)).toBe(80);
+  });
+  it("без override → resolveModelCost (purchasePriceRub приоритетнее fullCost)", () => {
+    expect(effectiveOrderUnitCost({ purchasePriceRub: 1000, fullCost: 200 })).toBe(1000);
+  });
+  it("без override и без закупки → fullCost", () => {
+    expect(effectiveOrderUnitCost({ fullCost: 200 })).toBe(200);
+  });
+  it("override = пустая строка → игнор, идём в resolveModelCost", () => {
+    expect(effectiveOrderUnitCost({ fullCost: 200 }, "")).toBe(200);
+  });
+  it("ничего нет → null", () => {
+    expect(effectiveOrderUnitCost({})).toBeNull();
+  });
+});
+
+describe("lineEconomicsFromSnapshot — экономика линии из снимка цен", () => {
+  it("batchCost = snapshotFullCost × qty (не от живого фасона)", () => {
+    expect(lineEconomicsFromSnapshot({ snapshotFullCost: 800 }, 3).batchCost).toBe(2400);
+  });
+  it("plannedRevenue из снимка цены и выкупа", () => {
+    const r = lineEconomicsFromSnapshot({ snapshotCustomerPrice: 2000, snapshotRedemptionPct: 30 }, 10);
+    expect(r.plannedRevenue).toBe(6000); // 2000 × 0.3 × 10
+  });
+  it("нет snapshotFullCost → batchCost null", () => {
+    expect(lineEconomicsFromSnapshot({}, 5).batchCost).toBeNull();
+  });
+  it("принимает Prisma.Decimal", () => {
+    const r = lineEconomicsFromSnapshot({ snapshotFullCost: new Prisma.Decimal("123.45") }, 2);
+    expect(r.batchCost).toBe(246.9);
   });
 });

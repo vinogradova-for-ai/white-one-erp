@@ -11,7 +11,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params;
     const f = await prisma.factory.findUnique({
       where: { id },
-      include: { _count: { select: { orders: true, preferredForModels: true } } },
+      include: { _count: { select: { orders: { where: { deletedAt: null } }, preferredForModels: { where: { deletedAt: null } } } } },
     });
     if (!f) return NextResponse.json({ error: { code: "not_found" } }, { status: 404 });
     return NextResponse.json(f);
@@ -61,7 +61,7 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     const { id } = await ctx.params;
     const f = await prisma.factory.findUnique({
       where: { id },
-      include: { _count: { select: { orders: true, preferredForModels: true } } },
+      include: { _count: { select: { orders: { where: { deletedAt: null } }, preferredForModels: { where: { deletedAt: null } } } } },
     });
     if (!f) return NextResponse.json({ error: { code: "not_found" } }, { status: 404 });
 

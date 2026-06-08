@@ -11,7 +11,7 @@ export default async function FactoriesAdminPage() {
 
   const factories = await prisma.factory.findMany({
     orderBy: [{ isActive: "desc" }, { name: "asc" }],
-    include: { _count: { select: { orders: true, preferredForModels: true } } },
+    include: { _count: { select: { orders: { where: { deletedAt: null } }, preferredForModels: { where: { deletedAt: null } } } } },
   });
 
   const rows: FactoryRow[] = factories.map((f) => ({

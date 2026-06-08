@@ -46,7 +46,8 @@ export default async function ModelsPage({
         owner: { select: { name: true } },
         preferredFactory: { select: { name: true } },
         sizeGrid: { select: { name: true } },
-        _count: { select: { variants: true } },
+        // Считаем только живые варианты — soft-deleted цвета не должны попадать в «N цветов».
+        _count: { select: { variants: { where: { deletedAt: null } } } },
       },
     }),
     prisma.user.findMany({

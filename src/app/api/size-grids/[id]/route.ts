@@ -15,7 +15,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     const { id } = await ctx.params;
     const grid = await prisma.sizeGrid.findUnique({
       where: { id },
-      include: { _count: { select: { models: true } } },
+      include: { _count: { select: { models: { where: { deletedAt: null } } } } },
     });
     if (!grid) return NextResponse.json({ error: { code: "not_found" } }, { status: 404 });
     return NextResponse.json(grid);
@@ -55,7 +55,7 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     const { id } = await ctx.params;
     const grid = await prisma.sizeGrid.findUnique({
       where: { id },
-      include: { _count: { select: { models: true } } },
+      include: { _count: { select: { models: { where: { deletedAt: null } } } } },
     });
     if (!grid) return NextResponse.json({ error: { code: "not_found" } }, { status: 404 });
     if (grid._count.models > 0) {
