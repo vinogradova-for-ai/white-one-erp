@@ -26,7 +26,7 @@ describe("rbac · админы (OWNER/DIRECTOR) могут всё", () => {
   }
 });
 
-describe("rbac · PRODUCT_MANAGER — рабочая лошадка отдела продукта", () => {
+describe("rbac · PRODUCT_MANAGER — полный рабочий доступ (политика «все на равных»)", () => {
   const PM: Role = "PRODUCT_MANAGER";
   it("создаёт фасоны и заказы", () => {
     expect(can(PM, "product.create")).toBe(true);
@@ -38,23 +38,26 @@ describe("rbac · PRODUCT_MANAGER — рабочая лошадка отдела
     expect(can(PM, "order.updateStatus")).toBe(true);
     expect(can(PM, "product.updateStatus")).toBe(true);
   });
-  it("создаёт и правит платежи", () => {
+  it("создаёт, правит и отмечает оплаченными платежи", () => {
     expect(can(PM, "payment.create")).toBe(true);
     expect(can(PM, "payment.update")).toBe(true);
+    expect(can(PM, "payment.markPaid")).toBe(true);
   });
-  it("НЕ может откатывать статус, удалять, отмечать оплачено", () => {
-    expect(can(PM, "order.rollbackStatus")).toBe(false);
-    expect(can(PM, "order.delete")).toBe(false);
-    expect(can(PM, "payment.markPaid")).toBe(false);
-    expect(can(PM, "payment.delete")).toBe(false);
-  });
-  it("НЕ управляет справочниками и пользователями", () => {
-    expect(can(PM, "factory.manage")).toBe(false);
-    expect(can(PM, "plan.manage")).toBe(false);
-    expect(can(PM, "user.manage")).toBe(false);
+  it("откатывает статусы и ведёт справочники планов/фабрик", () => {
+    expect(can(PM, "order.rollbackStatus")).toBe(true);
+    expect(can(PM, "product.rollbackStatus")).toBe(true);
+    expect(can(PM, "plan.manage")).toBe(true);
+    expect(can(PM, "factory.manage")).toBe(true);
   });
   it("импорт — может", () => {
     expect(can(PM, "import.run")).toBe(true);
+  });
+  it("НО удаление и управление людьми — закреплены за владельцем", () => {
+    expect(can(PM, "order.delete")).toBe(false);
+    expect(can(PM, "product.delete")).toBe(false);
+    expect(can(PM, "payment.delete")).toBe(false);
+    expect(can(PM, "user.manage")).toBe(false);
+    expect(can(PM, "audit.read")).toBe(false);
   });
 });
 
