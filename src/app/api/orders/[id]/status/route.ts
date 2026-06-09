@@ -3,33 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { orderStatusChangeSchema } from "@/lib/validators/order";
-import { OrderStatus } from "@prisma/client";
 import { logAudit } from "@/server/audit";
-
-const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  PREPARATION: ["FABRIC_ORDERED"],
-  FABRIC_ORDERED: ["SEWING"],
-  SEWING: ["QC"],
-  QC: ["READY_SHIP", "SEWING"],
-  READY_SHIP: ["IN_TRANSIT"],
-  IN_TRANSIT: ["WAREHOUSE_MSK"],
-  WAREHOUSE_MSK: ["PACKING"],
-  PACKING: ["SHIPPED_WB"],
-  SHIPPED_WB: ["ON_SALE"],
-  ON_SALE: [],
-};
-
-const DATE_FIELDS: Partial<Record<OrderStatus, string>> = {
-  FABRIC_ORDERED: "decisionDate",
-  SEWING: "sewingStartDate",
-  QC: "readyAtFactoryDate",
-  READY_SHIP: "readyAtFactoryDate",
-  IN_TRANSIT: "shipmentDate",
-  WAREHOUSE_MSK: "arrivalActualDate",
-  PACKING: "arrivalActualDate",
-  SHIPPED_WB: "wbShipmentDate",
-  ON_SALE: "saleStartDate",
-};
+// Единый источник переходов и дат-на-статус — без локальных копий, чтобы
+// UI/роут/каноничный модуль не разъехались (см. аудит БД-консистентности).
+import { ORDER_TRANSITIONS, ORDER_STATUS_DATE_FIELDS } from "@/lib/status-machine/order-statuses";
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -107,7 +84,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       }
     }
 
-    const dateField = DATE_FIELDS[toStatus];
+    const dateField = ORDER_STATUS_DATE_FIELDS[toStatus];
     const updated = await prisma.$transaction(async (tx) => {
       const upd = await tx.order.update({
         where: { id },

@@ -4,6 +4,7 @@ import { GanttV2Client } from "@/components/gantt-v2/gantt-v2-client";
 import type { GanttRowV2, GanttBarV2, BarState, GanttFilterOptions } from "@/components/gantt-v2/types";
 import { ORDER_STATUS_LABELS, BRAND_LABELS } from "@/lib/constants";
 import { orderActivePhaseIndex } from "@/lib/order-stage";
+import { PACKAGING_ORDER_STATUS_LABELS } from "@/lib/packaging-orders";
 
 // Фазы заказа: 4 фиксированных этапа от Разработки до Доставки.
 // Каждой фазе соответствует пара полей в БД (start/end), причём end предыдущей
@@ -17,12 +18,6 @@ const PHASES = [
   { key: "qc",          title: "ОТК",          color: "bg-amber-500",   startKey: "readyAtFactoryDate",  endKey: "qcDate" },
   { key: "shipping",    title: "Доставка",     color: "bg-emerald-500", startKey: "qcDate",              endKey: "arrivalPlannedDate" },
 ] as const;
-
-const PACKAGING_STATUS_LABELS: Record<string, string> = {
-  ORDERED: "Заказано",
-  IN_PRODUCTION: "В пошиве",
-  IN_TRANSIT: "В пути",
-};
 
 const NEARLY_DUE_DAYS = 5;
 
@@ -284,7 +279,7 @@ export default async function GanttV2Page() {
       href: `/packaging-orders/${po.id}`,
       title: `Упаковка · ${po.orderNumber}`,
       subtitle: `${names} · ${totalQty} шт`,
-      statusLabel: PACKAGING_STATUS_LABELS[po.status] ?? po.status,
+      statusLabel: PACKAGING_ORDER_STATUS_LABELS[po.status] ?? po.status,
       brand: null,
       factoryId: po.factory?.id ?? null,
       factoryName: po.factory?.name ?? po.supplierName ?? null,

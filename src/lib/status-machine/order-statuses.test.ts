@@ -226,7 +226,9 @@ describe("ORDER_STATUS_DATE_FIELDS — авто-поле даты при пер�
     expect(ORDER_STATUS_DATE_FIELDS.FABRIC_ORDERED).toBe("decisionDate");
     expect(ORDER_STATUS_DATE_FIELDS.SEWING).toBe("sewingStartDate");
     expect(ORDER_STATUS_DATE_FIELDS.QC).toBe("readyAtFactoryDate");
-    expect(ORDER_STATUS_DATE_FIELDS.READY_SHIP).toBe("readyAtFactoryDate");
+    // READY_SHIP = ОТК пройден → qcDate (конец ОТК). Раньше ошибочно
+    // перезаписывал readyAtFactoryDate, qcDate оставался null → Гант рисовал криво.
+    expect(ORDER_STATUS_DATE_FIELDS.READY_SHIP).toBe("qcDate");
     expect(ORDER_STATUS_DATE_FIELDS.IN_TRANSIT).toBe("shipmentDate");
     expect(ORDER_STATUS_DATE_FIELDS.WAREHOUSE_MSK).toBe("arrivalActualDate");
     expect(ORDER_STATUS_DATE_FIELDS.PACKING).toBe("arrivalActualDate");
@@ -234,8 +236,10 @@ describe("ORDER_STATUS_DATE_FIELDS — авто-поле даты при пер�
     expect(ORDER_STATUS_DATE_FIELDS.ON_SALE).toBe("saleStartDate");
   });
 
-  it("QC и READY_SHIP пишут в одно и то же поле readyAtFactoryDate", () => {
-    expect(ORDER_STATUS_DATE_FIELDS.QC).toBe(
+  it("QC пишет readyAtFactoryDate (старт ОТК), READY_SHIP — qcDate (конец ОТК): РАЗНЫЕ поля", () => {
+    expect(ORDER_STATUS_DATE_FIELDS.QC).toBe("readyAtFactoryDate");
+    expect(ORDER_STATUS_DATE_FIELDS.READY_SHIP).toBe("qcDate");
+    expect(ORDER_STATUS_DATE_FIELDS.QC).not.toBe(
       ORDER_STATUS_DATE_FIELDS.READY_SHIP,
     );
   });

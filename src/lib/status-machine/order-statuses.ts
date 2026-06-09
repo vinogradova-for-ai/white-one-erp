@@ -65,12 +65,17 @@ function isOrderRollback(from: OrderStatus, to: OrderStatus): boolean {
   return ORDER_STATUS_SEQUENCE.indexOf(to) < ORDER_STATUS_SEQUENCE.indexOf(from);
 }
 
-// Автоматическое поле даты при переходе
+// Автоматическое поле даты при переходе.
+// QC = производство закончилось, ОТК начался → readyAtFactoryDate.
+// READY_SHIP = ОТК пройден, готов к отгрузке → qcDate (конец ОТК / старт Доставки
+// в фазах Ганта). Раньше здесь тоже стоял readyAtFactoryDate — он повторно
+// перезаписывался, а qcDate оставался null, из-за чего Гант рисовал ОТК/Доставку
+// криво. Дашборд («ОТК принят») уже пишет qcDate — теперь совпадает.
 export const ORDER_STATUS_DATE_FIELDS: Partial<Record<OrderStatus, string>> = {
   FABRIC_ORDERED: "decisionDate",
   SEWING: "sewingStartDate",
   QC: "readyAtFactoryDate",
-  READY_SHIP: "readyAtFactoryDate",
+  READY_SHIP: "qcDate",
   IN_TRANSIT: "shipmentDate",
   WAREHOUSE_MSK: "arrivalActualDate",
   PACKING: "arrivalActualDate",
