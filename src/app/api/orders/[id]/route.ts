@@ -5,11 +5,14 @@ import { assertCan } from "@/lib/rbac";
 import { orderUpdateSchema } from "@/lib/validators/order";
 import { computeOrderStatus } from "@/lib/order-auto-status";
 import { isForwardOrderStatus } from "@/lib/status-machine/order-statuses";
+import { selectOrderPaymentsToCreate } from "@/lib/payments/reconcile-order-payments";
 import { logAudit } from "@/server/audit";
 import { z } from "zod";
 
 // Универсальная схема для обновления заказа (поля + флаги + даты + платежи)
 const paymentInputSchema = z.object({
+  // id существующего платежа (форма присылает его, чтобы сберечь оплаченные строки)
+  id: z.string().optional(),
   plannedDate: z.string(),
   amount: z.number(),
   label: z.string(),
@@ -94,7 +97,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
     // payments обрабатываем отдельной транзакцией, в основной update не передаём
     const newPayments = processed.payments as
-      | Array<{ plannedDate: string; amount: number; label: string; paid?: boolean }>
+      | Array<{ id?: string; plannedDate: string; amount: number; label: string; paid?: boolean }>
       | undefined;
     delete processed.payments;
 
@@ -132,27 +135,37 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
 
     if (newPayments) {
-      await prisma.$transaction([
-        prisma.payment.deleteMany({ where: { orderId: id, type: "ORDER" } }),
-        ...(newPayments.length > 0
-          ? [
-              prisma.payment.createMany({
-                data: newPayments.map((p) => ({
-                  type: "ORDER" as const,
-                  plannedDate: new Date(p.plannedDate),
-                  amount: p.amount,
-                  label: p.label,
-                  orderId: id,
-                  factoryId: updated.factoryId,
-                  createdById: session.user.id,
-                  status: p.paid ? "PAID" as const : "PENDING" as const,
-                  paidAt: p.paid ? new Date() : null,
-                  paidById: p.paid ? session.user.id : null,
-                })),
-              }),
-            ]
-          : []),
-      ]);
+      // Сохраняем историю оплат: оплаченные (PAID) платежи НЕ трогаем — удаляем и
+      // пересоздаём только PENDING. Входящие строки, ссылающиеся (по id) на уже
+      // оплаченный платёж, исключаем, чтобы не задвоить и не перезаписать его
+      // реальную дату/плательщика на «сейчас». См. reconcile-order-payments + тест.
+      await prisma.$transaction(async (tx) => {
+        const existingPaid = await tx.payment.findMany({
+          where: { orderId: id, type: "ORDER", status: "PAID" },
+          select: { id: true },
+        });
+        const paidIds = new Set(existingPaid.map((p) => p.id));
+
+        await tx.payment.deleteMany({ where: { orderId: id, type: "ORDER", status: "PENDING" } });
+
+        const toCreate = selectOrderPaymentsToCreate(newPayments, paidIds);
+        if (toCreate.length > 0) {
+          await tx.payment.createMany({
+            data: toCreate.map((p) => ({
+              type: "ORDER" as const,
+              plannedDate: new Date(p.plannedDate),
+              amount: p.amount,
+              label: p.label,
+              orderId: id,
+              factoryId: updated.factoryId,
+              createdById: session.user.id,
+              status: p.paid ? "PAID" as const : "PENDING" as const,
+              paidAt: p.paid ? new Date() : null,
+              paidById: p.paid ? session.user.id : null,
+            })),
+          });
+        }
+      });
     }
     return NextResponse.json(updated);
   } catch (e) {
