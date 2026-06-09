@@ -1,7 +1,11 @@
 import { Role } from "@prisma/client";
 
-// RBAC MVP: три группы с дефолтным доступом.
-// Детализация тонких прав (отдельные поля заказа для логиста/ВЭД/контента) — по факту после беты.
+// RBAC: группы с дефолтным доступом.
+// Политика команды (решение Алёны): сотрудники работают в системе на равных —
+// PRODUCT_MANAGER = ПОЛНЫЙ рабочий доступ (фасоны/заказы/статусы/откаты/платежи
+// вкл. «оплачено»/упаковка/планы/фабрики/импорт). За владельцем (OWNER/DIRECTOR)
+// закреплены только УДАЛЕНИЕ записей и УПРАВЛЕНИЕ ЛЮДЬМИ (+ журнал аудита).
+// Роли read-only витрины (логистика/ВЭД/контент/WB/стажёр) — только чтение.
 // Функция can() используется и на фронте (скрытие кнопок), и на бэке (guards).
 
 export type Action =
@@ -80,8 +84,10 @@ export function can(
     case "payment.create":
     case "payment.update":
       return PM.includes(role) || role === "ASSISTANT";
-    // Отметка «оплачено» и удаление — только админы (выше уже true)
+    // Отметка «оплачено» — PM (полноценная работа с платежами) + админы.
     case "payment.markPaid":
+      return PM.includes(role);
+    // Удаление платежа — только владелец/директор (удаление закреплено за владельцем).
     case "payment.delete":
       return false;
 
@@ -102,19 +108,21 @@ export function can(
     case "packaging.manage":
       return PM.includes(role) || role === "ASSISTANT";
 
-    // Откат статуса — только админы (отработано выше)
+    // Откат статуса — PM (полноценная работа) + админы
     case "product.rollbackStatus":
     case "order.rollbackStatus":
-      return false;
+      return PM.includes(role);
 
-    // Удаление — только админы
+    // Удаление — только владелец/директор (удаление закреплено за владельцем)
     case "product.delete":
     case "order.delete":
       return false;
 
-    // Справочники и импорт
+    // Справочники планов и фабрик — PM (полноценная работа) + админы
     case "plan.manage":
     case "factory.manage":
+      return PM.includes(role);
+    // Управление людьми и журнал аудита — только владелец/директор
     case "user.manage":
     case "audit.read":
       return false; // только админы (уже вернули true выше)
