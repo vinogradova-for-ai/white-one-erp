@@ -142,6 +142,9 @@ export function OrderEditForm({
         qcDate: timeline.qcDate || null,
         arrivalPlannedDate: timeline.arrivalPlannedDate || null,
         payments: payments.map((p) => ({
+          // id существующего платежа — чтобы сервер сберёг уже оплаченные строки
+          // (синтетические id новых строк вида new-/pre-/auto- с реальными не пересекаются).
+          id: p.id,
           plannedDate: p.plannedDate,
           amount: Number(p.amount) || 0,
           label: p.label,
