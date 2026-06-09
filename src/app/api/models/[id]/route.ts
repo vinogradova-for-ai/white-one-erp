@@ -75,10 +75,25 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     const session = await requireAuth();
     assertCan(session.user.role, "product.delete");
     const { id } = await ctx.params;
+
+    // Нельзя удалить фасон, по которому есть живые заказы (решение Алёны): у заказов
+    // своя финансовая жизнь (платежи, история) — сначала закрой/архивируй их.
+    // Как у фабрики: блокируем удаление, а не прячем заказы побочным эффектом.
+    const liveOrders = await prisma.order.count({ where: { productModelId: id, deletedAt: null } });
+    if (liveOrders > 0) {
+      return NextResponse.json(
+        {
+          error: {
+            code: "in_use",
+            message: `Нельзя удалить фасон: по нему есть ${liveOrders} заказ(ов). Сначала закройте или архивируйте их.`,
+          },
+        },
+        { status: 409 },
+      );
+    }
+
     // Soft-delete каскадим на варианты: цвет не может «жить» без своего фасона,
     // иначе он остаётся в /variants, дропдаунах и счётчиках как живой.
-    // Заказы НАМЕРЕННО не трогаем — у них своя финансовая жизнь (платежи, история);
-    // их закрытие — отдельное решение, а не побочный эффект удаления фасона.
     const now = new Date();
     await prisma.$transaction([
       prisma.productVariant.updateMany({
