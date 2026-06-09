@@ -16,6 +16,7 @@ import { CommentsThread } from "@/components/comments/comments-thread";
 import { auth } from "@/lib/auth";
 import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
 import { backfillOrderEconomicsFromModel } from "@/server/backfill-order-economics";
+import { syncOrderStatusForward } from "@/server/sync-order-status";
 import { resolveModelCost } from "@/lib/calculations/resolve-model-cost";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -38,6 +39,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   // фасона есть fullCost — проставим. Видим колонку «Себестоимость шт» и
   // «Себестоимость партии» сразу, без ручного ввода. Идемпотентно.
   await backfillOrderEconomicsFromModel(id);
+
+  // Авто-статус по таймлайну: если по датам заказ уже дальше записанного статуса
+  // (напр. qcDate в прошлом → товар едет), двигаем статус вперёд. Иначе он
+  // «застревал» бы до следующего ручного сохранения. Идемпотентно, forward-only.
+  await syncOrderStatusForward(id);
 
   const order = await prisma.order.findFirst({
     where: { id, deletedAt: null },
