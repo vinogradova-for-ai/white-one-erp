@@ -9,7 +9,6 @@ import {
   type TaskUrgency,
   type TaskZone,
 } from "@/lib/queries/main-screen-checklist";
-import type { Role } from "@prisma/client";
 import { CheckableRow } from "./checkable-row";
 import { isCheckable } from "./checkable-kinds";
 
@@ -43,18 +42,20 @@ export default async function DashboardPage({
   const sp = await searchParams;
   const session = await auth();
   const userName = session?.user?.name ?? "";
-  const role = (session?.user as { role?: Role } | undefined)?.role;
   const myId = (session?.user as { id?: string } | undefined)?.id ?? null;
-  const isAdmin = role === "OWNER" || role === "DIRECTOR";
 
   const all = await getMainScreenChecklist();
   const groups = groupByOwner(all);
 
-  // Не-админ видит только свою подвкладку и в неё всегда переключён.
-  const visibleGroups = isAdmin ? groups : groups.filter((g) => g.ownerId === myId);
-  const selectedOwnerId = isAdmin
-    ? (sp.owner && visibleGroups.some((g) => g.ownerId === sp.owner) ? sp.owner : visibleGroups[0]?.ownerId)
-    : myId;
+  // Кабинет общий — разбивку задач по сотрудникам видят ВСЕ (прозрачность), не только админ.
+  // По умолчанию открыта своя подвкладка; если своих задач нет — самая загруженная.
+  const visibleGroups = groups;
+  const selectedOwnerId =
+    sp.owner && visibleGroups.some((g) => g.ownerId === sp.owner)
+      ? sp.owner
+      : visibleGroups.some((g) => g.ownerId === myId)
+        ? myId
+        : visibleGroups[0]?.ownerId;
   const selected = visibleGroups.find((g) => g.ownerId === selectedOwnerId);
 
   // «Закрыто в мае: X заказов» — для админа подвкладки, для остальных — своё.
@@ -78,7 +79,7 @@ export default async function DashboardPage({
         )}
       </div>
 
-      {isAdmin && visibleGroups.length > 0 && (
+      {visibleGroups.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {visibleGroups.map((g) => {
             const isActive = g.ownerId === selectedOwnerId;
