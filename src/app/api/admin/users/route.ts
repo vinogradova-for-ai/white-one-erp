@@ -13,7 +13,8 @@ const ROLES: ReadonlyArray<Role> = [
 
 const schema = z.object({
   name: z.string().min(1).max(80),
-  email: z.string().email(),
+  // Логин — произвольная строка (не обязательно e-mail), хранится в поле email.
+  email: z.string().min(1).max(60),
   role: z.enum(ROLES as [Role, ...Role[]]).optional(),
 });
 

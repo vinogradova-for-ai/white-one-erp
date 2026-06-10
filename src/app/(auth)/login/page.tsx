@@ -12,10 +12,6 @@ export default function LoginPage() {
         <Suspense fallback={<div className="py-8 text-center text-sm text-slate-400">Загрузка…</div>}>
           <LoginForm />
         </Suspense>
-        <p className="mt-6 text-center text-xs text-slate-400">
-          Тестовые логины: alena@whiteone.ru, dasha@whiteone.ru, vera@whiteone.ru
-          <br />Пароль: whiteone2026
-        </p>
       </div>
     </div>
   );
