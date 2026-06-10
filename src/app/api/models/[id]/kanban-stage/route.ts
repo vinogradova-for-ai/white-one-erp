@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
+import { logAudit } from "@/server/audit";
 import { z } from "zod";
 
 const bodySchema = z.object({
@@ -76,6 +77,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
 
     await prisma.productModel.update({ where: { id }, data: update });
+
+    await logAudit({
+      action: "STATUS_CHANGE",
+      entityType: "ProductModel",
+      entityId: id,
+      userId: session.user.id,
+      changes: { from: model.status, to: update.status ?? model.status, kanbanStage: targetStage },
+    });
 
     return NextResponse.json({ ok: true });
   } catch (e) {

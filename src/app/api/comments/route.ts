@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { logAudit } from "@/server/audit";
 import { z } from "zod";
 
 // Универсальные комментарии. entityType: "model" | "order" | "variant".
@@ -162,6 +163,13 @@ export async function POST(req: NextRequest) {
         body: parsed.body,
         photoUrls: parsed.photoUrls ?? [],
       },
+    });
+    await logAudit({
+      action: "CREATE",
+      entityType: "Comment",
+      entityId: created.id,
+      userId: authorId,
+      changes: { on: `${parsed.entityType}:${parsed.entityId}`, preview: parsed.body.slice(0, 80) },
     });
     return NextResponse.json({ comment: created });
   } catch (err) {

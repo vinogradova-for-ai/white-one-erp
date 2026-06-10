@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { logAudit } from "@/server/audit";
 import { z } from "zod";
 
 const sizeGridCreateSchema = z.object({
@@ -21,7 +22,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
     const data = sizeGridCreateSchema.parse(await req.json());
     // Нормализуем размеры — trim и без дубликатов
     const sizes = Array.from(new Set(data.sizes.map((s) => s.trim()).filter(Boolean)));
@@ -40,6 +41,13 @@ export async function POST(req: NextRequest) {
     }
     const grid = await prisma.sizeGrid.create({
       data: { name: data.name, sizes, notes: data.notes ?? null },
+    });
+    await logAudit({
+      action: "CREATE",
+      entityType: "SizeGrid",
+      entityId: grid.id,
+      userId: session.user.id,
+      changes: { name: data.name, sizes },
     });
     return NextResponse.json(grid, { status: 201 });
   } catch (e) {

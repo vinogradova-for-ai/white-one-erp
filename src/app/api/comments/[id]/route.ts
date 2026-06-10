@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { logAudit } from "@/server/audit";
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -26,6 +27,13 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     await prisma.comment.update({
       where: { id },
       data: { deletedAt: new Date() },
+    });
+    await logAudit({
+      action: "DELETE",
+      entityType: "Comment",
+      entityId: id,
+      userId: user.id,
+      changes: { on: `${comment.entityType}:${comment.entityId}` },
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

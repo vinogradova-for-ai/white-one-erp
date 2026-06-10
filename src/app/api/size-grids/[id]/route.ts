@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { logAudit } from "@/server/audit";
 import { z } from "zod";
 
 const sizeGridUpdateSchema = z.object({
@@ -40,6 +41,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       }
     }
     const updated = await prisma.sizeGrid.update({ where: { id }, data });
+    await logAudit({
+      action: "UPDATE",
+      entityType: "SizeGrid",
+      entityId: id,
+      userId: session.user.id,
+      changes: data,
+    });
     return NextResponse.json(updated);
   } catch (e) {
     return apiError(e);
@@ -65,6 +73,13 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
       );
     }
     await prisma.sizeGrid.delete({ where: { id } });
+    await logAudit({
+      action: "DELETE",
+      entityType: "SizeGrid",
+      entityId: id,
+      userId: session.user.id,
+      changes: { name: grid.name },
+    });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return apiError(e);

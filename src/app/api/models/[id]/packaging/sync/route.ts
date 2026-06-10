@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
+import { logAudit } from "@/server/audit";
 
 /**
  * Принудительный пересинк: для всех ModelPackaging данной модели создаёт
@@ -54,6 +55,13 @@ export async function POST(_req: NextRequest, ctx: { params: Promise<{ id: strin
 
     if (toCreate.length > 0) {
       await prisma.orderPackaging.createMany({ data: toCreate, skipDuplicates: true });
+      await logAudit({
+        action: "UPDATE",
+        entityType: "ProductModel",
+        entityId: productModelId,
+        userId: session.user.id,
+        changes: { packagingSynced: toCreate.length, orders: orders.length },
+      });
     }
 
     return NextResponse.json({
