@@ -25,6 +25,7 @@ const ENTITY_LABEL: Record<string, string> = {
   User: "Сотрудник",
   MonthlyPlan: "План",
   SizeGrid: "Размерная сетка",
+  Comment: "Комментарий",
 };
 
 const ENTITY_URL: Record<string, (id: string) => string> = {

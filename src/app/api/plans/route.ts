@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { logAudit } from "@/server/audit";
 import { z } from "zod";
 
 // План = «выпуск продуктов»: количество фасонов + штук, привязка к ответственному.
@@ -52,6 +53,13 @@ export async function POST(req: NextRequest) {
           category: data.category ?? null,
         },
       });
+      await logAudit({
+        action: "DELETE",
+        entityType: "MonthlyPlan",
+        entityId: String(data.yearMonth),
+        userId: session.user.id,
+        changes: { yearMonth: data.yearMonth, ownerId: data.ownerId ?? null, category: data.category ?? null },
+      });
       return NextResponse.json({ deleted: true });
     }
 
@@ -73,6 +81,13 @@ export async function POST(req: NextRequest) {
           notes: data.notes ?? undefined,
         },
       });
+      await logAudit({
+        action: "UPDATE",
+        entityType: "MonthlyPlan",
+        entityId: updated.id,
+        userId: session.user.id,
+        changes: { plannedModelCount: data.plannedModelCount ?? null, plannedQuantity: data.plannedQuantity ?? null },
+      });
       return NextResponse.json(updated);
     }
 
@@ -85,6 +100,13 @@ export async function POST(req: NextRequest) {
         plannedQuantity: data.plannedQuantity ?? null,
         notes: data.notes ?? null,
       },
+    });
+    await logAudit({
+      action: "CREATE",
+      entityType: "MonthlyPlan",
+      entityId: created.id,
+      userId: session.user.id,
+      changes: { yearMonth: data.yearMonth, plannedModelCount: data.plannedModelCount ?? null, plannedQuantity: data.plannedQuantity ?? null },
     });
     return NextResponse.json(created);
   } catch (e) {
