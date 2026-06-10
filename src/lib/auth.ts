@@ -6,8 +6,10 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { authConfig } from "@/lib/auth.config";
 
+// Логин — произвольная строка (не обязательно e-mail). Хранится в поле email,
+// сравнение регистронезависимое (toLowerCase ниже).
 const loginSchema = z.object({
-  email: z.string().email(),
+  email: z.string().min(1),
   password: z.string().min(1),
 });
 
@@ -16,7 +18,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Credentials({
       credentials: {
-        email: { label: "Email", type: "email" },
+        email: { label: "Логин", type: "text" },
         password: { label: "Пароль", type: "password" },
       },
       async authorize(credentials) {

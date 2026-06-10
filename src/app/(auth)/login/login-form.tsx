@@ -25,7 +25,7 @@ export function LoginForm() {
         redirect: false,
       });
       if (res?.error) {
-        setError("Неверный email или пароль");
+        setError("Неверный логин или пароль");
       } else if (res?.ok) {
         router.push(callbackUrl);
         router.refresh();
@@ -39,16 +39,16 @@ export function LoginForm() {
     <form onSubmit={onSubmit} className="space-y-4">
       <div>
         <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700">
-          Email
+          Логин
         </label>
         <input
           id="email"
-          type="email"
+          type="text"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-base text-slate-900 outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"
-          autoComplete="email"
+          autoComplete="username"
         />
       </div>
       <div>
