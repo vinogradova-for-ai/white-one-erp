@@ -83,7 +83,7 @@ describe("rbac · read-only отделы — только чтение, ника
     "order.create", "order.update", "order.delete", "order.updateStatus",
     "product.create", "product.update", "product.delete",
     "payment.create", "payment.update", "payment.markPaid", "payment.delete",
-    "factory.manage", "plan.manage", "user.manage", "import.run",
+    "plan.manage", "user.manage", "import.run",
   ];
   const reads: Action[] = ["order.read", "product.read", "payment.read", "factory.read", "plan.read", "user.read"];
   for (const role of READONLY) {
@@ -92,6 +92,19 @@ describe("rbac · read-only отделы — только чтение, ника
     });
     it(`${role} не может ничего писать`, () => {
       for (const a of writes) expect(can(role, a)).toBe(false);
+    });
+  }
+});
+
+describe("rbac · factory.manage — общий справочник фабрик (доступен всем сотрудникам)", () => {
+  const ALL: Role[] = [
+    "OWNER", "DIRECTOR", "PRODUCT_MANAGER", "ASSISTANT",
+    "CONTENT_MANAGER", "LOGISTICS", "CUSTOMS", "WB_MANAGER", "INTERN",
+  ];
+  for (const role of ALL) {
+    it(`${role} может видеть и вести фабрики`, () => {
+      expect(can(role, "factory.read")).toBe(true);
+      expect(can(role, "factory.manage")).toBe(true);
     });
   }
 });
