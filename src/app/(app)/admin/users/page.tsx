@@ -4,13 +4,12 @@ import { redirect } from "next/navigation";
 import { UserToggleButton } from "./toggle-button";
 import { AddUserForm } from "./add-user-form";
 
-// Только OWNER и DIRECTOR могут смотреть и менять.
+// Список сотрудников виден всем (прозрачность команды).
+// Добавлять/выключать людей может только владелец/руководитель.
 export default async function UsersAdminPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (session.user.role !== "OWNER" && session.user.role !== "DIRECTOR") {
-    redirect("/");
-  }
+  const isAdmin = session.user.role === "OWNER" || session.user.role === "DIRECTOR";
 
   const users = await prisma.user.findMany({
     orderBy: [{ isActive: "desc" }, { name: "asc" }],
@@ -28,7 +27,7 @@ export default async function UsersAdminPage() {
             Активных: {activeCount} из {users.length}. Только активные видны в выпадающих «Ответственный».
           </p>
         </div>
-        <AddUserForm />
+        {isAdmin && <AddUserForm />}
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
@@ -54,7 +53,7 @@ export default async function UsersAdminPage() {
                   )}
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <UserToggleButton userId={u.id} isActive={u.isActive} />
+                  {isAdmin && <UserToggleButton userId={u.id} isActive={u.isActive} />}
                 </td>
               </tr>
             ))}

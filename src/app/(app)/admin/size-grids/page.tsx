@@ -1,15 +1,9 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { redirect } from "next/navigation";
 import { SizeGridsAdmin, type SizeGridRow } from "./size-grids-admin";
 
+// Размерные сетки — общий рабочий справочник: видеть и вести может любой сотрудник
+// (вход и роль уже проверяет layout раздела).
 export default async function SizeGridsAdminPage() {
-  const session = await auth();
-  if (!session?.user) redirect("/login");
-  if (session.user.role !== "OWNER" && session.user.role !== "DIRECTOR") {
-    redirect("/");
-  }
-
   const grids = await prisma.sizeGrid.findMany({
     orderBy: { name: "asc" },
     include: { _count: { select: { models: { where: { deletedAt: null } } } } },

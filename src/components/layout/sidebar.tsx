@@ -31,18 +31,16 @@ const MORE_NAV = [
   { href: "/content-schedule", label: "Артикулы для фотосессии", icon: "✿" },
 ];
 
-// Справочники. «Фабрики» — общий рабочий справочник: видеть и добавлять может
-// любой сотрудник. Остальное (люди, размерные сетки, журнал) — только владелец/руководитель.
-const REF_NAV: Array<{ href: string; label: string; icon: string; adminOnly?: boolean }> = [
+// Справочники — общие разделы, видны всем сотрудникам.
+// Управление людьми (добавить/выключить) внутри «Сотрудников» остаётся за владельцем/руководителем.
+const REF_NAV = [
   { href: "/factories", label: "Фабрики", icon: "⛭" },
-  { href: "/admin/users", label: "Сотрудники", icon: "☉", adminOnly: true },
-  { href: "/admin/size-grids", label: "Размерные сетки", icon: "#", adminOnly: true },
-  { href: "/admin/audit-log", label: "Журнал действий", icon: "≡", adminOnly: true },
+  { href: "/admin/users", label: "Сотрудники", icon: "☉" },
+  { href: "/admin/size-grids", label: "Размерные сетки", icon: "#" },
+  { href: "/admin/audit-log", label: "Журнал действий", icon: "≡" },
 ];
 
 export function Sidebar({ user }: { user: { name?: string | null; email?: string | null; role: Role } }) {
-  const isAdmin = user.role === "OWNER" || user.role === "DIRECTOR";
-
   return (
     <aside className="hidden w-60 flex-shrink-0 border-r border-slate-200 bg-white md:block">
       <div className="flex h-16 items-center border-b border-slate-200 px-5">
@@ -58,20 +56,10 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
         </div>
         {MORE_NAV.map((item) => <NavItem key={item.href} {...item} />)}
 
-        {(() => {
-          const refs = REF_NAV.filter((i) => isAdmin || !i.adminOnly);
-          if (refs.length === 0) return null;
-          return (
-            <>
-              <div className="mt-5 px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-slate-400">
-                Справочники
-              </div>
-              {refs.map(({ href, label, icon }) => (
-                <NavItem key={href} href={href} label={label} icon={icon} />
-              ))}
-            </>
-          );
-        })()}
+        <div className="mt-5 px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-slate-400">
+          Справочники
+        </div>
+        {REF_NAV.map((item) => <NavItem key={item.href} {...item} />)}
       </nav>
       <div className="absolute bottom-0 w-60 border-t border-slate-200 px-5 py-3">
         <div className="text-sm text-slate-900">{user.name}</div>
