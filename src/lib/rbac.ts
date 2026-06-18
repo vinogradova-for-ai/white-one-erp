@@ -118,10 +118,12 @@ export function can(
     case "order.delete":
       return false;
 
-    // Справочники планов и фабрик — PM (полноценная работа) + админы
+    // Справочник планов — PM (полноценная работа) + админы
     case "plan.manage":
-    case "factory.manage":
       return PM.includes(role);
+    // Фабрики — общий рабочий справочник: видеть и добавлять/править может любой сотрудник
+    case "factory.manage":
+      return ALL_AUTHENTICATED.includes(role);
     // Управление людьми и журнал аудита — только владелец/директор
     case "user.manage":
     case "audit.read":

@@ -1,14 +1,9 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { redirect } from "next/navigation";
 import { FactoriesAdmin, type FactoryRow } from "./factories-admin";
 
+// Доступ к справочнику фабрик открыт всем авторизованным сотрудникам
+// (вход и роль уже проверяет layout раздела). Любой может видеть и добавлять фабрики.
 export default async function FactoriesAdminPage() {
-  const session = await auth();
-  if (!session || (session.user.role !== "OWNER" && session.user.role !== "DIRECTOR")) {
-    redirect("/dashboard");
-  }
-
   const factories = await prisma.factory.findMany({
     orderBy: [{ isActive: "desc" }, { name: "asc" }],
     include: { _count: { select: { orders: { where: { deletedAt: null } }, preferredForModels: { where: { deletedAt: null } } } } },
