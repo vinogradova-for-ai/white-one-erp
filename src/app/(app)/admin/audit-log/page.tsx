@@ -112,9 +112,7 @@ export default async function AuditLogPage({
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (session.user.role !== "OWNER" && session.user.role !== "DIRECTOR") {
-    redirect("/");
-  }
+  // Журнал действий виден всем сотрудникам (прозрачность); это только просмотр, без правок.
 
   const sp = await searchParams;
   const entityFilter = sp.entity ?? "";

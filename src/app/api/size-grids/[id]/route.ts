@@ -27,10 +27,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
+    // Размерные сетки — общий рабочий справочник: править может любой сотрудник.
     const session = await requireAuth();
-    if (session.user.role !== "OWNER" && session.user.role !== "DIRECTOR") {
-      return NextResponse.json({ error: { code: "forbidden" } }, { status: 403 });
-    }
     const { id } = await ctx.params;
     const data = sizeGridUpdateSchema.parse(await req.json());
 
@@ -56,10 +54,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
+    // Размерные сетки — общий рабочий справочник: удалять неиспользуемую сетку может любой сотрудник.
     const session = await requireAuth();
-    if (session.user.role !== "OWNER" && session.user.role !== "DIRECTOR") {
-      return NextResponse.json({ error: { code: "forbidden" } }, { status: 403 });
-    }
     const { id } = await ctx.params;
     const grid = await prisma.sizeGrid.findUnique({
       where: { id },
