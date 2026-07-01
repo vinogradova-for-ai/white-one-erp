@@ -6,19 +6,14 @@ import { toast } from "sonner";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_STATUS_ORDER } from "@/lib/constants";
 import { OrderStatus } from "@prisma/client";
 import { StatusSheet, useSheet } from "@/components/common/status-sheet";
+// Единый источник переходов — тот же, что читает бэкенд-роут /api/orders/[id]/status.
+// Локальную копию убрали, чтобы UI и сервер не разъехались (см. аудит консистентности).
+import { ORDER_TRANSITIONS } from "@/lib/status-machine/order-statuses";
 
-const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  PREPARATION: ["FABRIC_ORDERED"],
-  FABRIC_ORDERED: ["SEWING"],
-  SEWING: ["QC"],
-  QC: ["READY_SHIP", "SEWING"],
-  READY_SHIP: ["IN_TRANSIT"],
-  IN_TRANSIT: ["WAREHOUSE_MSK"],
-  WAREHOUSE_MSK: ["PACKING"],
-  PACKING: ["SHIPPED_WB"],
-  SHIPPED_WB: ["ON_SALE"],
-  ON_SALE: [],
-};
+// FABRIC_ORDERED («Ткань заказана») из UI не предлагаем как отдельный шаг (аудит п.5):
+// его никто вручную не проставлял, заказы шли сразу в пошив. Из PREPARATION
+// показываем прямой переход в SEWING. Статус остаётся в enum и цепи для легаси.
+const HIDDEN_TARGETS: OrderStatus[] = ["FABRIC_ORDERED"];
 
 export function OrderStatusChanger({
   orderId,
@@ -83,7 +78,9 @@ export function OrderStatusChanger({
 
           <div className="space-y-2">
             <div className="text-xs font-medium text-slate-600">Перевести в:</div>
-            {ORDER_STATUS_ORDER.filter((s) => s !== currentStatus).map((s) => {
+            {ORDER_STATUS_ORDER.filter(
+              (s) => s !== currentStatus && !HIDDEN_TARGETS.includes(s),
+            ).map((s) => {
               const isAllowed = allowedNext.includes(s);
               return (
                 <button

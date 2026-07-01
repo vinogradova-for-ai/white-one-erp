@@ -32,7 +32,9 @@ describe("ORDER_TRANSITIONS — таблица переходов вперёд",
   });
 
   it("линейная цепочка ведёт каждый статус к следующему", () => {
-    expect(ORDER_TRANSITIONS.PREPARATION).toEqual(["FABRIC_ORDERED"]);
+    // PREPARATION даёт прямой путь в SEWING (в обход FABRIC_ORDERED), но сам
+    // FABRIC_ORDERED остаётся валидной точкой цепи (легаси-данные).
+    expect(ORDER_TRANSITIONS.PREPARATION).toEqual(["SEWING", "FABRIC_ORDERED"]);
     expect(ORDER_TRANSITIONS.FABRIC_ORDERED).toEqual(["SEWING"]);
     expect(ORDER_TRANSITIONS.SEWING).toEqual(["QC"]);
     expect(ORDER_TRANSITIONS.READY_SHIP).toEqual(["IN_TRANSIT"]);
@@ -171,8 +173,9 @@ describe("canMoveOrderStatus — откат (rollback) на несоседний
 
 describe("canMoveOrderStatus — недопустимый прыжок вперёд", () => {
   it("прыжок через статус вперёд запрещён даже для OWNER", () => {
-    // PREPARATION → SEWING: вперёд через FABRIC_ORDERED, не rollback.
-    const res = canMoveOrderStatus("PREPARATION", "SEWING", "OWNER");
+    // PREPARATION → QC: перепрыгивает пошив, вперёд, но не в таблице переходов.
+    // (PREPARATION → SEWING теперь разрешён: прямой путь в обход FABRIC_ORDERED.)
+    const res = canMoveOrderStatus("PREPARATION", "QC", "OWNER");
     expect(res).toEqual({ ok: false, reason: "Нельзя перепрыгнуть статус" });
   });
 
@@ -212,8 +215,9 @@ describe("canMoveOrderStatus — проверка всех пар from≠to ма
     // Но QC→SEWING НЕ откат (он в таблице) → вычитаем 1.
     // Сумма i по всем статусам = 0+1+...+9 = 45, минус 1 = 44.
     expect(rollbackForOwner).toBe(44);
-    // Табличные переходы (ok без комментария): 8 линейных + QC→READY_SHIP + QC→SEWING = 10.
-    expect(forwardOk).toBe(10);
+    // Табличные переходы (ok без комментария): 8 линейных + QC→READY_SHIP + QC→SEWING
+    // + PREPARATION→SEWING (прямой путь в обход FABRIC_ORDERED) = 11.
+    expect(forwardOk).toBe(11);
   });
 });
 

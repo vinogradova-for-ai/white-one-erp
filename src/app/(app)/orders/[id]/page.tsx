@@ -12,8 +12,11 @@ import { InlineCheckbox } from "@/components/common/inline-checkbox";
 import { OrderPackagingSection } from "@/components/orders/order-packaging-section";
 import { OrderLinesSection } from "@/components/orders/order-lines-section";
 import { OrderTimelineEditor } from "@/components/orders/order-timeline-editor";
+import { OrderStatusChanger } from "@/components/orders/order-status-changer";
 import { CommentsThread } from "@/components/comments/comments-thread";
 import { auth } from "@/lib/auth";
+import { can } from "@/lib/rbac";
+import type { Role } from "@prisma/client";
 import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
 import { backfillOrderEconomicsFromModel } from "@/server/backfill-order-economics";
 import { syncOrderStatusForward } from "@/server/sync-order-status";
@@ -26,6 +29,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const sessionUser = session?.user as { id?: string; role?: string } | undefined;
   const currentUserId = sessionUser?.id;
   const isAdmin = sessionUser?.role === "OWNER" || sessionUser?.role === "DIRECTOR";
+  // Смена статуса — PM и выше (RBAC). Read-only роли кнопку не видят;
+  // бэкенд-роут /api/orders/[id]/status всё равно перепроверяет право.
+  const canChangeStatus = sessionUser?.role
+    ? can(sessionUser.role as Role, "order.updateStatus")
+    : false;
   // Авто-синк упаковки фасона. Если у фасона есть привязанная упаковка,
   // которая по какой-то причине не «протекла» в этот заказ — она
   // подтянется при следующем открытии заказа. Идемпотентно.
@@ -158,6 +166,9 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
               опаздывает {lateDays} дн
             </span>
+          )}
+          {canChangeStatus && (
+            <OrderStatusChanger orderId={order.id} currentStatus={order.status} />
           )}
           <Link
             href={`/orders/${order.id}/edit`}

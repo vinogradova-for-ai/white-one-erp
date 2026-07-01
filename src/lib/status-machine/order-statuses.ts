@@ -1,8 +1,13 @@
 import { OrderStatus, Role } from "@prisma/client";
 
 // Жёсткая последовательность — нельзя перепрыгнуть.
+// FABRIC_ORDERED («Ткань заказана») из UI больше не предлагается как отдельный
+// шаг (аудит п.5): по факту его никто вручную не проставлял, заказы шли сразу в
+// пошив. Из enum статус НЕ убираем (его читают склад и детектор «застряло»), но
+// из PREPARATION даём прямой переход в SEWING в обход FABRIC_ORDERED. Сам
+// FABRIC_ORDERED остаётся валидной точкой цепи для легаси-данных.
 export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
-  PREPARATION: ["FABRIC_ORDERED"],
+  PREPARATION: ["SEWING", "FABRIC_ORDERED"],
   FABRIC_ORDERED: ["SEWING"],
   SEWING: ["QC"],
   QC: ["READY_SHIP", "SEWING"], // ОТК может вернуть на пошив
