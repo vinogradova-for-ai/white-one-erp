@@ -171,6 +171,7 @@ model User {
   notifications     Notification[]
   createdPayments   Payment[]            @relation("PaymentCreator")
   paidPayments      Payment[]            @relation("PaymentPayer")
+  createdPayouts    FactoryPayout[]      @relation("PayoutCreator")
   ownedPackagingItems PackagingItem[]    @relation("PackagingOwner")
   packagingStatusLogs PackagingItemStatusLog[] @relation("PackagingStatusActor")
   ownedPackagingOrders PackagingOrder[]  @relation("PackagingOrderOwner")
@@ -202,6 +203,7 @@ model Factory {
   orders             Order[]
   payments           Payment[]
   packagingOrders    PackagingOrder[] @relation("PackagingOrderFactory")
+  payouts            FactoryPayout[]
 
   @@index([isActive])
 }
@@ -787,6 +789,9 @@ model Payment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Фактические разнесения оплат фабрикам на этот плановый платёж.
+  allocations PayoutAllocation[]
+
   @@index([type])
   @@index([status])
   @@index([plannedDate])
@@ -794,6 +799,54 @@ model Payment {
   @@index([factoryId])
   @@index([packagingItemId])
   @@index([packagingOrderId])
+}
+
+// ======================================================
+// ОПЛАТЫ ФАБРИКАМ — фактические переводы денег с разнесением по плановым платежам
+// ======================================================
+//
+// Боль владельца: «оплату зафиксировали, а потом фиг знает как списать; 5 заказов
+// с одной фабрики, а списывается скопом». Payment — это ПЛАН (график по заказу).
+// FactoryPayout — ФАКТ перевода: одной суммой закрываем сразу несколько плановых
+// платежей через PayoutAllocation.
+model FactoryPayout {
+  id           String    @id @default(cuid())
+  date         DateTime                          // Дата фактического перевода
+  amount       Decimal   @db.Decimal(14, 2)      // Сумма перевода в ₽
+  currencyNote String?                           // Справочно, если платили в валюте: «≈36 500 ¥»
+  comment      String?
+
+  factoryId    String
+  factory      Factory   @relation(fields: [factoryId], references: [id])
+
+  createdById  String
+  createdBy    User      @relation("PayoutCreator", fields: [createdById], references: [id])
+
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?                         // Мягкое удаление — «никогда не удалять»
+
+  allocations  PayoutAllocation[]
+
+  @@index([factoryId])
+  @@index([date])
+  @@index([deletedAt])
+}
+
+// Разнесение одной оплаты на один плановый платёж. Сумма оплаты = сумма её allocations
+// (плюс возможный нераспределённый остаток).
+model PayoutAllocation {
+  id        String        @id @default(cuid())
+  payoutId  String
+  payout    FactoryPayout @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+  paymentId String
+  payment   Payment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  amount    Decimal       @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+
+  @@unique([payoutId, paymentId])
+  @@index([paymentId])
+  @@index([payoutId])
 }
 
 // ======================================================
