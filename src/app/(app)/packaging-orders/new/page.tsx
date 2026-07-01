@@ -1,7 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { can } from "@/lib/rbac";
 import { redirect } from "next/navigation";
 import { PackagingOrderForm } from "@/components/packaging-orders/packaging-order-form";
+import type { Role } from "@prisma/client";
 
 export default async function NewPackagingOrderPage() {
   const session = await auth();
@@ -37,6 +39,7 @@ export default async function NewPackagingOrderPage() {
         factories={factories}
         users={users}
         defaultOwnerId={session.user.id}
+        canMarkPaid={can(session.user.role as Role, "payment.markPaid")}
       />
     </div>
   );

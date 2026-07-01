@@ -25,6 +25,9 @@ const deliveryMethod = z
   .nullable();
 
 const paymentInput = z.object({
+  // id существующего платежа — форма шлёт его, чтобы сберечь оплаченные строки
+  // (обновляем по id, а не delete+create). Новые строки id не несут.
+  id: z.string().optional(),
   plannedDate: z.string(),
   amount: z.number(),
   label: z.string(),

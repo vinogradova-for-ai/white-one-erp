@@ -72,12 +72,16 @@ export function PackagingOrderForm({
   users,
   defaultOwnerId,
   initial,
+  canMarkPaid = false,
 }: {
   packagings: PackagingOption[];
   factories: FactoryOption[];
   users: UserOption[];
   defaultOwnerId: string;
   initial?: Initial;
+  /** Есть ли право payment.markPaid. Без него чекбокс «Оплачено» заблокирован
+   *  (сервер тоже игнорирует смену флага — двойная защита, аудит зоны упаковки). */
+  canMarkPaid?: boolean;
 }) {
   const router = useRouter();
   const [form, setForm] = useState<Initial>(
@@ -214,6 +218,10 @@ export function PackagingOrderForm({
       };
       if (payments.length > 0) {
         payload.payments = payments.map((p) => ({
+          // id существующего платежа шлём, чтобы сервер обновил его по id и сберёг
+          // историю оплат (paidAt/paidById). Синтетические id новых строк сервер
+          // не найдёт среди существующих — создаст как новые.
+          id: p.id,
           plannedDate: p.plannedDate,
           amount: p.amount,
           label: p.label,
@@ -420,10 +428,14 @@ export function PackagingOrderForm({
                   onChange={(e) => updatePayment(idx, { amount: Number(e.target.value) || 0 })}
                   className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-right text-sm"
                 />
-                <label className="flex items-center gap-1 text-xs text-slate-600 whitespace-nowrap">
+                <label
+                  className={`flex items-center gap-1 text-xs whitespace-nowrap ${canMarkPaid ? "text-slate-600" : "text-slate-400"}`}
+                  title={canMarkPaid ? undefined : "Отметку «Оплачено» ставит только сотрудник с правом на платежи"}
+                >
                   <input
                     type="checkbox"
                     checked={p.paid}
+                    disabled={!canMarkPaid}
                     onChange={(e) => updatePayment(idx, { paid: e.target.checked })}
                   />
                   Оплачено
