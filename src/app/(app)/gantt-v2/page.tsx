@@ -5,6 +5,11 @@ import type { GanttRowV2, GanttBarV2, BarState, GanttFilterOptions } from "@/com
 import { ORDER_STATUS_LABELS, BRAND_LABELS } from "@/lib/constants";
 import { orderActivePhaseIndex } from "@/lib/order-stage";
 import { moscowTodayIso } from "@/lib/dates";
+import { ListCapNotice } from "@/components/common/list-cap-notice";
+
+// Потолок ленты Ганта (аудит блок ④): при ровно стольких заказах показываем
+// полосу «показаны первые N». Пагинация — отдельной задачей.
+const GANTT_ORDERS_CAP = 500;
 import { orderLateDays } from "@/lib/order-auto-status";
 import { PACKAGING_ORDER_STATUS_LABELS } from "@/lib/packaging-orders";
 
@@ -68,7 +73,7 @@ export default async function GanttV2Page() {
     prisma.order.findMany({
       where: { deletedAt: null, status: { not: "ON_SALE" } },
       orderBy: { launchMonth: "asc" },
-      take: 500,
+      take: GANTT_ORDERS_CAP,
       include: {
         productModel: { select: { name: true, photoUrls: true, brand: true, category: true, subcategory: true } },
         owner: { select: { id: true, name: true } },
@@ -363,11 +368,14 @@ export default async function GanttV2Page() {
   };
 
   return (
-    <GanttV2Client
-      rows={rows}
-      filterOptions={filterOptions}
-      todayIso={todayIso}
-      isOwner={isOwner}
-    />
+    <div className="space-y-3">
+      <ListCapNotice shown={orders.length} cap={GANTT_ORDERS_CAP} unit="заказов" />
+      <GanttV2Client
+        rows={rows}
+        filterOptions={filterOptions}
+        todayIso={todayIso}
+        isOwner={isOwner}
+      />
+    </div>
   );
 }

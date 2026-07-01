@@ -7,6 +7,9 @@ import { KanbanFiltersClient, type KanbanFilterOptions } from "@/components/mode
 import { colorHexFromName } from "@/lib/color-map";
 import { orderKanbanColumn } from "@/lib/order-stage";
 import { moscowTodayIso } from "@/lib/dates";
+import { ListCapNotice } from "@/components/common/list-cap-notice";
+
+const KANBAN_MODELS_CAP = 500; // потолок канбана (аудит блок ④)
 
 // 8 колонок: 4 под-этапа Разработки + 3 этапа после заказа + Завершено.
 // Этапы Разработки видны ТОЛЬКО на канбане (не на Ганте) — детализация
@@ -140,7 +143,7 @@ export default async function ModelsKanbanPage() {
     prisma.productModel.findMany({
     where: { deletedAt: null, activated: true },
     orderBy: { updatedAt: "desc" },
-    take: 500,
+    take: KANBAN_MODELS_CAP,
     select: {
       id: true, name: true, brand: true, category: true, subcategory: true,
       photoUrls: true, status: true, sizeChartReady: true, ownerId: true,
@@ -388,6 +391,7 @@ export default async function ModelsKanbanPage() {
 
   return (
     <div className="space-y-3">
+      <ListCapNotice shown={models.length} cap={KANBAN_MODELS_CAP} unit="фасонов" />
       <KanbanFiltersClient
         columns={COLUMNS}
         buckets={buckets}

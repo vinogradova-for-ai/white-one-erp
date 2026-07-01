@@ -5,6 +5,9 @@ import { VariantVisual } from "@/components/common/variant-visual";
 import { ColorChip } from "@/components/common/color-chip";
 import { NewVariantButton } from "@/components/variants/new-variant-button";
 import { resolveModelCost } from "@/lib/calculations/resolve-model-cost";
+import { ListCapNotice } from "@/components/common/list-cap-notice";
+
+const VARIANTS_CAP = 200; // потолок списка (аудит блок ④)
 
 export default async function VariantsPage({
   searchParams,
@@ -23,11 +26,11 @@ export default async function VariantsPage({
     ];
   }
 
-  const [variants, models] = await Promise.all([
+  const [variants, totalCount, models] = await Promise.all([
     prisma.productVariant.findMany({
       where,
       orderBy: { updatedAt: "desc" },
-      take: 200,
+      take: VARIANTS_CAP,
       include: {
         productModel: {
           select: {
@@ -46,6 +49,7 @@ export default async function VariantsPage({
         _count: { select: { orderLines: true } },
       },
     }),
+    prisma.productVariant.count({ where }),
     prisma.productModel.findMany({
       where: { deletedAt: null },
       select: { id: true, name: true },
@@ -58,7 +62,10 @@ export default async function VariantsPage({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Цветомодели</h1>
-          <p className="text-sm text-slate-500">Всего: {variants.length}</p>
+          <p className="text-sm text-slate-500">
+            Всего: {totalCount}
+            {totalCount > variants.length && ` · показаны ${variants.length}`}
+          </p>
         </div>
         <NewVariantButton models={models} />
       </div>
@@ -74,6 +81,8 @@ export default async function VariantsPage({
           Применить
         </button>
       </form>
+
+      <ListCapNotice shown={variants.length} cap={VARIANTS_CAP} unit="цветомоделей" />
 
       {/* Мобильная версия — карточки */}
       <div className="md:hidden space-y-2">

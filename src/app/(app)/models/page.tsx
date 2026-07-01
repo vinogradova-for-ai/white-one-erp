@@ -6,6 +6,10 @@ import { PhotoThumb } from "@/components/common/photo-thumb";
 import { Brand } from "@prisma/client";
 import { ModelsFilters } from "@/components/models/models-filters";
 import { parseCategoryParam } from "@/components/models/models-filters-shared";
+import { ListCapNotice } from "@/components/common/list-cap-notice";
+
+// Потолок каталога фасонов (аудит блок ④).
+const MODELS_CAP = 200;
 
 export default async function ModelsPage({
   searchParams,
@@ -34,14 +38,17 @@ export default async function ModelsPage({
   if (sp.owner) where.ownerId = sp.owner;
   if (sp.q) where.OR = [{ name: { contains: sp.q, mode: "insensitive" } }];
 
-  const [draftCount, models, owners] = await Promise.all([
+  const [draftCount, totalCount, models, owners] = await Promise.all([
     prisma.productModel.count({
       where: { deletedAt: null, activated: false },
     }),
+    // Реальное количество под текущий фильтр — чтобы «Всего» не показывало
+    // размер среза (аудит блок ④).
+    prisma.productModel.count({ where }),
     prisma.productModel.findMany({
       where,
       orderBy: { updatedAt: "desc" },
-      take: 200,
+      take: MODELS_CAP,
       include: {
         owner: { select: { name: true } },
         preferredFactory: { select: { name: true } },
@@ -62,7 +69,10 @@ export default async function ModelsPage({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Каталог фасонов</h1>
-          <p className="text-sm text-slate-500">Всего: {models.length}</p>
+          <p className="text-sm text-slate-500">
+            Всего: {totalCount}
+            {totalCount > models.length && ` · показаны ${models.length}`}
+          </p>
         </div>
         <Link
           href="/models/new"
@@ -119,6 +129,8 @@ export default async function ModelsPage({
           owner: sp.owner ?? "",
         }}
       />
+
+      <ListCapNotice shown={models.length} cap={MODELS_CAP} unit="фасонов" />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {models.map((m) => (

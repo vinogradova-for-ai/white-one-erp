@@ -4,6 +4,9 @@ import { formatDate, formatNumber, formatCurrency } from "@/lib/format";
 import { PACKAGING_ORDER_STATUS_LABELS, PACKAGING_ORDER_STATUS_COLORS } from "@/lib/packaging-orders";
 import { PhotoThumb } from "@/components/common/photo-thumb";
 import { ClickableRow } from "@/components/common/clickable-row";
+import { ListCapNotice } from "@/components/common/list-cap-notice";
+
+const PKG_ORDERS_CAP = 200; // потолок списка (аудит блок ④)
 
 function lineTotalRub(line: {
   quantity: number;
@@ -25,7 +28,7 @@ function lineTotalRub(line: {
 export default async function PackagingOrdersPage() {
   const orders = await prisma.packagingOrder.findMany({
     orderBy: [{ orderedDate: "desc" }],
-    take: 200,
+    take: PKG_ORDERS_CAP,
     include: {
       lines: {
         include: {
@@ -55,6 +58,8 @@ export default async function PackagingOrdersPage() {
           + Новый заказ
         </Link>
       </div>
+
+      <ListCapNotice shown={orders.length} cap={PKG_ORDERS_CAP} unit="заказов" />
 
       {/* Мобильная версия — карточки */}
       <div className="md:hidden space-y-2">
