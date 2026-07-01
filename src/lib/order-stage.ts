@@ -93,3 +93,21 @@ export const ORDER_STATUS_VALUES = [
   "PREPARATION", "FABRIC_ORDERED", "SEWING", "QC", "READY_SHIP",
   "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE",
 ] as const;
+
+/**
+ * «Реально запущенные» заказы — те, где производство ФАКТИЧЕСКИ началось
+ * (пошив и дальше). PREPARATION и FABRIC_ORDERED — это ещё разработка
+ * (ткань заказана ≠ шьётся), их НЕ засчитываем в «факт выпуска» план/факта
+ * и сезонных целей, иначе прогресс завышается незапущенными заказами.
+ */
+export const LAUNCHED_ORDER_STATUSES = [
+  "SEWING", "QC", "READY_SHIP", "IN_TRANSIT",
+  "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE",
+] as const satisfies ReadonlyArray<OrderStatus>;
+
+const LAUNCHED_SET = new Set<OrderStatus>(LAUNCHED_ORDER_STATUSES);
+
+/** Заказ реально запущен в производство (пошив уже начался). */
+export function isOrderLaunched(status: OrderStatus): boolean {
+  return LAUNCHED_SET.has(status);
+}

@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { yearMonthToLabel } from "@/lib/format";
+import { LAUNCHED_ORDER_STATUSES } from "@/lib/order-stage";
+import { moscowYearMonth } from "@/lib/dates";
 
 /**
  * План/Факт — НЕ продажи и НЕ рубли (Алёна).
@@ -15,6 +17,7 @@ export default async function PlanVsFactPage({
 }) {
   const sp = await searchParams;
   const year = Number(sp.year ?? new Date().getFullYear());
+  const currentYm = moscowYearMonth(); // текущий месяц по МСК (YYYYMM)
 
   const [plans, orders, users] = await Promise.all([
     prisma.monthlyPlan.findMany({
@@ -25,6 +28,10 @@ export default async function PlanVsFactPage({
       where: {
         deletedAt: null,
         launchMonth: { gte: year * 100 + 1, lte: year * 100 + 12 },
+        // Факт = только РЕАЛЬНО запущенные заказы (пошив начался и дальше).
+        // Заказ в PREPARATION/FABRIC_ORDERED ещё не выпущен — иначе прогресс
+        // к цели завышался незапущенными заказами (аудит блок ④).
+        status: { in: [...LAUNCHED_ORDER_STATUSES] },
       },
       select: {
         launchMonth: true,
@@ -177,7 +184,7 @@ export default async function PlanVsFactPage({
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {arr.map((r) => {
-                      const { status } = classifyRow(r);
+                      const { status } = classifyRow(r, ym, currentYm);
                       return (
                         <tr key={`${r.ym}-${r.ownerId ?? "_"}`}>
                           <td className="px-3 py-2 font-medium text-slate-900">{r.ownerName}</td>
@@ -199,11 +206,12 @@ export default async function PlanVsFactPage({
                 {/* Мобильный — карточки. Таблица из 4 колонок на 390px нечитаема. */}
                 <div className="divide-y divide-slate-100 md:hidden">
                   {arr.map((r) => {
-                    const { status } = classifyRow(r);
+                    const { status } = classifyRow(r, ym, currentYm);
                     const unitsPct = r.planUnits > 0 ? Math.min(100, Math.round((r.factUnits / r.planUnits) * 100)) : 0;
                     const modelsPct = r.planModels > 0 ? Math.min(100, Math.round((r.factModels / r.planModels) * 100)) : 0;
                     const barCls =
                       status === "ok" ? "bg-emerald-500"
+                      : status === "in-progress" ? "bg-blue-500"
                       : status === "warning" ? "bg-amber-500"
                       : status === "critical" ? "bg-red-500"
                       : "bg-slate-300";
@@ -242,30 +250,45 @@ export default async function PlanVsFactPage({
   );
 }
 
-type RowStatus = "ok" | "warning" | "critical" | "no-plan";
+type RowStatus = "ok" | "warning" | "critical" | "no-plan" | "in-progress" | "future";
 
-function classifyRow(r: {
-  planModels: number;
-  planUnits: number;
-  factModels: number;
-  factUnits: number;
-}): { status: RowStatus } {
+/**
+ * Статус строки план/факта С УЧЁТОМ месяца относительно текущего (по МСК):
+ *   — будущий месяц  → «future» (серый «запланировано») — недобор не вина;
+ *   — текущий месяц  → «in-progress» (нейтральный «идёт») при недоборе,
+ *                       «ok» если план уже закрыт — месяц ещё не кончился;
+ *   — прошедший месяц→ красный/жёлтый разрыв как раньше.
+ * Раньше статус считался только из gap'ов — текущий и будущие месяцы горели
+ * красным «без вины» (аудит блок ④).
+ */
+function classifyRow(
+  r: { planModels: number; planUnits: number; factModels: number; factUnits: number },
+  ym: number,
+  currentYm: number,
+): { status: RowStatus } {
+  const hasPlan = r.planModels > 0 || r.planUnits > 0;
+  if (!hasPlan) return { status: "no-plan" };
+
   const modelsGap = r.factModels - r.planModels;
   const unitsGap = r.factUnits - r.planUnits;
-  const hasPlan = r.planModels > 0 || r.planUnits > 0;
-  const status: RowStatus = !hasPlan
-    ? "no-plan"
-    : modelsGap >= 0 && unitsGap >= 0
-    ? "ok"
-    : r.planUnits > 0 && Math.abs(unitsGap / r.planUnits) > 0.2
-    ? "critical"
-    : "warning";
-  return { status };
+  const planMet = modelsGap >= 0 && unitsGap >= 0;
+
+  if (planMet) return { status: "ok" };
+
+  // План ещё не закрыт.
+  if (ym > currentYm) return { status: "future" };       // месяц не начался
+  if (ym === currentYm) return { status: "in-progress" }; // месяц идёт — не вина
+
+  // Прошедший месяц с недобором — реальный разрыв.
+  const critical = r.planUnits > 0 && Math.abs(unitsGap / r.planUnits) > 0.2;
+  return { status: critical ? "critical" : "warning" };
 }
 
 function StatusChip({ status }: { status: RowStatus }) {
   if (status === "ok") return <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">✓ ОК</span>;
-  if (status === "warning") return <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">⚠ Нужно ещё</span>;
+  if (status === "in-progress") return <span className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700">⏳ Идёт</span>;
+  if (status === "future") return <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">📅 Запланировано</span>;
+  if (status === "warning") return <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">⚠ Недобор</span>;
   if (status === "critical") return <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">🔴 Разрыв</span>;
   return <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">план не задан</span>;
 }
