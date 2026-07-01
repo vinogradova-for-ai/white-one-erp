@@ -77,7 +77,7 @@ export function TeamMonthSection({
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}
-          className="flex items-center gap-2 text-left"
+          className="-my-1 flex min-h-[40px] items-center gap-2 py-1 text-left"
           aria-expanded={!collapsed}
         >
           <span
@@ -92,7 +92,7 @@ export function TeamMonthSection({
         <div className="ml-auto flex items-center gap-1">
           <Link
             href={monthHref(prevYm)}
-            className="rounded-lg border border-slate-200 px-2 py-1 text-sm text-slate-600 hover:border-slate-300"
+            className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-base text-slate-600 hover:border-slate-300 active:bg-slate-50"
             aria-label="Предыдущий месяц"
           >
             ‹
@@ -100,14 +100,14 @@ export function TeamMonthSection({
           {stats.canGoForward ? (
             <Link
               href={monthHref(nextYm)}
-              className="rounded-lg border border-slate-200 px-2 py-1 text-sm text-slate-600 hover:border-slate-300"
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-base text-slate-600 hover:border-slate-300 active:bg-slate-50"
               aria-label="Следующий месяц"
             >
               ›
             </Link>
           ) : (
             <span
-              className="rounded-lg border border-slate-100 px-2 py-1 text-sm text-slate-300"
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-100 text-base text-slate-300"
               aria-hidden
             >
               ›
