@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { can, type Action } from "@/lib/rbac";
 import { logAudit } from "@/server/audit";
+import { changeOrderStatus } from "@/server/change-order-status";
 import { revalidatePath } from "next/cache";
 import type { Role } from "@prisma/client";
 
@@ -76,18 +77,18 @@ export async function completeChecklistTask(
     switch (kind) {
       case "order-qc": {
         // Заказали ОТК: SEWING → QC. qcDate ещё не известна (это дата прохождения).
-        await updateOrderStatus(entityId, "QC", user.id, {});
+        await updateOrderStatus(entityId, "QC", user, {});
         break;
       }
       case "accept-qc": {
         // ОТК прошёл и принят: status → READY_SHIP. qcDate = actualDate если ещё null.
         const cur = await prisma.order.findUnique({ where: { id: entityId }, select: { qcDate: true } });
-        await updateOrderStatus(entityId, "READY_SHIP", user.id, cur?.qcDate ? {} : { qcDate: actualDate });
+        await updateOrderStatus(entityId, "READY_SHIP", user, cur?.qcDate ? {} : { qcDate: actualDate });
         break;
       }
       case "check-delivery": {
         // Партия прибыла на склад. status → WAREHOUSE_MSK + arrivalActualDate.
-        await updateOrderStatus(entityId, "WAREHOUSE_MSK", user.id, { arrivalActualDate: actualDate });
+        await updateOrderStatus(entityId, "WAREHOUSE_MSK", user, { arrivalActualDate: actualDate });
         break;
       }
       case "size-chart": {
@@ -128,27 +129,43 @@ export async function completeChecklistTask(
   return { ok: true };
 }
 
-// Смена статуса заказа + запись в OrderStatusLog (трасса «кто/когда/откуда-куда») атомарно.
+// Смена статуса заказа с «Главного». Делегирует в общий changeOrderStatus —
+// тот же путь, что у UI смены статуса на карточке заказа: гейт упаковки, списание
+// consumedQty, OrderStatusLog и аудит в одном месте (см. change-order-status.ts).
+// Дашборд двигает только QC/READY_SHIP/WAREHOUSE_MSK — до PACKING не доходит,
+// но общий путь страхует на будущее.
 async function updateOrderStatus(
   orderId: string,
   toStatus: "QC" | "READY_SHIP" | "WAREHOUSE_MSK",
-  userId: string,
+  user: { id: string; role: Role },
   extraData: Record<string, unknown>,
 ) {
-  await prisma.$transaction(async (tx) => {
-    const cur = await tx.order.findUnique({ where: { id: orderId }, select: { status: true } });
-    await tx.order.update({ where: { id: orderId }, data: { status: toStatus, ...extraData } });
-    if (cur && cur.status !== toStatus) {
-      await tx.orderStatusLog.create({
-        data: {
-          orderId,
-          fromStatus: cur.status,
-          toStatus,
-          changedById: userId,
-          comment: "Закрытие задачи с Главного",
-        },
+  const result = await changeOrderStatus({
+    orderId,
+    toStatus,
+    actorId: user.id,
+    actorRole: user.role,
+    logComment: "Закрытие задачи с Главного",
+    extraData,
+  });
+  // Задача с «Главного» иногда закрывается, когда заказ уже в целевом статусе
+  // (напр. «Приём ОТК» показывается и для QC, и для READY_SHIP) — статус не
+  // меняется, но нужные даты (qcDate/arrivalActualDate) всё равно проставляем.
+  if (!result.ok && result.code === "no_change") {
+    if (Object.keys(extraData).length > 0) {
+      await prisma.order.update({ where: { id: orderId }, data: extraData });
+      await logAudit({
+        action: "UPDATE",
+        entityType: "Order",
+        entityId: orderId,
+        userId: user.id,
+        changes: extraData as Record<string, unknown>,
       });
     }
-  });
-  await logAudit({ action: "STATUS_CHANGE", entityType: "Order", entityId: orderId, userId, changes: { to: toStatus } });
+    return;
+  }
+  if (!result.ok) {
+    // Прочие отказы (дефицит упаковки и т.п.) — пробрасываем как ошибку задачи.
+    throw new Error(result.message);
+  }
 }
