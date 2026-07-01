@@ -710,6 +710,11 @@ model OrderPackaging {
   quantityPerUnit  Decimal @default(1) @db.Decimal(6, 2)    // Сколько штук упаковки на 1 ед. товара
   notes            String?
 
+  // Сколько штук упаковки СПИСАНО со склада при переходе заказа в «Упаковка».
+  // null — ещё не списывали. Нужно, чтобы: (1) не списать дважды при повторном
+  // входе в PACKING; (2) корректно вернуть остаток при откате статуса назад.
+  consumedQty      Int?
+
   createdAt DateTime @default(now())
 
   @@unique([orderId, packagingItemId])

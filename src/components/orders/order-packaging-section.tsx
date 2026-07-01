@@ -129,7 +129,11 @@ export function OrderPackagingSection({
             <tbody className="divide-y divide-slate-100">
               {items.map((x) => {
                 const total = Math.ceil(orderQuantity * Number(x.quantityPerUnit));
-                const have = x.packagingItem.stock + x.packagingItem.inProductionQty;
+                // Честный дефицит (аудит п.7): «доступно» = ТОЛЬКО физический остаток.
+                // «В производстве» (едет из Китая) показываем отдельно справочно,
+                // в доступное НЕ включаем — иначе гейт упаковки врёт в плюс.
+                const have = x.packagingItem.stock;
+                const inProd = x.packagingItem.inProductionQty;
                 const shortage = total - have;
                 return (
                   <tr key={x.id}>
@@ -170,6 +174,12 @@ export function OrderPackagingSection({
                           Хватает
                         </span>
                       )}
+                      <div className="mt-0.5 text-[11px] text-slate-500">
+                        на складе {have.toLocaleString("ru-RU")}
+                        {inProd > 0 && (
+                          <span className="text-slate-400"> · в производстве {inProd.toLocaleString("ru-RU")} (едет)</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-2 py-2 text-right">
                       <button

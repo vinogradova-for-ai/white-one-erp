@@ -32,15 +32,45 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       );
     }
 
-    // Переход в «Упаковка» — проверяем, что по всем привязанным упаковкам хватает материала
+    const totalQuantity = order.lines.reduce((a, l) => a + l.quantity, 0);
+
+    // Переход в «Упаковка» — проверяем ЧЕСТНЫЙ дефицит (аудит п.7):
+    //   доступно = ТОЛЬКО физический остаток stock, минус потребность ДРУГИХ
+    //   заказов, уже упаковывающихся/на складе (конкуренция за один остаток).
+    //   «В производстве» (едет из Китая) в «доступно» НЕ входит — показываем
+    //   его отдельно справочно. Раньше have = stock + inProd, и потребность
+    //   соседних заказов не вычиталась — гейт пропускал реальную нехватку.
+    let packingUsages: Array<{
+      id: string;
+      packagingItemId: string;
+      quantityPerUnit: unknown;
+      consumedQty: number | null;
+      packagingItem: { name: string };
+    }> = [];
     if (toStatus === "PACKING") {
       const usages = await prisma.orderPackaging.findMany({
         where: { orderId: id },
         include: {
           packagingItem: {
             select: {
+              id: true,
               name: true,
               stock: true,
+              // Потребность конкурирующих заказов: те, что уже в PACKING/WAREHOUSE_MSK
+              // (кроме текущего) и ещё не отгружены. Их упаковка зарезервирована.
+              orderUsages: {
+                where: {
+                  orderId: { not: id },
+                  order: {
+                    deletedAt: null,
+                    status: { in: ["PACKING", "WAREHOUSE_MSK"] },
+                  },
+                },
+                select: {
+                  quantityPerUnit: true,
+                  order: { select: { lines: { select: { quantity: true } } } },
+                },
+              },
               packagingOrderLines: {
                 where: { packagingOrder: { status: { notIn: ["ARRIVED", "CANCELLED"] } } },
                 select: { quantity: true },
@@ -61,13 +91,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
           { status: 400 },
         );
       }
-      const totalQuantity = order.lines.reduce((a, l) => a + l.quantity, 0);
       const shortages = usages
         .map((u) => {
-          const total = Math.ceil(totalQuantity * Number(u.quantityPerUnit));
-          const inProd = u.packagingItem.packagingOrderLines.reduce((a, l) => a + l.quantity, 0);
-          const have = u.packagingItem.stock + inProd;
-          return { name: u.packagingItem.name, shortage: total - have };
+          const need = Math.ceil(totalQuantity * Number(u.quantityPerUnit));
+          // Зарезервировано другими заказами в упаковке/на складе.
+          const reservedByOthers = u.packagingItem.orderUsages.reduce((a, ou) => {
+            const otherQty = ou.order.lines.reduce((s, l) => s + l.quantity, 0);
+            return a + Math.ceil(otherQty * Number(ou.quantityPerUnit));
+          }, 0);
+          const available = u.packagingItem.stock - reservedByOthers;
+          return { name: u.packagingItem.name, shortage: need - available };
         })
         .filter((s) => s.shortage > 0);
       if (shortages.length > 0) {
@@ -82,7 +115,17 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
           { status: 400 },
         );
       }
+      packingUsages = usages.map((u) => ({
+        id: u.id,
+        packagingItemId: u.packagingItemId,
+        quantityPerUnit: u.quantityPerUnit,
+        consumedQty: u.consumedQty,
+        packagingItem: { name: u.packagingItem.name },
+      }));
     }
+
+    // Откат из «Упаковка» назад — возвращаем ранее списанную упаковку на склад.
+    const isLeavingPacking = order.status === "PACKING" && toStatus !== "PACKING";
 
     const dateField = ORDER_STATUS_DATE_FIELDS[toStatus];
     const updated = await prisma.$transaction(async (tx) => {
@@ -93,6 +136,44 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
           ...(dateField ? { [dateField]: new Date() } : {}),
         },
       });
+
+      // Списание упаковки при входе в PACKING. Идемпотентно: списываем только те
+      // позиции, у которых ещё не проставлен consumedQty (не списывали раньше).
+      if (toStatus === "PACKING") {
+        for (const u of packingUsages) {
+          if (u.consumedQty != null) continue;
+          const need = Math.ceil(totalQuantity * Number(u.quantityPerUnit));
+          if (need <= 0) continue;
+          await tx.packagingItem.update({
+            where: { id: u.packagingItemId },
+            data: { stock: { decrement: need } },
+          });
+          await tx.orderPackaging.update({
+            where: { id: u.id },
+            data: { consumedQty: need },
+          });
+        }
+      }
+
+      // Откат из PACKING — возвращаем списанное на склад и обнуляем consumedQty.
+      if (isLeavingPacking) {
+        const consumed = await tx.orderPackaging.findMany({
+          where: { orderId: id, consumedQty: { not: null } },
+          select: { id: true, packagingItemId: true, consumedQty: true },
+        });
+        for (const c of consumed) {
+          if (!c.consumedQty) continue;
+          await tx.packagingItem.update({
+            where: { id: c.packagingItemId },
+            data: { stock: { increment: c.consumedQty } },
+          });
+          await tx.orderPackaging.update({
+            where: { id: c.id },
+            data: { consumedQty: null },
+          });
+        }
+      }
+
       await tx.orderStatusLog.create({
         data: {
           orderId: id,
