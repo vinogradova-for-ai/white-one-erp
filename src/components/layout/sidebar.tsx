@@ -34,6 +34,7 @@ const MORE_NAV = [
 // Справочники — общие разделы, видны всем сотрудникам.
 // Управление людьми (добавить/выключить) внутри «Сотрудников» остаётся за владельцем/руководителем.
 const REF_NAV = [
+  { href: "/honest-sign", label: "Честный знак", icon: "✓" },
   { href: "/factories", label: "Фабрики", icon: "⛭" },
   { href: "/admin/users", label: "Сотрудники", icon: "☉" },
   { href: "/admin/size-grids", label: "Размерные сетки", icon: "#" },

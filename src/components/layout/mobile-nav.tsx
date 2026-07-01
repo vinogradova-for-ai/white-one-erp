@@ -24,6 +24,7 @@ const MORE_LINKS = [
   { href: "/incoming", label: "Поставки", icon: "▣" },
   { href: "/warehouse", label: "Склад", icon: "▩" },
   { href: "/content-schedule", label: "Артикулы для фотосессии", icon: "✿" },
+  { href: "/honest-sign", label: "Честный знак", icon: "✓" },
 ];
 
 export function MobileNav() {

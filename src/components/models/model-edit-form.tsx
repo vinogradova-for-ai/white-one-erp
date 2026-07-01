@@ -24,6 +24,7 @@ export function ModelEditForm({
     subcategory: string;
     sizeGridId: string;
     countryOfOrigin: string;
+    tnvedCode: string;
     preferredFactoryId: string;
     developmentType: "OWN" | "REPEAT";
     isRepeat: boolean;
@@ -92,6 +93,7 @@ export function ModelEditForm({
         category: form.category,
         subcategory: form.subcategory || null,
         countryOfOrigin: form.countryOfOrigin,
+        tnvedCode: form.tnvedCode || null,
         preferredFactoryId: form.preferredFactoryId || null,
         sizeGridId: form.sizeGridId || null,
         developmentType: form.developmentType,
@@ -280,6 +282,30 @@ export function ModelEditForm({
           <input value={form.fabricComposition} onChange={(e) => setForm({ ...form, fabricComposition: e.target.value })} className={inputCls} placeholder="70% шерсть, 30% полиэстер" />
         </Field>
       </Section>
+
+      {/* Маркировка «Честный знак» — свёрнутый необязательный блок.
+          Состав и страна берутся из полей выше; здесь — только ТНВЭД,
+          которого раньше не было ни в БД, ни в форме («поле-фантом» из аудита).
+          Всё это уходит на вкладку «Честный знак» для копирования в Нацкаталог. */}
+      <details className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+        <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Маркировка / ЧЗ (опционально)
+        </summary>
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <Field label="Код ТНВЭД ЕАЭС">
+            <input
+              value={form.tnvedCode}
+              onChange={(e) => setForm({ ...form, tnvedCode: e.target.value })}
+              className={inputCls}
+              placeholder="6201400000"
+            />
+            <span className="mt-1 block text-xs text-slate-500">
+              10-значный код ТН ВЭД для карточки в Национальном каталоге «Честный знак».
+              Общий для всех цветов фасона. Состав и страна берутся из полей выше.
+            </span>
+          </Field>
+        </div>
+      </details>
 
       <Section title="Фото фасона">
         <div className="md:col-span-2">
