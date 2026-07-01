@@ -140,7 +140,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <PhotoThumb url={modelPhoto} size={56} />
           <div className="min-w-0">
             <div className="font-mono text-[11px] uppercase tracking-wider text-slate-400">{order.orderNumber}</div>
-            <h1 className="mt-1 truncate text-2xl font-semibold tracking-tight text-slate-900">
+            <h1 className="mt-1 truncate text-xl font-semibold tracking-tight text-slate-900 md:text-2xl">
               <Link href={`/models/${order.productModel.id}`} className="hover:underline">
                 {order.productModel.name}
               </Link>
@@ -172,7 +172,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           )}
           <Link
             href={`/orders/${order.id}/edit`}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            className="flex h-10 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100"
           >
             Редактировать
           </Link>
@@ -274,7 +274,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               <p className="text-sm text-slate-500">График ещё не задан.</p>
               <Link
                 href={`/orders/${order.id}/edit`}
-                className="inline-flex items-center rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+                className="inline-flex h-10 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800"
               >
                 Заполнить график платежей
               </Link>

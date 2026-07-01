@@ -62,7 +62,7 @@ export function OrderStatusChanger({
       <button
         onClick={openSheet}
         disabled={isPending}
-        className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+        className="flex h-10 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
       >
         Сменить статус
       </button>

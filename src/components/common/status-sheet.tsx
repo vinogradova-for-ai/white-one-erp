@@ -41,12 +41,12 @@ export function StatusSheet({
             type="button"
             onClick={onClose}
             aria-label="Закрыть"
-            className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+            className="-mr-2 flex h-11 w-11 items-center justify-center rounded-lg text-xl text-slate-500 hover:bg-slate-100 active:bg-slate-100"
           >
             ×
           </button>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto p-4 pb-[env(safe-area-inset-bottom)]">
+        <div className="max-h-[70vh] overflow-y-auto p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
           {children}
         </div>
       </div>

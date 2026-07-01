@@ -393,24 +393,25 @@ function AddLineForm({
         />
         <input
           type="number"
+          inputMode="numeric"
           min={1}
           value={qty}
           onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
           placeholder="шт"
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+          className="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm"
         />
         <button
           type="button"
           onClick={submit}
           disabled={saving || !variantId}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          className="flex h-11 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
           {saving ? "Добавление…" : "Добавить"}
         </button>
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600"
+          className="flex h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-600"
         >
           Отмена
         </button>

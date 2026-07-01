@@ -49,7 +49,7 @@ export function DeleteButton({
         type="button"
         onClick={onClick}
         disabled={busy}
-        className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+        className="flex h-10 items-center rounded-lg border border-red-200 bg-white px-4 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
       >
         {busy ? "Удаление…" : label}
       </button>
