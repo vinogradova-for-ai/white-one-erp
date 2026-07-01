@@ -29,6 +29,13 @@ export default async function SeasonsPage({
   const defaultKey = currentSeason?.key ?? upcomingSeason?.key ?? SEASONS[0].key;
   const activeKey = sp.s && SEASONS.some((s) => s.key === sp.s) ? sp.s : defaultKey;
 
+  // Честная заглушка: сегодня за пределами всех описанных сезонов (нет ни
+  // текущего, ни будущего). Раньше экран молча откатывался на «Лето 2026» и
+  // показывал прошлогодние данные как дефолт. Теперь — заметный баннер, чтобы
+  // добавить сезоны на новый год (аудит блок ④).
+  const noSeasonForToday = !currentSeason && !upcomingSeason;
+  const currentYear = today.getFullYear();
+
   const [overview, summaries] = await Promise.all([
     getSeasonOverview(activeKey),
     getAllSeasonsSummary(),
@@ -57,6 +64,14 @@ export default async function SeasonsPage({
           </Link>
         </div>
       </div>
+
+      {noSeasonForToday && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          ⚠️ Сезоны на {currentYear} год не настроены — показан последний
+          описанный сезон, данные могут быть неактуальны. Добавьте сезоны на{" "}
+          {currentYear} в <code className="rounded bg-amber-100 px-1">src/lib/seasons.ts</code>.
+        </div>
+      )}
 
       {/* Табы сезонов */}
       <div className="flex flex-wrap gap-1.5">
