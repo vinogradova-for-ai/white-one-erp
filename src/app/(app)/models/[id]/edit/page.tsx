@@ -51,6 +51,7 @@ export default async function EditModelPage({ params }: { params: Promise<{ id: 
             subcategory: model.subcategory ?? "",
             sizeGridId: model.sizeGridId ?? "",
             countryOfOrigin: model.countryOfOrigin,
+            tnvedCode: model.tnvedCode ?? "",
             preferredFactoryId: model.preferredFactoryId ?? "",
             developmentType: model.developmentType,
             isRepeat: model.isRepeat,

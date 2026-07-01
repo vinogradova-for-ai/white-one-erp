@@ -280,6 +280,13 @@ model ProductModel {
 
   // Производство
   countryOfOrigin      String                                   // "Россия" / "Китай" / "Кыргызстан"
+
+  // Маркировка «Честный знак» — атрибуты для Национального каталога.
+  // Код ТНВЭД ЕАЭС (10 знаков) общий для всех цветов фасона; состав ткани
+  // берётся из fabricComposition. Аудит нашёл ТНВЭД «полем-фантомом»
+  // (упоминался в комментах, но в БД/формах его не было) — заводим по-настоящему.
+  tnvedCode            String?
+
   preferredFactoryId   String?
   preferredFactory     Factory? @relation("ModelPreferredFactory", fields: [preferredFactoryId], references: [id])
 
