@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { logAudit } from "@/server/audit";
+import { generateStartPassword } from "@/server/start-password";
 import { Role } from "@prisma/client";
 
 const ROLES: ReadonlyArray<Role> = [
@@ -19,7 +20,7 @@ const schema = z.object({
 });
 
 // POST /api/admin/users — создаёт нового сотрудника.
-// Пароль по умолчанию whiteone2026 (общий стартовый, юзер потом поменяет).
+// Стартовый пароль генерируется индивидуально и возвращается ОДИН раз в ответе.
 export async function POST(req: Request) {
   try {
     const session = await requireAuth();
@@ -27,6 +28,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: { code: "forbidden" } }, { status: 403 });
     }
     const data = schema.parse(await req.json());
+    // Роли OWNER/DIRECTOR может назначать только владелец
+    if (data.role && ["OWNER", "DIRECTOR"].includes(data.role) && session.user.role !== "OWNER") {
+      return NextResponse.json({ error: { code: "forbidden" } }, { status: 403 });
+    }
     const exists = await prisma.user.findUnique({ where: { email: data.email.toLowerCase() } });
     if (exists) {
       return NextResponse.json(
@@ -34,7 +39,8 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    const passwordHash = await bcrypt.hash("whiteone2026", 10);
+    const startPassword = generateStartPassword();
+    const passwordHash = await bcrypt.hash(startPassword, 10);
     const user = await prisma.user.create({
       data: {
         name: data.name,
@@ -56,7 +62,8 @@ export async function POST(req: Request) {
         role: data.role ?? "ASSISTANT",
       },
     });
-    return NextResponse.json(user);
+    // startPassword отдаётся один раз, в БД хранится только hash
+    return NextResponse.json({ ...user, startPassword });
   } catch (e) {
     return apiError(e);
   }

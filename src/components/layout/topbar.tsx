@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { signOut } from "next-auth/react";
 import type { Role } from "@prisma/client";
 import { ROLE_LABELS } from "@/lib/constants";
@@ -13,10 +14,10 @@ export function Topbar({ user }: { user: { name?: string | null; email?: string 
       </div>
       <div className="hidden md:block" />
       <div className="flex items-center gap-3">
-        <div className="hidden text-right md:block">
+        <Link href="/profile" className="hidden text-right md:block" title="Профиль и смена пароля">
           <div className="text-sm font-medium text-slate-900">{user.name}</div>
           <div className="text-xs text-slate-500">{ROLE_LABELS[user.role]}</div>
-        </div>
+        </Link>
         <ThemeToggle />
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}

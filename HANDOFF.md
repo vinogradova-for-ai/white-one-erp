@@ -314,7 +314,7 @@ cd ~/projects/white-one
 
 - **Ветка**: `main` (всё что сделано — уже на проде)
 - **Прод**: https://white-one-erp.vercel.app (Vercel автодеплой с push в main)
-- **Логин Алёны**: `alena@whiteone.ru` / `whiteone2026`
+- **Логин Алёны**: `alena@whiteone.ru` (пароль в репозитории не хранится)
 - **Команда**: 11 человек, Алёна (OWNER), Даша (DIRECTOR), Вера+Оля (PM, Оля в Гуанчжоу), Настя (ASSISTANT-склад), Катя (CONTENT), Таня (LOGISTICS), Элина (CUSTOMS), Вика+Лиза (WB)
 
 ## ✅ Что выкатили в эту сессию (PR'ы 35–51)
