@@ -57,15 +57,15 @@ export function KanbanFiltersClient({
   return (
     <div className="space-y-2">
       <div className="rounded-xl border border-slate-200 bg-white p-2">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <div className="flex items-baseline gap-2">
+        <div className="no-scrollbar flex items-center gap-x-3 gap-y-2 overflow-x-auto md:flex-wrap">
+          <div className="flex shrink-0 items-baseline gap-2">
             <h1 className="text-sm font-semibold text-slate-900">Канбан фасонов</h1>
             <span className="text-xs text-slate-500">
               {filteredBuckets.visibleCount}/{total}
             </span>
           </div>
-          <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden />
-          <span className="text-xs uppercase tracking-wide text-slate-400">Фильтры:</span>
+          <span className="mx-1 hidden h-5 w-px bg-slate-200 md:inline-block" aria-hidden />
+          <span className="hidden shrink-0 text-xs uppercase tracking-wide text-slate-400 md:inline">Фильтры:</span>
           <FilterDropdown
             label="Категория"
             options={filterOptions.categories}

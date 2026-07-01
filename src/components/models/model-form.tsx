@@ -337,6 +337,7 @@ export function ModelForm({
           <div className="flex items-stretch gap-2">
             <input
               type="number"
+              inputMode="decimal"
               step="0.01"
               value={form.purchasePriceRub || form.purchasePriceCny}
               onChange={(e) => {
@@ -381,6 +382,7 @@ export function ModelForm({
           <Field label="Курс ¥→₽" full>
             <input
               type="number"
+              inputMode="decimal"
               step="0.0001"
               value={form.cnyRubRate}
               onChange={(e) => update("cnyRubRate", e.target.value)}
@@ -476,11 +478,11 @@ export function ModelForm({
 
       <FormErrorBanner error={apiErr} ignoreFields={["name"]} />
 
-      <div className="sticky bottom-0 z-30 flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white pt-4 pb-4 -mx-2 px-2 sm:mx-0 sm:px-0">
-        <button type="button" onClick={() => router.back()} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700">
+      <div className="pb-safe-4 sticky bottom-16 z-30 -mx-4 flex gap-3 border-t border-slate-200 bg-white px-4 pt-4 md:bottom-0 md:mx-0 md:flex-wrap md:justify-end md:px-0">
+        <button type="button" onClick={() => router.back()} className="flex h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm text-slate-700">
           Отмена
         </button>
-        <button type="submit" disabled={saving || !!bannedBrand} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+        <button type="submit" disabled={saving || !!bannedBrand} className="flex h-11 flex-1 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-50 md:flex-none">
           {saving ? "Сохранение…" : bannedBrand ? "Уберите чужой бренд" : "Создать фасон"}
         </button>
       </div>
@@ -488,7 +490,7 @@ export function ModelForm({
   );
 }
 
-const inputCls = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
+const inputCls = "min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (

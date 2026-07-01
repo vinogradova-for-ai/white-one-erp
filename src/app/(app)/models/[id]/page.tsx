@@ -89,7 +89,7 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
           <div className="text-xs uppercase tracking-wider text-slate-400">
             {BRAND_LABELS[model.brand]} · {model.category}
           </div>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">{model.name}</h1>
+          <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900 md:text-3xl">{model.name}</h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
             <span>{model.variants.length} цветов</span>
             <span>·</span>
@@ -105,7 +105,7 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
         <div className="flex flex-wrap gap-2">
           <Link
             href={`/models/${model.id}/edit`}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            className="flex h-10 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100"
           >
             Редактировать
           </Link>
@@ -178,13 +178,14 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
           <h2 className="text-base font-semibold text-slate-900">Комплект упаковки</h2>
           <Link
             href={`/models/${model.id}/edit`}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
           >
             {model.packagingItems.length > 0 ? "Изменить" : "+ Прикрепить"}
           </Link>
         </div>
         {model.packagingItems.length === 0 ? (
-          <div className="rounded-2xl bg-white p-8 text-center text-sm text-slate-400">
+          <div className="rounded-2xl bg-white px-6 py-8 text-center text-sm text-slate-400">
+            <div className="mb-1 text-2xl">▯</div>
             Упаковка ещё не прикреплена
           </div>
         ) : (
@@ -220,13 +221,16 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
           <h2 className="text-base font-semibold text-slate-900">Заказы</h2>
           <Link
             href={`/orders/new?modelId=${model.id}`}
-            className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+            className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-3 text-xs font-medium text-white hover:bg-slate-800 active:bg-slate-800"
           >
             + Заказ
           </Link>
         </div>
         {model.orders.length === 0 ? (
-          <div className="rounded-2xl bg-white p-8 text-center text-sm text-slate-400">Заказов нет</div>
+          <div className="rounded-2xl bg-white px-6 py-8 text-center text-sm text-slate-400">
+            <div className="mb-1 text-2xl">⬡</div>
+            Заказов нет
+          </div>
         ) : (
           <div className="overflow-hidden rounded-2xl bg-white">
             <ul className="divide-y divide-slate-100">
@@ -256,13 +260,14 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
           <h2 className="text-base font-semibold text-slate-900">Цветомодели</h2>
           <Link
             href={`/models/${model.id}/variants/new`}
-            className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+            className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-3 text-xs font-medium text-white hover:bg-slate-800 active:bg-slate-800"
           >
             + Цветомодель
           </Link>
         </div>
         {model.variants.length === 0 ? (
-          <div className="rounded-2xl bg-white p-8 text-center text-sm text-slate-400">
+          <div className="rounded-2xl bg-white px-6 py-8 text-center text-sm text-slate-400">
+            <div className="mb-1 text-2xl">◎</div>
             Цветов пока нет
           </div>
         ) : (
