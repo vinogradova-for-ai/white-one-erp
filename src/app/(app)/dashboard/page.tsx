@@ -11,6 +11,17 @@ import {
 } from "@/lib/queries/main-screen-checklist";
 import { CheckableRow } from "./checkable-row";
 import { isCheckable } from "./checkable-kinds";
+import { getTeamMonthStats } from "@/lib/queries/team-month-stats";
+import { TeamMonthSection } from "@/components/dashboard/team-month-section";
+
+/** Парсит ?month=YYYY-MM в число YYYYMM. null — не задан/невалиден. */
+function parseMonthParam(raw: string | undefined): number | undefined {
+  if (!raw) return undefined;
+  const m = /^(\d{4})-(\d{2})$/.exec(raw);
+  if (!m) return undefined;
+  const ym = Number(m[1]) * 100 + Number(m[2]);
+  return Number.isFinite(ym) ? ym : undefined;
+}
 
 const MONTH_NAMES_RU = [
   "январе", "феврале", "марте", "апреле", "мае", "июне",
@@ -37,14 +48,17 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ owner?: string }>;
+  searchParams: Promise<{ owner?: string; month?: string }>;
 }) {
   const sp = await searchParams;
   const session = await auth();
   const userName = session?.user?.name ?? "";
   const myId = (session?.user as { id?: string } | undefined)?.id ?? null;
 
-  const all = await getMainScreenChecklist();
+  const [all, teamStats] = await Promise.all([
+    getMainScreenChecklist(),
+    getTeamMonthStats(parseMonthParam(sp.month)),
+  ]);
   const groups = groupByOwner(all);
 
   // Кабинет общий — разбивку задач по сотрудникам видят ВСЕ (прозрачность), не только админ.
@@ -78,6 +92,8 @@ export default async function DashboardPage({
           <p className="text-sm text-emerald-700">Всё под контролем. Срочного нет.</p>
         )}
       </div>
+
+      <TeamMonthSection stats={teamStats} selectedOwnerId={selectedOwnerId ?? null} />
 
       {visibleGroups.length > 0 && (
         <div className="flex flex-wrap gap-2">
