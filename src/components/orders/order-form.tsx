@@ -252,11 +252,15 @@ export function OrderForm({
     })));
   }, [common.paymentTerms, common.launchMonth, totalBatchCost, paymentsTouched]);
 
-  // При смене модели — подтягиваем unitCost с фасона.
-  // Если у новой модели себестоимость пуста — очищаем, чтобы не оставалась цена предыдущей модели.
+  // При СМЕНЕ модели (по id) — подтягиваем unitCost с фасона.
+  // Аудит п.8: раньше в deps была вся модель (новая ссылка каждый рендер) +
+  // её ценовые поля, из-за чего эффект срабатывал постоянно и ЗАТИРАЛ цену,
+  // которую менеджер ввёл руками под конкретный заказ. Теперь зависим ТОЛЬКО
+  // от id модели: сменили фасон — подставили его цену; печатаешь свою — не трогаем.
   useEffect(() => {
     setUnitCost(model ? modelDefaultUnitCost(model) : "");
-  }, [model?.id, model?.purchasePriceRub, model?.purchasePriceCny, model?.cnyRubRate, model?.fullCost, model?.targetCostRub, model?.targetCostCny, model]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model?.id]);
 
   // Синхронизируем launchMonth с датой прибытия партии (= месяц старта продаж).
   useEffect(() => {

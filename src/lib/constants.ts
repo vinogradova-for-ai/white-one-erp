@@ -163,6 +163,15 @@ export const CURRENCY_LABELS: Record<Currency, string> = {
   CNY: "¥",
 };
 
+/**
+ * Дефолтный курс ¥→₽. ЕДИНЫЙ источник (аудит п.8): раньше 13.5 был зашит
+ * прямо в форме редактирования фасона и подставлялся в БД молча. Теперь это
+ * только ДЕФОЛТ для видимого поля «Курс ¥→₽» — фактический курс вводит человек
+ * и он хранится в фасоне (ProductModel.cnyRubRate). Расчёт себестоимости в ¥
+ * везде идёт через resolveModelCost по сохранённому курсу.
+ */
+export const DEFAULT_CNY_RUB_RATE = 13.5;
+
 export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   DELAY: "Задержка",
   INCOMING_DELIVERY: "Скоро приедет товар",

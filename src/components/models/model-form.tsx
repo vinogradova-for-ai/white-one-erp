@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { CATEGORIES, BRAND_LABELS } from "@/lib/constants";
+import { CATEGORIES, BRAND_LABELS, DEFAULT_CNY_RUB_RATE } from "@/lib/constants";
 import { isLatinCategory, buildLatinBase, styleCandidates, colorCode, PREFIX_CYR, TYPE_LAT, translit, findBannedBrand } from "@/lib/artikul";
 import { PackagingType } from "@prisma/client";
 import { DropzonePhotos } from "@/components/common/dropzone-photos";
@@ -156,7 +156,13 @@ export function ModelForm({
         fabricComposition: form.fabricComposition || null,
         fabricPricePerMeter: form.fabricPricePerMeter ? Number(form.fabricPricePerMeter) : null,
         fabricCurrency: form.fabricPricePerMeter ? form.fabricCurrency : null,
-        cnyRubRate: form.fabricCurrency === "CNY" && form.cnyRubRate ? Number(form.cnyRubRate) : null,
+        // Курс ¥→₽ сохраняем, если цена закупки ИЛИ цена ткани в юанях.
+        // Раньше учитывалась только ткань (fabricCurrency), из-за чего курс к
+        // закупочной цене в ¥ не доезжал в БД и себестоимость не считалась (аудит п.8).
+        cnyRubRate:
+          (form.purchasePriceCny || form.fabricCurrency === "CNY") && form.cnyRubRate
+            ? Number(form.cnyRubRate)
+            : null,
         patternsUrl: form.patternsUrl || null,
         photoUrls: form.photoUrls,
         ownerId: form.ownerId,
@@ -349,7 +355,13 @@ export function ModelForm({
               onChange={(e) => {
                 const cur = e.target.value;
                 const num = form.purchasePriceRub || form.purchasePriceCny;
-                if (cur === "CNY") setForm((f) => ({ ...f, purchasePriceCny: num, purchasePriceRub: "" }));
+                if (cur === "CNY")
+                  setForm((f) => ({
+                    ...f,
+                    purchasePriceCny: num,
+                    purchasePriceRub: "",
+                    cnyRubRate: f.cnyRubRate || String(DEFAULT_CNY_RUB_RATE),
+                  }));
                 else setForm((f) => ({ ...f, purchasePriceRub: num, purchasePriceCny: "" }));
               }}
               className={inputCls}
@@ -363,6 +375,30 @@ export function ModelForm({
             Закупочная цена у фабрики. При создании заказа автоматически подтянется в стоимость единицы (можно поправить под конкретный заказ).
           </span>
         </Field>
+
+        {/* Курс ¥→₽ — виден только когда цена в юанях (аудит п.8). */}
+        {form.purchasePriceCny ? (
+          <Field label="Курс ¥→₽" full>
+            <input
+              type="number"
+              step="0.0001"
+              value={form.cnyRubRate}
+              onChange={(e) => update("cnyRubRate", e.target.value)}
+              className={inputCls}
+              placeholder={String(DEFAULT_CNY_RUB_RATE)}
+            />
+            <span className="mt-1 block text-xs text-slate-500">
+              {(() => {
+                const cny = Number(form.purchasePriceCny);
+                const rate = Number(form.cnyRubRate);
+                if (cny > 0 && rate > 0) {
+                  return `≈ ${(cny * rate).toLocaleString("ru-RU", { maximumFractionDigits: 0 })} ₽ за единицу по этому курсу.`;
+                }
+                return `Дефолт ${DEFAULT_CNY_RUB_RATE}. Введите фактический курс — по нему считается себестоимость в ₽.`;
+              })()}
+            </span>
+          </Field>
+        ) : null}
       </Section>
 
       <Section title="Фото фасона">

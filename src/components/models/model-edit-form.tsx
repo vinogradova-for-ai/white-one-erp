@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CATEGORIES, BRAND_LABELS } from "@/lib/constants";
+import { CATEGORIES, BRAND_LABELS, DEFAULT_CNY_RUB_RATE } from "@/lib/constants";
 import { Brand } from "@prisma/client";
 import { DropzonePhotos } from "@/components/common/dropzone-photos";
 import { SizeGridPicker } from "@/components/common/size-grid-picker";
@@ -219,8 +219,17 @@ export function ModelEditForm({
                 const cur = e.target.value;
                 // Переключение валюты: переносим текущее число в другое поле.
                 const num = form.purchasePriceRub || form.purchasePriceCny;
-                if (cur === "CNY") setForm({ ...form, purchasePriceCny: num, purchasePriceRub: "" });
-                else setForm({ ...form, purchasePriceRub: num, purchasePriceCny: "" });
+                if (cur === "CNY") {
+                  // Переходим в юани — подставляем дефолтный курс, если ещё не задан.
+                  setForm({
+                    ...form,
+                    purchasePriceCny: num,
+                    purchasePriceRub: "",
+                    cnyRubRate: form.cnyRubRate || String(DEFAULT_CNY_RUB_RATE),
+                  });
+                } else {
+                  setForm({ ...form, purchasePriceRub: num, purchasePriceCny: "" });
+                }
               }}
               className={inputCls}
               style={{ flexBasis: "5.5rem", flexGrow: 0 }}
@@ -233,6 +242,34 @@ export function ModelEditForm({
             Закупочная цена у фабрики. При создании заказа автоматически подтянется в стоимость единицы (можно поправить под конкретный заказ).
           </span>
         </Field>
+
+        {/* Курс ¥→₽ — виден только когда цена в юанях. Аудит п.8: раньше курс
+            был зашит 13.5 и невидим, теперь его вводит человек и он хранится
+            в фасоне. Пересчёт в ₽ показываем сразу. */}
+        {form.purchasePriceCny ? (
+          <Field label="Курс ¥→₽" full>
+            <div className="flex items-stretch gap-2">
+              <input
+                type="number"
+                step="0.0001"
+                value={form.cnyRubRate}
+                onChange={(e) => setForm({ ...form, cnyRubRate: e.target.value })}
+                className={`${inputCls} flex-1`}
+                placeholder={String(DEFAULT_CNY_RUB_RATE)}
+              />
+            </div>
+            <span className="mt-1 block text-xs text-slate-500">
+              {(() => {
+                const cny = Number(form.purchasePriceCny);
+                const rate = Number(form.cnyRubRate);
+                if (cny > 0 && rate > 0) {
+                  return `≈ ${(cny * rate).toLocaleString("ru-RU", { maximumFractionDigits: 0 })} ₽ за единицу по этому курсу.`;
+                }
+                return `Дефолт ${DEFAULT_CNY_RUB_RATE}. Введите фактический курс — по нему считается себестоимость в ₽.`;
+              })()}
+            </span>
+          </Field>
+        ) : null}
       </Section>
 
       <Section title="Ткань (опционально)">
