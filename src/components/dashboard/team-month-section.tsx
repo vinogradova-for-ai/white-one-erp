@@ -21,17 +21,45 @@ const MONTH_NAMES_RU = [
 
 type StageKey = "ordered" | "checked" | "shipped" | "received";
 
+// Цветные заливки живут ТОЛЬКО в сводной полосе (с явными dark:-вариантами —
+// глобальная подмена серых в globals.css цветные классы не трогает, из-за чего
+// в тёмной теме чипы то слепили, то тонули). У людей — тихие строки с точкой.
 const STAGES: Array<{
   key: StageKey;
   label: string;
-  card: string; // фон+текст мини-карточки (палитра фаз Ганта)
-  chip: string; // фон+текст чипа этапа
+  card: string; // мини-карточка сводки (палитра фаз Ганта, обе темы)
+  dot: string; // цветная точка в строке человека
 }> = [
-  { key: "ordered", label: "Заказано", card: "bg-blue-100 text-blue-800", chip: "bg-blue-50 text-blue-700" },
-  { key: "checked", label: "Проверено", card: "bg-amber-100 text-amber-800", chip: "bg-amber-50 text-amber-700" },
-  { key: "shipped", label: "Отправлено", card: "bg-violet-100 text-violet-800", chip: "bg-violet-50 text-violet-700" },
-  { key: "received", label: "Получено", card: "bg-emerald-100 text-emerald-800", chip: "bg-emerald-50 text-emerald-700" },
+  {
+    key: "ordered",
+    label: "Заказано",
+    card: "border-blue-200/70 bg-blue-50 text-blue-900 dark:border-blue-400/20 dark:bg-blue-400/10 dark:text-blue-300",
+    dot: "bg-blue-500",
+  },
+  {
+    key: "checked",
+    label: "Проверено",
+    card: "border-amber-200/70 bg-amber-50 text-amber-900 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-300",
+    dot: "bg-amber-500",
+  },
+  {
+    key: "shipped",
+    label: "Отправлено",
+    card: "border-violet-200/70 bg-violet-50 text-violet-900 dark:border-violet-400/20 dark:bg-violet-400/10 dark:text-violet-300",
+    dot: "bg-violet-500",
+  },
+  {
+    key: "received",
+    label: "Получено",
+    card: "border-emerald-200/70 bg-emerald-50 text-emerald-900 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300",
+    dot: "bg-emerald-500",
+  },
 ];
+
+// 14800 → «14 800» — числа с разрядами читаются, слипшиеся — нет
+function fmt(n: number): string {
+  return n.toLocaleString("ru-RU");
+}
 
 function ymLabel(yearMonth: number): string {
   const month = (yearMonth % 100) - 1;
@@ -47,7 +75,7 @@ function shiftMonth(yearMonth: number, delta: number): number {
 }
 
 function fmtTotals(t: StageTotals): string {
-  return `${t.models} фас · ${t.units} шт`;
+  return `${fmt(t.models)} фас · ${fmt(t.units)} шт`;
 }
 
 export function TeamMonthSection({
@@ -121,9 +149,9 @@ export function TeamMonthSection({
           {/* Сводная полоса — командные итоги по 4 этапам */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {STAGES.map((s) => (
-              <div key={s.key} className={`rounded-xl px-3 py-2.5 ${s.card}`}>
+              <div key={s.key} className={`rounded-xl border px-3 py-2.5 ${s.card}`}>
                 <div className="text-xs font-medium opacity-80">{s.label}</div>
-                <div className="mt-0.5 text-sm font-semibold">{fmtTotals(stats.totals[s.key])}</div>
+                <div className="mt-0.5 text-sm font-semibold tabular-nums">{fmtTotals(stats.totals[s.key])}</div>
               </div>
             ))}
           </div>
@@ -170,10 +198,10 @@ function PersonCard({
     <Link
       href={href}
       scroll={false}
-      className={`block rounded-xl border p-3 transition ${
+      className={`block rounded-xl border bg-white p-3 transition ${
         active
-          ? "border-slate-900 bg-slate-50"
-          : "border-slate-200 bg-white hover:border-slate-300"
+          ? "border-blue-400 ring-1 ring-blue-400"
+          : "border-slate-200 hover:border-slate-300"
       }`}
     >
       <div className="flex items-start gap-2">
@@ -183,8 +211,8 @@ function PersonCard({
         </div>
         <div className="ml-auto shrink-0 text-right">
           <div className="text-[11px] text-slate-400">в работе сейчас</div>
-          <div className="text-xs font-medium text-slate-700">
-            {owner.activeLoad.models} фас · {owner.activeLoad.units} шт
+          <div className="text-xs font-medium text-slate-700 tabular-nums">
+            {fmt(owner.activeLoad.models)} фас · {fmt(owner.activeLoad.units)} шт
             {owner.devModels > 0 && (
               <span className="text-slate-400"> · +{owner.devModels} в разработке</span>
             )}
@@ -192,19 +220,25 @@ function PersonCard({
         </div>
       </div>
 
-      {/* Чипы этапов */}
-      <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-        {STAGES.map((s) => {
+      {/* Этапы человека — тихая строка: только НЕнулевые, с цветной точкой.
+          Восемь одинаковых плашек на карточку создавали визуальный шум
+          («бардак» по отзыву Алёны) — цветные заливки оставлены сводке. */}
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+        {STAGES.filter((s) => owner[s.key].models > 0 || owner[s.key].units > 0).map((s) => {
           const t = owner[s.key];
           return (
-            <div key={s.key} className={`rounded-lg px-2 py-1 text-center ${s.chip}`}>
-              <div className="text-[10px] font-medium opacity-80">{s.label}</div>
-              <div className="text-xs font-semibold">
-                {t.models} · {t.units}
-              </div>
-            </div>
+            <span key={s.key} className="inline-flex items-baseline gap-1.5 text-xs">
+              <span className={`inline-block h-2 w-2 self-center rounded-full ${s.dot}`} aria-hidden />
+              <span className="text-slate-500">{s.label.toLowerCase()}</span>
+              <span className="font-medium text-slate-800 tabular-nums">
+                {fmt(t.models)} · {fmt(t.units)}
+              </span>
+            </span>
           );
         })}
+        {STAGES.every((s) => owner[s.key].models === 0 && owner[s.key].units === 0) && (
+          <span className="text-xs text-slate-400">в этом месяце движений не было</span>
+        )}
       </div>
 
       {/* Бары плана — только у PM с планом */}
@@ -235,7 +269,7 @@ function PlanBar({
       <div className="flex items-baseline justify-between text-[11px] text-slate-500">
         <span>{label}</span>
         <span className="tabular-nums">
-          {fact}/{goal}
+          {fmt(fact)} / {fmt(goal)}
         </span>
       </div>
       <div className="mt-0.5 h-1.5 overflow-hidden rounded-full bg-slate-100">
