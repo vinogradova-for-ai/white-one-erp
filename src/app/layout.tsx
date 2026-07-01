@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Great_Vibes, Pacifico, Caveat } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
@@ -13,6 +13,14 @@ const scriptFontVars = `${greatVibes.variable} ${pacifico.variable} ${caveat.var
 export const metadata: Metadata = {
   title: "White One ERP",
   description: "Система управления продуктовым циклом",
+};
+
+// viewport-fit=cover — чтобы работали safe-area-inset (чёлка/домашняя полоса iPhone).
+// maximum-scale не ставим: не блокируем зум (доступность).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 // Скрипт применяется ДО первого рендера — предотвращает мигание белым фоном
