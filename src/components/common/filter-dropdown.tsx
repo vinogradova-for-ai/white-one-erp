@@ -27,7 +27,7 @@ export function FilterDropdown({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+        className={`flex h-11 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium whitespace-nowrap transition md:h-auto md:py-1.5 ${
           active
             ? "border-slate-900 bg-slate-900 text-white"
             : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
@@ -40,7 +40,7 @@ export function FilterDropdown({
       {open && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className={`absolute left-0 top-full z-40 mt-1 max-h-64 ${widthClass} overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg`}>
+          <div className={`absolute left-0 top-full z-40 mt-1 max-h-72 max-w-[calc(100vw-2rem)] ${widthClass} overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg`}>
             {options.length === 0 && (
               <div className="px-3 py-2 text-xs text-slate-400">Нет вариантов</div>
             )}
@@ -49,11 +49,12 @@ export function FilterDropdown({
               return (
                 <label
                   key={o.value}
-                  className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-100"
+                  className="flex min-h-[40px] cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-100"
                 >
                   <input
                     type="checkbox"
                     checked={checked}
+                    className="h-4 w-4 shrink-0"
                     onChange={() => {
                       onChange(checked ? value.filter((v) => v !== o.value) : [...value, o.value]);
                     }}

@@ -14,7 +14,7 @@ export default async function HonestSignPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Честный знак</h1>
+          <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Честный знак</h1>
           <p className="max-w-2xl text-sm text-slate-500">
             Справочник для Национального каталога «Честный знак»: одна строка =
             цветомодель × размер. Кликните ячейку — значение копируется в буфер;

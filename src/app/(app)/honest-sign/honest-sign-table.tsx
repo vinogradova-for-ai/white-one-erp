@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { FilterDropdown } from "@/components/common/filter-dropdown";
 import { usePersistedState } from "@/lib/use-persisted-state";
@@ -79,7 +80,8 @@ export function HonestSignTable({ rows }: { rows: HonestSignRow[] }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
+      {/* Фильтры: на мобиле — одна прокручиваемая строка, не ломаются в кашу */}
+      <div className="no-scrollbar -mx-4 flex items-center gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
         <FilterDropdown
           label="Категория"
           options={catOptions}
@@ -99,12 +101,72 @@ export function HonestSignTable({ rows }: { rows: HonestSignRow[] }) {
           value={colorFilter}
           onChange={setColorFilter}
         />
-        <span className="ml-auto text-xs text-slate-500">
+        <span className="ml-auto shrink-0 text-xs text-slate-500">
           Строк: {filtered.length}
           {filtered.length !== rows.length ? ` из ${rows.length}` : ""}
         </span>
       </div>
 
+      {/* Мобайл: карточки «цветомодель × размер» с кнопкой «Копировать строку» */}
+      <div className="space-y-3 md:hidden">
+        {filtered.length === 0 && (
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-10 text-center">
+            <div className="mb-1 text-2xl">🔖</div>
+            <div className="text-sm text-slate-500">Нет цветомоделей под текущие фильтры.</div>
+          </div>
+        )}
+        {filtered.map((row, i) => (
+          <div
+            key={`m-${row.variantId}-${row.size}`}
+            className="rounded-2xl border border-slate-200 bg-white p-4"
+          >
+            <div className="mb-2 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate text-[15px] font-semibold text-slate-900">
+                  {row.modelName}
+                </div>
+                <div className="mt-0.5 text-xs text-slate-500">
+                  {row.colorName || "цвет —"} · р. {row.size}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => copyRow(row)}
+                className="flex h-11 shrink-0 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 active:bg-slate-100"
+              >
+                <Copy className="h-4 w-4" /> Строка
+              </button>
+            </div>
+            <dl className="divide-y divide-slate-100 text-sm">
+              {COLUMNS.map((c) => {
+                const raw = rowValue(row, c.key);
+                const isHole = Boolean(c.hole) && raw.trim() === "";
+                return (
+                  <div
+                    key={c.key}
+                    onClick={() => !isHole && copyCell(row, c.key)}
+                    className={`flex items-start justify-between gap-3 py-2 ${
+                      isHole ? "" : "active:bg-slate-50"
+                    }`}
+                  >
+                    <dt className="shrink-0 text-xs text-slate-400">{c.label}</dt>
+                    <dd
+                      className={`text-right text-[13px] ${
+                        isHole ? "text-red-500 italic" : "text-slate-800"
+                      }`}
+                    >
+                      {isHole ? "— не заполнено" : raw}
+                    </dd>
+                  </div>
+                );
+              })}
+            </dl>
+          </div>
+        ))}
+      </div>
+
+      {/* Десктоп: таблица с горизонтальным скроллом и намёком-затуханием справа */}
+      <div className="scroll-x-hint hidden md:block">
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
         <table className="w-full border-collapse text-left text-xs">
           <thead>
@@ -163,6 +225,7 @@ export function HonestSignTable({ rows }: { rows: HonestSignRow[] }) {
             ))}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );
