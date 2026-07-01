@@ -6,6 +6,7 @@ import { type KanbanCard, type KanbanColumn } from "@/components/models-kanban/b
 import { KanbanFiltersClient, type KanbanFilterOptions } from "@/components/models-kanban/kanban-filters-client";
 import { colorHexFromName } from "@/lib/color-map";
 import { orderKanbanColumn } from "@/lib/order-stage";
+import { moscowTodayIso } from "@/lib/dates";
 
 // 8 колонок: 4 под-этапа Разработки + 3 этапа после заказа + Завершено.
 // Этапы Разработки видны ТОЛЬКО на канбане (не на Ганте) — детализация
@@ -70,12 +71,6 @@ function isoDate(d: Date | null | undefined): string | null {
   return d ? d.toISOString().slice(0, 10) : null;
 }
 
-function moscowToday(): string {
-  const now = new Date();
-  const mskMs = now.getTime() + 3 * 60 * 60 * 1000;
-  return new Date(mskMs).toISOString().slice(0, 10);
-}
-
 function dayDiff(aIso: string, bIso: string): number {
   return Math.round(
     (new Date(`${bIso}T00:00:00Z`).getTime() - new Date(`${aIso}T00:00:00Z`).getTime()) / 86400000
@@ -132,7 +127,7 @@ function pickDeadline(col: string, model: { sampleDate: Date | null; approvedDat
 }
 
 export default async function ModelsKanbanPage() {
-  const todayIso = moscowToday();
+  const todayIso = moscowTodayIso();
   const session = await auth();
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
   const role = (session?.user as { role?: string } | undefined)?.role;

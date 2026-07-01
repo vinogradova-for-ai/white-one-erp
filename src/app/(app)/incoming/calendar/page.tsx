@@ -4,25 +4,19 @@ import { formatNumber } from "@/lib/format";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
 import { ColorChip } from "@/components/common/color-chip";
 import { IncomingExportButton } from "../export-button";
+import { moscowTodayStart } from "@/lib/dates";
 
 // Календарный вид Поставок. Заказы группируются по arrivalPlannedDate
 // (дате плановой даты прибытия). Если факт-дата стоит — карточка переезжает
 // на факт-дату, и помечается зелёным как «приехала».
 // Навигация ◀/▶ переключает месяц через ?month=YYYY-MM.
 
-function moscowToday(): Date {
-  const now = new Date();
-  const mskMs = now.getTime() + 3 * 60 * 60 * 1000;
-  const iso = new Date(mskMs).toISOString().slice(0, 10);
-  return new Date(`${iso}T00:00:00Z`);
-}
-
 function parseMonthParam(monthStr: string | undefined): Date {
   if (monthStr && /^\d{4}-\d{2}$/.test(monthStr)) {
     const [y, m] = monthStr.split("-").map(Number);
     return new Date(Date.UTC(y, m - 1, 1));
   }
-  const t = moscowToday();
+  const t = moscowTodayStart();
   return new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), 1));
 }
 
@@ -47,7 +41,7 @@ export default async function IncomingCalendarPage({
   const y = monthStart.getUTCFullYear();
   const m = monthStart.getUTCMonth();
   const monthEnd = new Date(Date.UTC(y, m + 1, 1));
-  const today = moscowToday();
+  const today = moscowTodayStart();
 
   // Календарная сетка: начинаем с понедельника недели, в которой 1-е число,
   // и заканчиваем воскресеньем недели, в которой последнее число месяца.

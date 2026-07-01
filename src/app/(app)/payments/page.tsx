@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma, PaymentStatus, PaymentType } from "@prisma/client";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { PaymentRowActions } from "@/components/payments/payment-row-actions";
+import { moscowTodayIso, moscowTodayStart } from "@/lib/dates";
 
 type View = "calendar" | "list" | "archive";
 
@@ -34,9 +35,10 @@ export default async function PaymentsPage({
   const sp = await searchParams;
   const view: View = sp.view === "list" || sp.view === "archive" ? sp.view : "calendar";
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  // «Сегодня» по Москве (UTC+3), а не по локальной зоне сервера — иначе на
+  // Vercel (UTC) ночью 00:00–03:00 МСК месяц по умолчанию и просрочка съезжали.
+  const today = moscowTodayStart();
+  const todayStr = moscowTodayIso().slice(0, 7); // YYYY-MM
   const month = sp.month ?? todayStr;
   const typeFilter = sp.type === "ORDER" || sp.type === "PACKAGING" ? (sp.type as PaymentType) : null;
   const q = (sp.q ?? "").trim();
@@ -122,8 +124,8 @@ async function CalendarView({
   const total = payments.reduce((a, p) => a + Number(p.amount), 0);
   const paid = payments.filter((p) => p.status === "PAID").reduce((a, p) => a + Number(p.amount), 0);
   const pending = total - paid;
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  // МСК-полночь (UTC-база) — согласуется с UTC-датами ячеек календаря ниже.
+  const todayStart = moscowTodayStart();
   const overdue = payments
     .filter((p) => p.status === "PENDING" && p.plannedDate < todayStart)
     .reduce((a, p) => a + Number(p.amount), 0);
@@ -140,8 +142,8 @@ async function CalendarView({
   }
   while (cells.length < 42) cells.push({ day: null, date: null });
 
-  const todayDay = todayStart.getMonth() + 1 === m && todayStart.getFullYear() === y
-    ? todayStart.getDate() : null;
+  const todayDay = todayStart.getUTCMonth() + 1 === m && todayStart.getUTCFullYear() === y
+    ? todayStart.getUTCDate() : null;
 
   return (
     <>
@@ -452,8 +454,7 @@ async function ArchiveView({
   });
 
   const totalPaid = payments.reduce((a, p) => a + Number(p.amount), 0);
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = moscowTodayStart();
 
   return (
     <>

@@ -4,6 +4,7 @@ import { GanttV2Client } from "@/components/gantt-v2/gantt-v2-client";
 import type { GanttRowV2, GanttBarV2, BarState, GanttFilterOptions } from "@/components/gantt-v2/types";
 import { ORDER_STATUS_LABELS, BRAND_LABELS } from "@/lib/constants";
 import { orderActivePhaseIndex } from "@/lib/order-stage";
+import { moscowTodayIso } from "@/lib/dates";
 import { orderLateDays } from "@/lib/order-auto-status";
 import { PACKAGING_ORDER_STATUS_LABELS } from "@/lib/packaging-orders";
 
@@ -24,14 +25,6 @@ const NEARLY_DUE_DAYS = 5;
 
 function iso(d: Date | null | undefined): string | null {
   return d ? d.toISOString().slice(0, 10) : null;
-}
-
-// Текущий московский день в формате YYYY-MM-DD. Сервер в UTC, поэтому
-// new Date() в ночь возвращает «вчера» по UTC. МСК = UTC+3 круглый год.
-function moscowToday(): string {
-  const now = new Date();
-  const mskMs = now.getTime() + 3 * 60 * 60 * 1000;
-  return new Date(mskMs).toISOString().slice(0, 10);
 }
 
 // Разнесём заказы по регионам производства для фильтра «Производство».
@@ -118,7 +111,7 @@ export default async function GanttV2Page() {
   // todayIso уезжает на день назад (для нас сегодня уже понедельник, для
   // UTC ещё воскресенье). Алёна и команда работают по МСК — даты везде в БД
   // тоже UTC-полночь нужного дня (через date-input). Берём день по МСК.
-  const todayIso = moscowToday();
+  const todayIso = moscowTodayIso();
   const today = new Date(`${todayIso}T00:00:00Z`);
 
   const rows: GanttRowV2[] = [];

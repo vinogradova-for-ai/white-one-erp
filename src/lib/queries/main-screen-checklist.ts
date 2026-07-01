@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { moscowTodayStart } from "@/lib/dates";
 
 /**
  * Чек-лист «Главного» экрана. Семь типов задач, привязанных к фасонам и заказам.
@@ -110,13 +111,6 @@ const MODEL_STATUS_RU: Record<string, string> = {
   IN_PRODUCTION: "в производстве",
 };
 
-function moscowToday(): Date {
-  const now = new Date();
-  const moscow = new Date(now.getTime() + (3 * 60 - now.getTimezoneOffset()) * 60_000);
-  moscow.setUTCHours(0, 0, 0, 0);
-  return moscow;
-}
-
 function daysFromToday(target: Date | null, today: Date): number | null {
   if (!target) return null;
   return Math.round((target.getTime() - today.getTime()) / DAY);
@@ -139,7 +133,7 @@ function urgencyOf(days: number | null): TaskUrgency {
 }
 
 export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
-  const today = moscowToday();
+  const today = moscowTodayStart();
 
   const [models, orders, packagingItems, packagingOrders] = await Promise.all([
     prisma.productModel.findMany({

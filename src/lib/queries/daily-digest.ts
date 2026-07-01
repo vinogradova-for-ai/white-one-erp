@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getMainScreenChecklist, groupByOwner, zoneOf, type ChecklistTask } from "@/lib/queries/main-screen-checklist";
+import { moscowTodayStart } from "@/lib/dates";
 
 /**
  * Утренний телеграм-дайджест (аудит п.9).
@@ -15,13 +16,6 @@ import { getMainScreenChecklist, groupByOwner, zoneOf, type ChecklistTask } from
  */
 
 const DAY = 86_400_000;
-
-function moscowToday(): Date {
-  const now = new Date();
-  const moscow = new Date(now.getTime() + (3 * 60 - now.getTimezoneOffset()) * 60_000);
-  moscow.setUTCHours(0, 0, 0, 0);
-  return moscow;
-}
 
 /** Эмодзи-приоритет задачи «Сейчас»: просрочка красная, «скоро» — оранжевая. */
 function taskEmoji(t: ChecklistTask): string {
@@ -86,7 +80,7 @@ export async function collectDailyDigest(): Promise<{
   taskCount: number;
   paymentCount: number;
 }> {
-  const today = moscowToday();
+  const today = moscowTodayStart();
   const tomorrowEnd = new Date(today.getTime() + 2 * DAY); // конец «завтра» (эксклюзивно)
 
   // Задачи зоны «Сейчас» — из того же чек-листа, что на дашборде.
