@@ -9,4 +9,18 @@ if (env === "preview") {
   console.log("⏭ preview-сборка: prisma migrate deploy пропущен (защита боевой базы)");
   process.exit(0);
 }
-execSync("npx prisma migrate deploy", { stdio: "inherit" });
+
+// Авто-ретрай при холодном старте Neon (перенесено из vercel.json, PR #141)
+const delays = [0, 8, 20];
+for (let i = 0; i < delays.length; i++) {
+  if (delays[i] > 0) {
+    console.log(`↻ migrate: retry через ${delays[i]}с (база просыпается)`);
+    execSync(`sleep ${delays[i]}`);
+  }
+  try {
+    execSync("npx prisma migrate deploy", { stdio: "inherit" });
+    process.exit(0);
+  } catch (e) {
+    if (i === delays.length - 1) throw e;
+  }
+}
