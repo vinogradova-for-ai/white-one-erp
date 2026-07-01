@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeOrderStatus } from "@/lib/order-auto-status";
+import { computeOrderStatus, orderLateDays } from "@/lib/order-auto-status";
 
 // REGRESSION-тесты на computeOrderStatus.
 //
@@ -89,31 +89,31 @@ describe("computeOrderStatus", () => {
       ).toBe("WAREHOUSE_MSK");
     });
 
-    it("arrivalActualDate в будущем, но arrivalPlannedDate в прошлом → WAREHOUSE_MSK (через ветку plan)", () => {
+    it("arrivalActualDate в будущем, arrivalPlannedDate в прошлом → SEWING (план НЕ двигает статус)", () => {
+      // Аудит п.6: прошедший ПЛАН больше не даёт WAREHOUSE_MSK. actual в будущем
+      // не считается достигнутым → падаем в SEWING (arrivalPlannedDate присутствует).
       expect(
         computeOrderStatus({
           ...emptyDates(),
           arrivalActualDate: daysAhead(FAR_FUTURE),
           arrivalPlannedDate: daysAgo(FAR_PAST),
         }),
-      ).toBe("WAREHOUSE_MSK");
+      ).toBe("SEWING");
     });
   });
 
-  describe("WAREHOUSE_MSK — приоритет 2: arrivalPlannedDate < today (строго меньше)", () => {
-    it("плановая дата прибытия в прошлом, фактической нет → WAREHOUSE_MSK", () => {
+  describe("Прошедший ПЛАН прибытия НЕ двигает статус (аудит п.6)", () => {
+    it("плановая дата прибытия в прошлом, фактической нет, прочего нет → SEWING (НЕ WAREHOUSE)", () => {
+      // Раньше эта ветка давала WAREHOUSE_MSK («по плану должен прибыть»). Убрана.
       expect(
         computeOrderStatus({
           ...emptyDates(),
           arrivalPlannedDate: daysAgo(FAR_PAST),
         }),
-      ).toBe("WAREHOUSE_MSK");
+      ).toBe("SEWING");
     });
 
-    it("arrivalPlannedDate ровно today → НЕ WAREHOUSE (строгое <), без прочих дат падаем в SEWING", () => {
-      // Здесь граница важна: planned использует строгое `<`, а не `<=`.
-      // arrivalPlannedDate == today не считается «уже прибыл».
-      // Но т.к. arrivalPlannedDate присутствует — последний if даёт SEWING.
+    it("arrivalPlannedDate ровно today, без прочих дат → SEWING", () => {
       expect(
         computeOrderStatus({
           ...emptyDates(),
@@ -132,7 +132,7 @@ describe("computeOrderStatus", () => {
       ).toBe("SEWING");
     });
 
-    it("плановое прибытие в прошлом перекрывает qc/ready в прошлом (приоритет выше IN_TRANSIT/QC)", () => {
+    it("план прибытия в прошлом + qc/ready в прошлом → IN_TRANSIT (qc выигрывает, план игнорируется)", () => {
       expect(
         computeOrderStatus({
           ...emptyDates(),
@@ -140,7 +140,7 @@ describe("computeOrderStatus", () => {
           qcDate: daysAgo(FAR_PAST),
           readyAtFactoryDate: daysAgo(FAR_PAST),
         }),
-      ).toBe("WAREHOUSE_MSK");
+      ).toBe("IN_TRANSIT");
     });
   });
 
@@ -282,14 +282,14 @@ describe("computeOrderStatus", () => {
       ).toBe("SEWING");
     });
 
-    it("вчера 23:59:59Z (строго < today-полуночи) для arrivalPlanned → WAREHOUSE_MSK", () => {
+    it("вчера 23:59:59Z для arrivalPlanned, без прочих дат → SEWING (план не двигает статус)", () => {
       const yesterdayEvening = new Date(todayMidnightUTC.getTime() - 1000);
       expect(
         computeOrderStatus({
           ...emptyDates(),
           arrivalPlannedDate: yesterdayEvening,
         }),
-      ).toBe("WAREHOUSE_MSK");
+      ).toBe("SEWING");
     });
   });
 
@@ -305,7 +305,7 @@ describe("computeOrderStatus", () => {
       ).toBe("WAREHOUSE_MSK");
     });
 
-    it("actual=null, planned прошлое → WAREHOUSE_MSK", () => {
+    it("actual=null, planned прошлое, qc прошлое → IN_TRANSIT (план не даёт WAREHOUSE)", () => {
       expect(
         computeOrderStatus({
           readyAtFactoryDate: daysAgo(FAR_PAST),
@@ -313,7 +313,7 @@ describe("computeOrderStatus", () => {
           arrivalPlannedDate: daysAgo(FAR_PAST),
           arrivalActualDate: null,
         }),
-      ).toBe("WAREHOUSE_MSK");
+      ).toBe("IN_TRANSIT");
     });
 
     it("actual=null, planned=null, qc прошлое → IN_TRANSIT", () => {
@@ -337,5 +337,39 @@ describe("computeOrderStatus", () => {
         }),
       ).toBe("QC");
     });
+  });
+});
+
+describe("orderLateDays — подсветка опоздания без смены статуса", () => {
+  it("план прибытия прошёл, факта нет → число просроченных дней", () => {
+    expect(
+      orderLateDays({ ...emptyDates(), arrivalPlannedDate: daysAgo(5) }),
+    ).toBe(5);
+  });
+
+  it("план в будущем → 0 (не опаздывает)", () => {
+    expect(
+      orderLateDays({ ...emptyDates(), arrivalPlannedDate: daysAhead(5) }),
+    ).toBe(0);
+  });
+
+  it("есть факт прибытия → 0, даже если план прошёл (уже прибыл, не опаздывает)", () => {
+    expect(
+      orderLateDays({
+        ...emptyDates(),
+        arrivalPlannedDate: daysAgo(10),
+        arrivalActualDate: daysAgo(3),
+      }),
+    ).toBe(0);
+  });
+
+  it("плана нет → 0", () => {
+    expect(orderLateDays(emptyDates())).toBe(0);
+  });
+
+  it("план ровно сегодня → 0 (не опаздывает в день плана)", () => {
+    expect(
+      orderLateDays({ ...emptyDates(), arrivalPlannedDate: new Date(todayMidnightUTC.getTime()) }),
+    ).toBe(0);
   });
 });

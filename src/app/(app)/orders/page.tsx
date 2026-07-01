@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_ORDER } from "@/lib/constants";
 import { resolveModelCost } from "@/lib/calculations/resolve-model-cost";
+import { orderLateDays } from "@/lib/order-auto-status";
 import {
   OrdersListClient,
   type OrdersListRow,
@@ -60,6 +61,13 @@ export default async function OrdersPage() {
       isDelayed: o.isDelayed,
       hasIssue: o.hasIssue,
       arrivalPlannedDate: o.arrivalPlannedDate ? o.arrivalPlannedDate.toISOString() : null,
+      // Опаздывает (план прибытия прошёл, факта нет) — подсветка без смены статуса (аудит п.6).
+      lateDays: orderLateDays({
+        readyAtFactoryDate: o.readyAtFactoryDate,
+        qcDate: o.qcDate,
+        arrivalPlannedDate: o.arrivalPlannedDate,
+        arrivalActualDate: o.arrivalActualDate,
+      }),
       totalAmount,
       productModel: {
         name: o.productModel.name,

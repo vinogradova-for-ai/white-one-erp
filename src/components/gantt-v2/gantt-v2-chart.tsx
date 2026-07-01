@@ -391,12 +391,19 @@ function RowView({
           <ThumbnailStack thumbs={row.thumbnails} size={density.thumbSize} />
         )}
         <div className="min-w-0 flex-1">
-          <Link href={row.href} className="block truncate text-sm font-medium text-slate-900 hover:text-blue-600" title={row.title}>
+          <Link
+            href={row.href}
+            className="block truncate text-sm font-medium text-slate-900 hover:text-blue-600"
+            title={row.lateDays && row.lateDays > 0 ? `${row.title} · опаздывает ${row.lateDays} дн` : row.title}
+          >
             {row.title}
           </Link>
           {density.showSubtitle && (
             <div className="truncate text-[11px] text-slate-500">
               {row.statusLabel}
+              {row.lateDays && row.lateDays > 0 ? (
+                <span className="font-semibold text-amber-600"> · опаздывает {row.lateDays} дн</span>
+              ) : ""}
               {row.subtitle ? ` · ${row.subtitle}` : ""}
               {row.ownerName ? ` · ${row.ownerName}` : ""}
               {row.factoryName ? ` · ${row.factoryName}` : ""}

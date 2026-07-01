@@ -4,6 +4,7 @@ import { GanttV2Client } from "@/components/gantt-v2/gantt-v2-client";
 import type { GanttRowV2, GanttBarV2, BarState, GanttFilterOptions } from "@/components/gantt-v2/types";
 import { ORDER_STATUS_LABELS, BRAND_LABELS } from "@/lib/constants";
 import { orderActivePhaseIndex } from "@/lib/order-stage";
+import { orderLateDays } from "@/lib/order-auto-status";
 import { PACKAGING_ORDER_STATUS_LABELS } from "@/lib/packaging-orders";
 
 // Фазы заказа: 4 фиксированных этапа от Разработки до Доставки.
@@ -209,6 +210,12 @@ export default async function GanttV2Page() {
       hasNearlyDue: bars.some((b) => b.nearlyDue),
       hasDateOrderIssue: !!dateOrderIssue,
       dateOrderIssueText: dateOrderIssue ?? undefined,
+      lateDays: orderLateDays({
+        readyAtFactoryDate: o.readyAtFactoryDate,
+        qcDate: o.qcDate,
+        arrivalPlannedDate: o.arrivalPlannedDate,
+        arrivalActualDate: o.arrivalActualDate,
+      }),
       thumbnails: thumbs,
       bars,
     });

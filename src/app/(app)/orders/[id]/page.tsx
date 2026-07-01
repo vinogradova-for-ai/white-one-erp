@@ -17,6 +17,7 @@ import { auth } from "@/lib/auth";
 import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
 import { backfillOrderEconomicsFromModel } from "@/server/backfill-order-economics";
 import { syncOrderStatusForward } from "@/server/sync-order-status";
+import { orderLateDays } from "@/lib/order-auto-status";
 import { resolveModelCost } from "@/lib/calculations/resolve-model-cost";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -104,6 +105,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   const sizes = order.productModel.sizeGrid?.sizes ?? [];
   const totalQty = order.lines.reduce((a, l) => a + l.quantity, 0);
+  // Опаздывает N дней: план прибытия прошёл, факта нет — подсветка без смены статуса (аудит п.6).
+  const lateDays = orderLateDays({
+    readyAtFactoryDate: order.readyAtFactoryDate,
+    qcDate: order.qcDate,
+    arrivalPlannedDate: order.arrivalPlannedDate,
+    arrivalActualDate: order.arrivalActualDate,
+  });
   // Fallback на лету: если у линии не сохранён batchCost, ищем себестоимость
   // в фасоне через общий хелпер (тот же приоритет, что в форме и backfill).
   const modelFullCost = resolveModelCost(order.productModel) ?? 0;
@@ -146,6 +154,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${ORDER_STATUS_COLORS[order.status]}`}>
             {ORDER_STATUS_LABELS[order.status]}
           </span>
+          {lateDays > 0 && (
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+              опаздывает {lateDays} дн
+            </span>
+          )}
           <Link
             href={`/orders/${order.id}/edit`}
             className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"

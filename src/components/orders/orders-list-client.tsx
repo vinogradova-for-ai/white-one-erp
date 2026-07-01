@@ -19,6 +19,9 @@ export type OrdersListRow = {
   isDelayed: boolean;
   hasIssue: boolean;
   arrivalPlannedDate: string | null;
+  /** Опаздывает N дней: план прибытия прошёл, факта нет. 0 если не опаздывает.
+   *  Подсветка без смены статуса — заказ ещё едет, а не «на складе» (аудит п.6). */
+  lateDays: number;
   /** Себестоимость заказа в рублях. Считается на серверной странице из снапшотов
    *  по линиям + fallback на fullCost фасона. 0 если данных нет. */
   totalAmount: number;
@@ -145,6 +148,9 @@ export function OrdersListClient({
                 <div>
                   <div className="text-slate-400">Прибытие</div>
                   <div className="font-medium text-slate-900">{formatDate(o.arrivalPlannedDate)}</div>
+                  {o.lateDays > 0 && (
+                    <div className="text-[10px] font-semibold text-amber-600">опаздывает {o.lateDays} дн</div>
+                  )}
                 </div>
                 <div>
                   <div className="text-slate-400">Сумма</div>
@@ -238,7 +244,12 @@ export function OrdersListClient({
                     {o.hasIssue && <span className="ml-1 text-xs text-red-600">🔴</span>}
                   </td>
                   <td className="px-3 py-2 text-xs text-slate-600">{o.factory?.name ?? "—"}</td>
-                  <td className="px-3 py-2 text-xs text-slate-600">{formatDate(o.arrivalPlannedDate)}</td>
+                  <td className="px-3 py-2 text-xs text-slate-600">
+                    {formatDate(o.arrivalPlannedDate)}
+                    {o.lateDays > 0 && (
+                      <span className="ml-1 font-semibold text-amber-600">· опаздывает {o.lateDays} дн</span>
+                    )}
+                  </td>
                   <td className="max-w-[180px] px-3 py-2 text-xs text-slate-600">
                     {o.packagingNames.length > 0 ? (
                       <span className="line-clamp-2" title={o.packagingNames.join(", ")}>
