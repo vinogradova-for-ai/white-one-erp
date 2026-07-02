@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { GanttRowV2, GanttBarV2, GanttGroup, GanttZoom, GanttDensity } from "./types";
 import {
   ZOOM_OPTIONS,
@@ -17,8 +17,20 @@ import {
 } from "./chart-utils";
 import { MobileList } from "./gantt-mobile";
 import { ThumbnailStack, LegendItem, ResizeHandle } from "./gantt-pieces";
+import { applyDrag, type TimelinePhase } from "@/lib/timeline-math";
 
 export type GanttGroupView = { key: string; label: string; rows: GanttRowV2[] };
+
+// Опорная линия шкалы. leftPx — позиция в пикселях от начала рейла.
+type Mark = {
+  iso: string;
+  leftPx: number;
+  label: string;
+  isMonthStart: boolean;
+  isStrong: boolean;
+  isDay?: boolean;
+  isWeekend?: boolean;
+};
 
 export function GanttV2Chart({
   groups,
@@ -38,10 +50,41 @@ export function GanttV2Chart({
   const { pxPerDay } = ZOOM_OPTIONS[zoom];
   const today = parseISO(todayIso);
   const range = calendarRangeForZoom(zoom, today);
-  const chartStart = toISO(range.start);
-  // end эксклюзивный (день ПОСЛЕ последнего видимого), но шкала рисует до
-  // последнего видимого включительно. dayDiff между ними = количество дней.
-  const chartEnd = toISO(range.end);
+
+  // ── Границы рейла ─────────────────────────────────────────────────────────
+  // Зум задаёт стартовую точку и pxPerDay (масштаб). Но рейл ОБЯЗАН покрывать
+  // min/max ВСЕХ фаз ВСЕХ строк + запас — иначе плашка вылезает за окно и её
+  // приходится клипать, а клипнутая ручка ≠ реальной дате (главный «рандом»).
+  // Поэтому расширяем календарный диапазон под фактические даты баров.
+  const dataRange = useMemo(() => {
+    let min: string | null = null;
+    let max: string | null = null;
+    for (const g of groups) {
+      for (const r of g.rows) {
+        for (const b of r.bars) {
+          // Учитываем pending, чтобы во время drag рейл ехал вместе с плашкой.
+          const pk = b.orderId && b.endField ? `${r.group}:${b.orderId}:${b.endField}` : null;
+          const end = pk && pendingChanges[pk] ? pendingChanges[pk] : b.end;
+          if (min === null || b.start < min) min = b.start;
+          if (max === null || end > max) max = end;
+        }
+      }
+    }
+    return { min, max };
+  }, [groups, pendingChanges]);
+
+  const calStart = toISO(range.start);
+  const calEnd = toISO(range.end);
+  // Запас по краям, чтобы крайние ручки не липли к краю рейла.
+  const MARGIN_DAYS = 7;
+  let chartStart = calStart;
+  let chartEnd = calEnd;
+  if (dataRange.min && dayDiff(dataRange.min, chartStart) > 0) {
+    chartStart = toISO(addDays(parseISO(dataRange.min), -MARGIN_DAYS));
+  }
+  if (dataRange.max && dayDiff(chartEnd, dataRange.max) > 0) {
+    chartEnd = toISO(addDays(parseISO(dataRange.max), MARGIN_DAYS));
+  }
   const totalDays = Math.max(1, dayDiff(chartStart, chartEnd));
 
   // Ширина левой колонки «Заказ / фасон» — drag-resize, как в Google Sheets.
@@ -58,8 +101,8 @@ export function GanttV2Chart({
   }
   const gridCols = `${leftColWidth}px 1fr`;
 
-  // Ширина timeline-области в пикселях. Контейнер скроллится по горизонтали,
-  // если эта ширина больше viewport.
+  // Пиксельная шкала: полная ширина таймлайна = totalDays × pxPerDay.
+  // Контейнер скроллится по горизонтали, если эта ширина больше viewport.
   const timelinePx = totalDays * pxPerDay;
   const totalPx = leftColWidth + timelinePx;
 
@@ -67,22 +110,27 @@ export function GanttV2Chart({
 
   const totalRows = groups.reduce((a, g) => a + g.rows.length, 0);
 
-  // Опорные линии шкалы — адаптивные (день/неделя/месяц).
-  // isStrong = понедельник или 1-е число (видна в шапке + жирная вертикальная линия)
-  // isDay    = просто день (только тонкая бледная линия, без подписи; для зум 1м)
-  // isWeekend = выходной (Сб/Вс) — фон зеброй
-  const marks = useMemo(() => {
-    const out: Array<{ iso: string; pct: number; label: string; isMonthStart: boolean; isStrong: boolean; isDay?: boolean; isWeekend?: boolean }> = [];
+  // ── Позиционирование в px (а не в %) ──────────────────────────────────────
+  // px/день фиксирован зумом, поэтому плашки одинаковой длительности всегда
+  // одинаковой ширины и НИЧЕГО не «плавает» при смене длины рейла.
+  const posPx = useCallback(
+    (iso: string): number => dayDiff(chartStart, iso) * pxPerDay,
+    [chartStart, pxPerDay],
+  );
+
+  // Опорные линии шкалы — адаптивные (день/неделя/месяц), позиции в px.
+  const marks = useMemo<Mark[]>(() => {
+    const out: Mark[] = [];
     const start = parseISO(chartStart);
+    const end = parseISO(chartEnd);
     if (zoom === "1w") {
-      // дни с подписью «Пн 5», «Вт 6» — чтобы понятно какой это день недели.
       const cur = new Date(start);
-      while (cur <= parseISO(chartEnd)) {
+      while (cur <= end) {
         const iso = toISO(cur);
         const dow = cur.getUTCDay(); // 0=Вс, 6=Сб
         out.push({
           iso,
-          pct: (dayDiff(chartStart, iso) / totalDays) * 100,
+          leftPx: dayDiff(chartStart, iso) * pxPerDay,
           label: `${DAYS_RU[dow]} ${cur.getUTCDate()}`,
           isMonthStart: cur.getUTCDate() === 1,
           isStrong: dow === 1,
@@ -91,18 +139,14 @@ export function GanttV2Chart({
         cur.setUTCDate(cur.getUTCDate() + 1);
       }
     } else if (zoom === "1m") {
-      // 1m: и дни (тонкие линии, без подписей), и понедельники (жирные с датой).
-      // Зебра выходных — отмечаем Сб/Вс через isWeekend.
       const cur = new Date(start);
-      while (cur <= parseISO(chartEnd)) {
+      while (cur <= end) {
         const iso = toISO(cur);
         const dow = cur.getUTCDay();
         const isMon = dow === 1;
         out.push({
           iso,
-          pct: (dayDiff(chartStart, iso) / totalDays) * 100,
-          // Подписываем только понедельники, остальные дни — без надписи.
-          // Формат «Пн 04.05» — день недели подтягивается к дате, как в зуме 1w.
+          leftPx: dayDiff(chartStart, iso) * pxPerDay,
           label: isMon ? `${DAYS_RU[dow]} ${formatDM(iso)}` : "",
           isMonthStart: cur.getUTCDate() <= 7 && isMon,
           isStrong: isMon,
@@ -112,17 +156,16 @@ export function GanttV2Chart({
         cur.setUTCDate(cur.getUTCDate() + 1);
       }
     } else if (zoom === "3m") {
-      // 3m: дни рисовать перебор (~6px/день → линии сливаются). Только понедельники.
       const cur = new Date(start);
       const offset = (cur.getUTCDay() + 6) % 7;
       cur.setUTCDate(cur.getUTCDate() - offset);
-      while (cur <= parseISO(chartEnd)) {
+      while (cur <= end) {
         const iso = toISO(cur);
         if (iso >= chartStart) {
           const dow = cur.getUTCDay();
           out.push({
             iso,
-            pct: (dayDiff(chartStart, iso) / totalDays) * 100,
+            leftPx: dayDiff(chartStart, iso) * pxPerDay,
             label: `${DAYS_RU[dow]} ${formatDM(iso)}`,
             isMonthStart: cur.getUTCDate() <= 7,
             isStrong: cur.getUTCDate() <= 7,
@@ -131,15 +174,14 @@ export function GanttV2Chart({
         cur.setUTCDate(cur.getUTCDate() + 7);
       }
     } else {
-      // месяцы для 6m/1y/auto
       const cur = new Date(start);
       cur.setUTCDate(1);
-      while (cur <= parseISO(chartEnd)) {
+      while (cur <= end) {
         const iso = toISO(cur);
         if (iso >= chartStart) {
           out.push({
             iso,
-            pct: (dayDiff(chartStart, iso) / totalDays) * 100,
+            leftPx: dayDiff(chartStart, iso) * pxPerDay,
             label: `${MONTH_RU[cur.getUTCMonth()]}`,
             isMonthStart: true,
             isStrong: true,
@@ -149,18 +191,13 @@ export function GanttV2Chart({
       }
     }
     return out;
-  }, [chartStart, chartEnd, totalDays, zoom]);
+  }, [chartStart, chartEnd, pxPerDay, zoom]);
 
-  function posPct(iso: string): number {
-    return (dayDiff(chartStart, iso) / totalDays) * 100;
-  }
-
-  const todayPct = posPct(todayIso);
+  const todayLeftPx = posPx(todayIso);
+  const todayInRange = todayLeftPx >= 0 && todayLeftPx <= timelinePx;
 
   // При заходе на страницу скроллим в начало — Алёна жаловалась, что при
-  // авто-скролле к "сегодня" левая колонка с названиями заказов прячется
-  // и не видно к чему относятся плашки. Лучше показать имена,
-  // пользователь сам прокрутит вправо к "сегодня" при необходимости.
+  // авто-скролле к "сегодня" левая колонка с названиями заказов прячется.
   const scrollRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const el = scrollRef.current;
@@ -168,10 +205,40 @@ export function GanttV2Chart({
     el.scrollLeft = 0;
   }, [zoom]);
 
-  // Горизонтальный скролл — через shift+wheel или жест по горизонтали тачпадом.
-  // Вертикальный wheel мы НЕ перехватываем: иначе scroll внутри Ганта по вертикали
-  // дёргается (конфликт между вертикальным скроллом строк и горизонтальным
-  // скроллом таймлайна).
+  // ── Автоскролл контейнера при drag у края (как в phase-timeline) ──────────
+  const autoScrollRef = useRef<number | null>(null);
+  const stopAutoScroll = useCallback(() => {
+    if (autoScrollRef.current != null) {
+      cancelAnimationFrame(autoScrollRef.current);
+      autoScrollRef.current = null;
+    }
+  }, []);
+  const maybeAutoScroll = useCallback((clientX: number, active: () => boolean) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const EDGE = 48;
+    const STEP = 14;
+    let dir = 0;
+    if (clientX < rect.left + EDGE) dir = -1;
+    else if (clientX > rect.right - EDGE) dir = 1;
+    if (dir === 0) {
+      stopAutoScroll();
+      return;
+    }
+    if (autoScrollRef.current != null) return; // уже крутим
+    const tick = () => {
+      const cont = scrollRef.current;
+      if (!cont || !active()) {
+        stopAutoScroll();
+        return;
+      }
+      cont.scrollLeft += dir * STEP;
+      autoScrollRef.current = requestAnimationFrame(tick);
+    };
+    autoScrollRef.current = requestAnimationFrame(tick);
+  }, [stopAutoScroll]);
+  useEffect(() => () => stopAutoScroll(), [stopAutoScroll]);
 
   if (totalRows === 0) {
     return (
@@ -187,16 +254,12 @@ export function GanttV2Chart({
     <div className="rounded-xl border border-slate-200 bg-white">
       {/* Десктоп: Гант */}
       <div className="hidden md:block">
-        <div ref={scrollRef} className="h-[calc(100vh-200px)] overflow-auto">
+        <div ref={scrollRef} className="h-[calc(100vh-200px)] overflow-auto select-none">
           <div style={{ width: `${totalPx}px`, minWidth: "100%" }}>
             {/* Шкала */}
             <div className="sticky top-0 z-20 grid border-b border-slate-200 bg-white" style={{ gridTemplateColumns: gridCols }}>
               <div className="relative px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Заказ / Фасон
-                {/* Drag-handle для ресайза левой колонки. Узкая полоска на правом
-                    краю, hit-area через padding ~5px влево-вправо, чтобы было
-                    легко попасть курсором. Полоса видна всегда (≈1px), на hover
-                    ярче, как в Google Sheets / Notion. */}
                 <ResizeHandle
                   current={leftColWidth}
                   min={LEFT_MIN}
@@ -205,7 +268,7 @@ export function GanttV2Chart({
                   onCommit={persistLeftColWidth}
                 />
               </div>
-              <div className="relative h-9">
+              <div className="relative h-9" style={{ width: timelinePx }}>
                 {marks.map((m) => {
                   const lineCls = m.isMonthStart
                     ? "border-slate-400"
@@ -216,7 +279,7 @@ export function GanttV2Chart({
                     <div
                       key={m.iso}
                       className="absolute top-0 h-full"
-                      style={{ left: `${m.pct}%` }}
+                      style={{ left: m.leftPx }}
                     >
                       <div className={`h-full border-l ${lineCls}`} />
                       {m.label && (
@@ -236,10 +299,10 @@ export function GanttV2Chart({
                     </div>
                   );
                 })}
-                {todayPct >= 0 && todayPct <= 100 && (
+                {todayInRange && (
                   <div
                     className="absolute -top-0.5 z-10 h-full border-l-2 border-red-500"
-                    style={{ left: `${todayPct}%` }}
+                    style={{ left: todayLeftPx }}
                   >
                     <div className="absolute -top-0.5 -translate-x-1/2 rounded bg-red-500 px-1 py-0.5 text-[9px] font-bold uppercase text-white">
                       сегодня
@@ -255,17 +318,19 @@ export function GanttV2Chart({
                 key={g.key}
                 group={g}
                 marks={marks}
-                totalDays={totalDays}
-                todayPct={todayPct}
-                posPct={posPct}
-                chartStart={chartStart}
-                chartEnd={chartEnd}
+                pxPerDay={pxPerDay}
+                timelinePx={timelinePx}
+                todayLeftPx={todayLeftPx}
+                todayInRange={todayInRange}
+                posPx={posPx}
                 density={dens}
                 showHeader={groups.length > 1 || groups[0]?.key !== "all"}
                 gridCols={gridCols}
                 onBarChange={onBarChange}
                 pendingChanges={pendingChanges}
                 zoom={zoom}
+                maybeAutoScroll={maybeAutoScroll}
+                stopAutoScroll={stopAutoScroll}
               />
             ))}
           </div>
@@ -294,25 +359,26 @@ export function GanttV2Chart({
 }
 
 function GroupBlock({
-  group, marks, totalDays, todayPct, posPct, chartStart, chartEnd, density, showHeader, gridCols, onBarChange, pendingChanges, zoom,
+  group, marks, pxPerDay, timelinePx, todayLeftPx, todayInRange, posPx, density, showHeader, gridCols, onBarChange, pendingChanges, zoom, maybeAutoScroll, stopAutoScroll,
 }: {
   group: GanttGroupView;
-  marks: Array<{ iso: string; pct: number; isStrong: boolean; isMonthStart?: boolean; isWeekend?: boolean }>;
-  totalDays: number;
-  todayPct: number;
-  posPct: (iso: string) => number;
-  chartStart: string;
-  chartEnd: string;
+  marks: Mark[];
+  pxPerDay: number;
+  timelinePx: number;
+  todayLeftPx: number;
+  todayInRange: boolean;
+  posPx: (iso: string) => number;
   density: typeof DENSITY[GanttDensity];
   showHeader: boolean;
   gridCols: string;
   onBarChange: (orderId: string, endField: string, newDateIso: string, group: GanttGroup) => void;
   pendingChanges: Record<string, string>;
   zoom: GanttZoom;
+  maybeAutoScroll: (clientX: number, active: () => boolean) => void;
+  stopAutoScroll: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
 
-  // Mini-statusbar для группы: распределение по состояниям
   const stats = useMemo(() => {
     let burning = 0, overdue = 0, ok = 0;
     for (const r of group.rows) {
@@ -351,16 +417,18 @@ function GroupBlock({
           key={`${r.group}-${r.id}`}
           row={r}
           marks={marks}
-          totalDays={totalDays}
-          todayPct={todayPct}
-          posPct={posPct}
-          chartStart={chartStart}
-          chartEnd={chartEnd}
+          pxPerDay={pxPerDay}
+          timelinePx={timelinePx}
+          todayLeftPx={todayLeftPx}
+          todayInRange={todayInRange}
+          posPx={posPx}
           density={density}
           gridCols={gridCols}
           onBarChange={onBarChange}
           pendingChanges={pendingChanges}
           zoom={zoom}
+          maybeAutoScroll={maybeAutoScroll}
+          stopAutoScroll={stopAutoScroll}
         />
       ))}
     </div>
@@ -368,21 +436,74 @@ function GroupBlock({
 }
 
 function RowView({
-  row, marks, totalDays, todayPct, posPct, chartStart, chartEnd, density, gridCols, onBarChange, pendingChanges, zoom,
+  row, marks, pxPerDay, timelinePx, todayLeftPx, todayInRange, posPx, density, gridCols, onBarChange, pendingChanges, zoom, maybeAutoScroll, stopAutoScroll,
 }: {
   row: GanttRowV2;
-  marks: Array<{ iso: string; pct: number; isStrong: boolean; isMonthStart?: boolean; isWeekend?: boolean }>;
-  totalDays: number;
-  todayPct: number;
-  posPct: (iso: string) => number;
-  chartStart: string;
-  chartEnd: string;
+  marks: Mark[];
+  pxPerDay: number;
+  timelinePx: number;
+  todayLeftPx: number;
+  todayInRange: boolean;
+  posPx: (iso: string) => number;
   density: typeof DENSITY[GanttDensity];
   gridCols: string;
   onBarChange: (orderId: string, endField: string, newDateIso: string, group: GanttGroup) => void;
   pendingChanges: Record<string, string>;
   zoom: GanttZoom;
+  maybeAutoScroll: (clientX: number, active: () => boolean) => void;
+  stopAutoScroll: () => void;
 }) {
+  // Эффективные start/end каждого бара с учётом pendingChanges.
+  const effBars = row.bars.map((b) => {
+    const pk = b.orderId && b.endField ? `${row.group}:${b.orderId}:${b.endField}` : null;
+    const effEnd = pk && pendingChanges[pk] ? pendingChanges[pk] : b.end;
+    return { bar: b, effEnd };
+  });
+
+  // effStart бара = effEnd предыдущего (или собственный start у первого;
+  // у первого — с учётом pending по startField).
+  const startPk = row.bars[0]?.orderId && row.bars[0]?.startField
+    ? `${row.group}:${row.bars[0].orderId}:${row.bars[0].startField}`
+    : null;
+  const firstEffStart = (startPk && pendingChanges[startPk]) ? pendingChanges[startPk] : row.bars[0]?.start;
+
+  function effStartOf(idx: number): string {
+    if (idx === 0) return firstEffStart ?? row.bars[0]?.start ?? "";
+    return effBars[idx - 1].effEnd;
+  }
+
+  // ── Фазы для applyDrag ────────────────────────────────────────────────────
+  // key = поле в БД (endField). Первый бар несёт startField (если есть).
+  const mathPhases: TimelinePhase[] = row.bars.map((b, idx) => ({
+    key: b.endField ?? `phase-${idx}`,
+    endField: b.endField ?? "",
+    startField: idx === 0 ? b.startField : undefined,
+    startIso: effStartOf(idx),
+    endIso: effBars[idx].effEnd,
+  }));
+
+  // field (endField/startField) → orderId, чтобы разложить изменения applyDrag
+  // по вызовам onBarChange. Все бары строки — один заказ, но держим карту явно.
+  const fieldToOrder = new Map<string, string>();
+  for (const b of row.bars) {
+    if (b.orderId && b.endField) fieldToOrder.set(b.endField, b.orderId);
+    if (b.orderId && b.startField) fieldToOrder.set(b.startField, b.orderId);
+  }
+
+  // Применяет жест: index фазы + край + новая дата → батч onBarChange.
+  const dispatchDrag = useCallback(
+    (phaseIndex: number, edge: "start" | "end", newIso: string) => {
+      const changes = applyDrag(mathPhases, { phaseIndex, edge, newIso });
+      for (const c of changes) {
+        const oid = fieldToOrder.get(c.field);
+        if (!oid) continue;
+        onBarChange(oid, c.field, c.newIso, row.group);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [row.bars, pendingChanges, onBarChange, row.group],
+  );
+
   return (
     <div className="grid border-b border-slate-100 hover:bg-slate-50/50" style={{ gridTemplateColumns: gridCols }}>
       {/* Левая колонка */}
@@ -412,15 +533,12 @@ function RowView({
         </div>
       </div>
 
-      {/* Правая колонка — таймлайн */}
+      {/* Правая колонка — таймлайн (ширина в px, плашки НЕ клипуются) */}
       <div
         className="relative"
-        style={{ height: density.rowH }}
+        style={{ height: density.rowH, width: timelinePx }}
       >
-        {/* Сетка:
-            — дни (isDay): едва видимые тонкие линии (slate-50)
-            — понедельники (isStrong & !isMonthStart): средние (slate-200)
-            — 1-е числа месяца (isMonthStart): яркие (slate-400) */}
+        {/* Сетка */}
         {marks.map((m) => {
           const cls = m.isMonthStart
             ? "border-slate-400"
@@ -431,28 +549,23 @@ function RowView({
             <div
               key={m.iso}
               className={`absolute top-0 h-full border-l ${cls}`}
-              style={{ left: `${m.pct}%` }}
+              style={{ left: m.leftPx }}
             />
           );
         })}
-        {/* Зебра выходных — только на зуме «1 нед», где видна разница «день недели».
-            На месячном и трёхмесячном масштабе зебра превращалась в полосатый
-            фон и мешала смотреть плашки (Алёна явно). */}
-        {zoom === "1w" && marks.filter((m) => m.isWeekend).map((m) => {
-          const widthPct = (1 / totalDays) * 100;
-          return (
-            <div
-              key={"we" + m.iso}
-              className="pointer-events-none absolute top-0 h-full bg-slate-100/40"
-              style={{ left: `${m.pct}%`, width: `${widthPct}%` }}
-            />
-          );
-        })}
+        {/* Зебра выходных — только на зуме «1 нед». */}
+        {zoom === "1w" && marks.filter((m) => m.isWeekend).map((m) => (
+          <div
+            key={"we" + m.iso}
+            className="pointer-events-none absolute top-0 h-full bg-slate-100/40"
+            style={{ left: m.leftPx, width: pxPerDay }}
+          />
+        ))}
         {/* Сегодня */}
-        {todayPct >= 0 && todayPct <= 100 && (
+        {todayInRange && (
           <div
             className="absolute top-0 z-10 h-full border-l-2 border-red-400"
-            style={{ left: `${todayPct}%` }}
+            style={{ left: todayLeftPx }}
           />
         )}
         {/* Бары */}
@@ -461,16 +574,17 @@ function RowView({
             key={b.key + i}
             bar={b}
             barIndex={i}
-            allBars={row.bars}
-            rowGroup={row.group}
-            marks={marks}
-            posPct={posPct}
-            chartStart={chartStart}
-            chartEnd={chartEnd}
+            startIso={effStartOf(i)}
+            endIso={effBars[i].effEnd}
+            dirty={effBars[i].effEnd !== b.end || (i === 0 && (firstEffStart ?? b.start) !== b.start) || (i > 0 && effBars[i - 1].effEnd !== row.bars[i - 1].end)}
+            hasStartHandle={i === 0 ? !!b.startField : !!(row.bars[i - 1]?.orderId && row.bars[i - 1]?.endField)}
+            posPx={posPx}
+            pxPerDay={pxPerDay}
             barH={density.barH}
             barTop={density.barTop}
-            onBarChange={onBarChange}
-            pendingChanges={pendingChanges}
+            dispatchDrag={dispatchDrag}
+            maybeAutoScroll={maybeAutoScroll}
+            stopAutoScroll={stopAutoScroll}
           />
         ))}
       </div>
@@ -479,75 +593,36 @@ function RowView({
 }
 
 function BarView({
-  bar, barIndex, allBars, rowGroup, posPct, chartStart, chartEnd, barH, barTop, onBarChange, pendingChanges,
+  bar, barIndex, startIso, endIso, dirty, hasStartHandle, posPx, pxPerDay, barH, barTop, dispatchDrag, maybeAutoScroll, stopAutoScroll,
 }: {
   bar: GanttBarV2;
   barIndex: number;
-  allBars: GanttBarV2[];
-  rowGroup: GanttGroup;
-  marks: Array<{ iso: string; pct: number; isStrong: boolean }>;
-  posPct: (iso: string) => number;
-  chartStart: string;
-  chartEnd: string;
+  startIso: string;
+  endIso: string;
+  dirty: boolean;
+  hasStartHandle: boolean;
+  posPx: (iso: string) => number;
+  pxPerDay: number;
   barH: number;
   barTop: number;
-  onBarChange: (orderId: string, endField: string, newDateIso: string, group: GanttGroup) => void;
-  pendingChanges: Record<string, string>;
+  dispatchDrag: (phaseIndex: number, edge: "start" | "end", newIso: string) => void;
+  maybeAutoScroll: (clientX: number, active: () => boolean) => void;
+  stopAutoScroll: () => void;
 }) {
-  // Эффективные start/end с учётом pendingChanges
-  const pendKey = bar.orderId && bar.endField ? `${rowGroup}:${bar.orderId}:${bar.endField}` : null;
-  const effEnd = pendKey && pendingChanges[pendKey] ? pendingChanges[pendKey] : bar.end;
+  const left = posPx(startIso);
+  // Минимальная видимая ширина, чтобы нулевая/отрицательная фаза оставалась
+  // кликабельной. Позиция ручек считается от РЕАЛЬНЫХ дат, не от этой ширины.
+  const MIN_BAR = 6;
+  const rawWidth = posPx(endIso) - left;
+  const width = Math.max(MIN_BAR, rawWidth);
+  const days = dayDiff(startIso, endIso);
 
-  const prev = barIndex > 0 ? allBars[barIndex - 1] : null;
-  const prevPendKey = prev?.orderId && prev?.endField ? `${rowGroup}:${prev.orderId}:${prev.endField}` : null;
-  const startPendKey = barIndex === 0 && bar.orderId && bar.startField
-    ? `${rowGroup}:${bar.orderId}:${bar.startField}`
-    : null;
-  const effStart = (prevPendKey && pendingChanges[prevPendKey])
-    ? pendingChanges[prevPendKey]
-    : (startPendKey && pendingChanges[startPendKey])
-      ? pendingChanges[startPendKey]
-      : bar.start;
-
-  const dirty = !!(
-    (pendKey && pendingChanges[pendKey]) ||
-    (prevPendKey && pendingChanges[prevPendKey]) ||
-    (startPendKey && pendingChanges[startPendKey])
-  );
-
-  // Полностью вне видимого окна — не рендерим. Иначе клип к chartStart
-  // прижимает 1.2%-сливер к левому краю, и фазы, давно закончившиеся в
-  // прошлом, стопкой накладываются друг на друга (opacity-50 + opacity-50 +
-  // ... = месиво из 4 цветов в одной точке у заказов «На складе Москва»).
-  if (effEnd < chartStart) return null;
-  if (effStart > chartEnd) return null;
-
-  // Клип к видимому диапазону
-  let s = effStart;
-  let e = effEnd;
-  if (s < chartStart) s = chartStart;
-  if (e > chartEnd) e = chartEnd;
-  const left = posPct(s);
-  const width = Math.max(1.2, posPct(e) - left);
-  const days = Math.round((parseISO(effEnd).getTime() - parseISO(effStart).getTime()) / 86400000);
-
-  // Состояние плашки → визуальное оформление
-  // - done: opacity 50%, без обводки, галочка ✓
-  // - active: full color, без обводки
-  // - future: pattern-заливка диагональными линиями + бледно
-  // - overdue: красная обводка 2px
-  // - nearlyDue: янтарная обводка 2px
+  // Состояние плашки → визуальное оформление (done/future = 50%).
   let stateClass = "";
   if (bar.state === "done") stateClass = "opacity-50";
   if (bar.state === "future") stateClass = "opacity-50";
-  // Обводки на плашках отключены по запросу Алёны — состояния и так читаются
-  // по цвету плашки и opacity (done = 50%). Лишние ring'и создавали визуальный
-  // шум, особенно у старых заказов с несвежими датами.
-  const borderClass = "";
 
-  // ПРОСРОЧЕНО/СКОРО ДЕДЛАЙН в тултипе не дублируем — для этого уже есть
-  // цветная обводка плашки и иконка 🔥/⚠️ в шапке строки.
-  const tooltip = `${bar.title} · ${formatDM(effStart)} → ${formatDM(effEnd)} · ${days} дн${
+  const tooltip = `${bar.title} · ${formatDM(startIso)} → ${formatDM(endIso)} · ${days} дн${
     bar.owner ? ` · ${bar.owner}` : ""
   }${dirty ? " · ИЗМЕНЕНО" : ""}`;
 
@@ -561,106 +636,23 @@ function BarView({
       height={barH}
       barColor={bar.color}
       stateClass={stateClass}
-      borderClass={borderClass}
-      done={bar.state === "done"}
-      future={bar.state === "future"}
       tooltip={tooltip}
       editable={editable}
-      hasStartHandle={
-        // Левая ручка ◀ есть, если:
-        //   1) это не-первая фаза — она редактирует endField предыдущей фазы (= тот же день в БД)
-        //   2) это первая фаза И у неё есть собственный startField (decisionDate)
-        !!((prev && prev.orderId && prev.endField) || (barIndex === 0 && bar.startField))
-      }
-      chartStart={chartStart}
-      chartEnd={chartEnd}
-      startIso={effStart}
-      endIso={effEnd}
-      onCommit={(rawNewEndIso) => {
-        if (!bar.orderId || !bar.endField) return;
-        // ПРАВИЛО: фазы строго последовательны и не пересекаются.
-        // ▶ фазы не может уехать левее start этой же фазы (иначе фаза перевернётся).
-        // Минимум — start, минимальная длительность фазы 0 дней (фаза «нулевая», точка).
-        const minEnd = effStart;
-        const newEndIso = rawNewEndIso < minEnd ? minEnd : rawNewEndIso;
-        const oldEndIso = pendingChanges[pendKey ?? ""] ?? bar.end;
-        const deltaMs = parseISO(newEndIso).getTime() - parseISO(oldEndIso).getTime();
-        const deltaDays = Math.round(deltaMs / 86400000);
-        if (deltaDays === 0) return;
-        // ▶ фазы N: меняем endField фазы N. Хвост едет вправо/влево с сохранением длительностей.
-        onBarChange(bar.orderId, bar.endField, newEndIso, rowGroup);
-        // Safety-net: после сдвига end каждой следующей фазы не должен уехать
-        // левее её start (= end предыдущей). Если уехал — подтягиваем end к
-        // start, чтобы фаза не перевернулась поверх соседа.
-        let prevEndIso = newEndIso;
-        for (let j = barIndex + 1; j < allBars.length; j++) {
-          const nb = allBars[j];
-          if (!nb.orderId || !nb.endField) continue;
-          const nbKey = `${rowGroup}:${nb.orderId}:${nb.endField}`;
-          const nbCur = pendingChanges[nbKey] ?? nb.end;
-          let shifted = toISO(addDays(parseISO(nbCur), deltaDays));
-          if (shifted < prevEndIso) shifted = prevEndIso;
-          onBarChange(nb.orderId, nb.endField, shifted, rowGroup);
-          prevEndIso = shifted;
-        }
-      }}
-      onCommitStart={
-        ((prev && prev.orderId && prev.endField) || (barIndex === 0 && bar.startField))
-          ? (rawNewStartIso) => {
-              if (!bar.orderId) return;
-              const oldStartIso = effStart;
-              if (prev && prev.orderId && prev.endField) {
-                // ◀ не-первой фазы = ▶ предыдущей. Меняем длительность предыдущей,
-                // текущая и далее едут на дельту с сохранением длительностей.
-                // ПРАВИЛО: новый end предыдущей не может уехать левее start предыдущей.
-                const prevPrev = barIndex >= 2 ? allBars[barIndex - 2] : null;
-                const prevPrevKey = prevPrev?.orderId && prevPrev?.endField
-                  ? `${rowGroup}:${prevPrev.orderId}:${prevPrev.endField}`
-                  : null;
-                let prevStart: string;
-                if (prevPrevKey && pendingChanges[prevPrevKey]) prevStart = pendingChanges[prevPrevKey];
-                else if (prevPrev) prevStart = prevPrev.end;
-                else prevStart = prev.start;
-                const newStartIso = rawNewStartIso < prevStart ? prevStart : rawNewStartIso;
-                const deltaMs = parseISO(newStartIso).getTime() - parseISO(oldStartIso).getTime();
-                const deltaDays = Math.round(deltaMs / 86400000);
-                if (deltaDays === 0) return;
-                onBarChange(prev.orderId, prev.endField, newStartIso, rowGroup);
-                let prevEndIso2 = newStartIso;
-                for (let j = barIndex; j < allBars.length; j++) {
-                  const nb = allBars[j];
-                  if (!nb.orderId || !nb.endField) continue;
-                  const nbKey = `${rowGroup}:${nb.orderId}:${nb.endField}`;
-                  const nbCur = pendingChanges[nbKey] ?? nb.end;
-                  let shifted = toISO(addDays(parseISO(nbCur), deltaDays));
-                  if (shifted < prevEndIso2) shifted = prevEndIso2;
-                  onBarChange(nb.orderId, nb.endField, shifted, rowGroup);
-                  prevEndIso2 = shifted;
-                }
-              } else if (bar.startField) {
-                // ◀ ПЕРВОЙ фазы (Разработка): меняем ТОЛЬКО startField.
-                // End разработки (= start следующей фазы) НЕ двигается.
-                // Хвост стоит. По факту — фиксируем, что разработка
-                // фактически началась раньше/позже, чем планировали.
-                // ПРАВИЛО: новый start не может быть позже end этой же фазы
-                // (иначе Разработка перевернётся и пересечётся с Производством).
-                const maxStart = effEnd;
-                const newStartIso = rawNewStartIso > maxStart ? maxStart : rawNewStartIso;
-                const deltaMs = parseISO(newStartIso).getTime() - parseISO(oldStartIso).getTime();
-                const deltaDays = Math.round(deltaMs / 86400000);
-                if (deltaDays === 0) return;
-                onBarChange(bar.orderId, bar.startField, newStartIso, rowGroup);
-              }
-            }
-          : undefined
-      }
+      hasStartHandle={hasStartHandle}
+      startIso={startIso}
+      endIso={endIso}
+      pxPerDay={pxPerDay}
+      barIndex={barIndex}
+      dispatchDrag={dispatchDrag}
+      maybeAutoScroll={maybeAutoScroll}
+      stopAutoScroll={stopAutoScroll}
     />
   );
 }
 
 function DraggableBar({
-  left, width, top, height, barColor, stateClass, borderClass, done, future, tooltip,
-  editable, hasStartHandle, chartStart, chartEnd, startIso, endIso, onCommit, onCommitStart,
+  left, width, top, height, barColor, stateClass, tooltip,
+  editable, hasStartHandle, startIso, endIso, pxPerDay, barIndex, dispatchDrag, maybeAutoScroll, stopAutoScroll,
 }: {
   left: number;
   width: number;
@@ -668,113 +660,114 @@ function DraggableBar({
   height: number;
   barColor: string;
   stateClass: string;
-  borderClass: string;
-  done?: boolean;
-  future?: boolean;
   tooltip: string;
   editable: boolean;
   hasStartHandle: boolean;
-  chartStart: string;
-  chartEnd: string;
   startIso: string;
   endIso: string;
-  onCommit: (newEndIso: string) => void;
-  onCommitStart?: (newStartIso: string) => void;
+  pxPerDay: number;
+  barIndex: number;
+  dispatchDrag: (phaseIndex: number, edge: "start" | "end", newIso: string) => void;
+  maybeAutoScroll: (clientX: number, active: () => boolean) => void;
+  stopAutoScroll: () => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [dragging, setDragging] = useState<"end" | "start" | null>(null);
   const [hoverIso, setHoverIso] = useState<string | null>(null);
+  const [dragEdge, setDragEdge] = useState<"start" | "end" | null>(null);
   const [flash, setFlash] = useState(false);
-  const dragRef = useRef<{ startX: number; pxPerDay: number; origIso: string } | null>(null);
+  const dragRef = useRef<{
+    edge: "start" | "end";
+    startX: number;
+    origIso: string;
+    pointerId: number;
+    target: Element;
+  } | null>(null);
 
-  useEffect(() => {
-    if (!dragging) return;
-    function onMouseMove(e: MouseEvent) {
-      const s = dragRef.current;
-      if (!s) return;
-      const deltaDays = Math.round((e.clientX - s.startX) / s.pxPerDay);
-      setHoverIso(toISO(addDays(parseISO(s.origIso), deltaDays)));
-    }
-    function onUp() {
-      let committed = false;
-      if (hoverIso) {
-        if (dragging === "end") { onCommit(hoverIso); committed = true; }
-        else if (onCommitStart) { onCommitStart(hoverIso); committed = true; }
-      }
-      setDragging(null);
-      setHoverIso(null);
-      dragRef.current = null;
-      if (committed) {
-        setFlash(true);
-        setTimeout(() => setFlash(false), 600);
-      }
-    }
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onUp);
-    return () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-  }, [dragging, hoverIso, onCommit, onCommitStart]);
-
-  function beginDrag(e: React.MouseEvent, mode: "start" | "end") {
+  // ── Drag через pointer events + setPointerCapture (мышь/палец/стилус) ──────
+  function onPointerDown(e: React.PointerEvent, edge: "start" | "end") {
     e.preventDefault();
     e.stopPropagation();
-    const track = ref.current?.parentElement;
-    if (!track) return;
-    const rect = track.getBoundingClientRect();
-    const totalDays = Math.max(1, dayDiff(chartStart, chartEnd));
-    dragRef.current = {
-      startX: e.clientX,
-      pxPerDay: rect.width / totalDays,
-      origIso: mode === "end" ? endIso : startIso,
-    };
-    setDragging(mode);
+    const origIso = edge === "start" ? startIso : endIso;
+    const target = e.currentTarget as Element;
+    target.setPointerCapture(e.pointerId);
+    dragRef.current = { edge, startX: e.clientX, origIso, pointerId: e.pointerId, target };
+    setDragEdge(edge);
+    setHoverIso(origIso);
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    const s = dragRef.current;
+    if (!s) return;
+    const deltaDays = Math.round((e.clientX - s.startX) / pxPerDay);
+    const newIso = toISO(addDays(parseISO(s.origIso), deltaDays));
+    setHoverIso(newIso);
+    maybeAutoScroll(e.clientX, () => dragRef.current != null);
+    if (deltaDays === 0) return;
+    // Вся математика — через applyDrag (без клампов/подтяжек).
+    dispatchDrag(barIndex, s.edge, newIso);
+  }
+
+  function endDrag(e: React.PointerEvent) {
+    const s = dragRef.current;
+    if (s) {
+      try { s.target.releasePointerCapture(s.pointerId); } catch { /* уже отпущен */ }
+    }
+    const committed = !!s;
+    dragRef.current = null;
+    setDragEdge(null);
+    setHoverIso(null);
+    stopAutoScroll();
+    e.stopPropagation();
+    if (committed) {
+      setFlash(true);
+      setTimeout(() => setFlash(false), 600);
+    }
   }
 
   return (
     <div
-      ref={ref}
-      className={`group absolute rounded ${barColor} ${stateClass} ${borderClass} shadow-sm transition-all duration-300 ${flash ? "ring-2 ring-emerald-400 ring-offset-1" : ""}`}
-      style={{ left: `${left}%`, width: `${width}%`, top, height }}
+      className={`group absolute rounded ${barColor} ${stateClass} shadow-sm transition-all duration-300 ${flash ? "ring-2 ring-emerald-400 ring-offset-1" : ""}`}
+      style={{ left, width, top, height }}
     >
-      {/* Подсказка-тултип — единственный источник правды (родного title нет,
-          чтобы браузер не показывал свой жёлтый тултип поверх кастомного). */}
+      {/* Тёмный кастомный тултип под плашкой (родного title нет). */}
       <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] text-white shadow-lg group-hover:block">
         {tooltip}
       </div>
-      {/*
-        Resize-хваты в стиле Figma/Linear: тонкие вертикальные полоски на краях
-        плашки. В покое скрыты, появляются на hover плашки. Сама полоска 3px,
-        но hit-area через горизонтальный padding ~10px — за счёт этого попасть
-        легко даже на узких плашках. При hover на хват — он становится ярче.
-      */}
-      {editable && hasStartHandle && onCommitStart && (
+
+      {/* Левая ручка ◀ — hit-area ≥44px (невидимый квадрат), видимая полоска 3px. */}
+      {editable && hasStartHandle && (
         <span
-          onMouseDown={(e) => beginDrag(e, "start")}
+          onPointerDown={(e) => onPointerDown(e, "start")}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
           title="Потянуть — изменить начало фазы"
-          className="absolute left-0 top-0 z-20 h-full w-2.5 -translate-x-1/2 cursor-ew-resize opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100"
+          className="absolute left-0 top-1/2 z-20 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100"
         >
-          {/* Видимая часть — узкая вертикальная плашка */}
-          <span className="pointer-events-none absolute left-1/2 top-1/2 h-[80%] w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.35)] transition-all hover:w-[5px] hover:bg-slate-900 hover:shadow-[0_0_0_1px_white]" />
+          <span className="pointer-events-none w-[3px] rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.35)]" style={{ height: height - 6 }} />
         </span>
       )}
+
+      {/* Правая ручка ▶ */}
       {editable && (
         <span
-          onMouseDown={(e) => beginDrag(e, "end")}
+          onPointerDown={(e) => onPointerDown(e, "end")}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
           title="Потянуть — изменить конец фазы"
-          className="absolute right-0 top-0 z-20 h-full w-2.5 translate-x-1/2 cursor-ew-resize opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100"
+          className="absolute right-0 top-1/2 z-20 flex h-11 w-11 translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100"
         >
-          <span className="pointer-events-none absolute left-1/2 top-1/2 h-[80%] w-[3px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.35)] transition-all hover:w-[5px] hover:bg-slate-900 hover:shadow-[0_0_0_1px_white]" />
+          <span className="pointer-events-none w-[3px] rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.35)]" style={{ height: height - 6 }} />
         </span>
       )}
-      {dragging && hoverIso && (
+
+      {dragEdge && hoverIso && (
         <div
           className={`pointer-events-none absolute -top-5 z-30 whitespace-nowrap rounded-md bg-slate-900 px-1.5 py-0.5 text-[10px] text-white shadow ${
-            dragging === "end" ? "right-0" : "left-0"
+            dragEdge === "end" ? "right-0" : "left-0"
           }`}
         >
-          {dragging === "end" ? "→" : "←"} {formatDM(hoverIso)}
+          {dragEdge === "end" ? "→" : "←"} {formatDM(hoverIso)}
         </div>
       )}
     </div>
