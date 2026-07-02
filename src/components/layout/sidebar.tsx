@@ -43,12 +43,17 @@ const REF_NAV = [
 ];
 
 export function Sidebar({ user }: { user: { name?: string | null; email?: string | null; role: Role } }) {
+  // Сайдбар — колонка на всю высоту: шапка (фикс) + меню (скроллится) +
+  // плашка пользователя (фикс, футер). Раньше плашка была absolute поверх
+  // меню и при прокрутке НАКЛАДЫВАЛАСЬ на нижние пункты. Теперь flex-колонка:
+  // меню в своей зоне flex-1 overflow-y-auto, футер — отдельным нескроллящимся
+  // блоком с фоном и border-t, ничего не перекрывает.
   return (
-    <aside className="hidden w-60 flex-shrink-0 border-r border-slate-200 bg-white md:block">
-      <div className="flex h-16 items-center border-b border-slate-200 px-5">
+    <aside className="sticky top-0 hidden h-screen w-60 flex-shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
+      <div className="flex h-16 shrink-0 items-center border-b border-slate-200 px-5">
         <span className="text-base font-semibold tracking-tight text-slate-900">White One</span>
       </div>
-      <nav className="space-y-0.5 px-3 py-4">
+      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
         {NAV.map((item) => (
           <NavItem key={item.href} {...item} />
         ))}
@@ -63,7 +68,7 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
         </div>
         {REF_NAV.map((item) => <NavItem key={item.href} {...item} />)}
       </nav>
-      <div className="absolute bottom-0 w-60 border-t border-slate-200 px-5 py-3">
+      <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-3">
         <div className="text-sm text-slate-900">{user.name}</div>
         <div className="text-[11px] text-slate-500">{ROLE_LABELS[user.role]}</div>
       </div>
