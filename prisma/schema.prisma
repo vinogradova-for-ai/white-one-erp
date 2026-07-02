@@ -131,6 +131,14 @@ enum PackagingItemStatus {
   ARCHIVED      // Снято с использования
 }
 
+// Статус поставки (группы партий, едущих одним транспортом на склад МСК).
+enum ShipmentStatus {
+  DRAFT       // Черновик — собираем партии, ещё не выехала
+  IN_TRANSIT  // В пути (проставлена дата выезда)
+  ARRIVED     // Приехала на склад, идёт приёмка
+  RECEIVED    // Приёмка завершена по всем партиям
+}
+
 enum PackagingType {
   LABEL        // Бирки (навесные, обшивные)
   SIZE_LABEL   // Размерники
@@ -176,6 +184,7 @@ model User {
   packagingStatusLogs PackagingItemStatusLog[] @relation("PackagingStatusActor")
   ownedPackagingOrders PackagingOrder[]  @relation("PackagingOrderOwner")
   ownedPlans          MonthlyPlan[]      @relation("PlanOwner")
+  createdShipments    Shipment[]         @relation("ShipmentCreator")
 
   @@index([role])
   @@index([isActive])
@@ -498,6 +507,7 @@ model Order {
   statusLogs OrderStatusLog[]
   packagingItems OrderPackaging[]
   payments Payment[]
+  batches  OrderBatch[]
 
   @@index([orderNumber])
   @@index([productModelId])
@@ -545,6 +555,92 @@ model OrderLine {
 
   @@index([orderId])
   @@index([productVariantId])
+}
+
+// ======================================================
+// ПАРТИИ / ПОСТАВКИ / ПРИЁМКА
+// ======================================================
+// Боль Алёны: «фабрика сшила чуть по-другому — приёмка поштучно; заказ сдаётся
+// в несколько партий; несколько заказов уезжает в одной поставке».
+//
+// OrderBatch — партия заказа (кусок заказа, едущий отдельно). У простого заказа
+// партия одна и создаётся ЛЕНИВО (при первом добавлении в поставку) со всеми
+// позициями из линий заказа — обычному случаю никакой лишней возни.
+// Shipment — поставка: группа партий (возможно разных заказов), едущая на склад.
+
+model OrderBatch {
+  id         String    @id @default(cuid())
+  orderId    String
+  order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  index      Int                                   // Номер партии в заказе 1..N (для подписи «партия 1/2»)
+
+  // Поставка, в которой едет партия (null — партия ещё не назначена в поставку).
+  shipmentId String?
+  shipment   Shipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+
+  // Дата завершения приёмки партии. null — приёмка не завершена.
+  receivedAt DateTime?
+  note       String?
+
+  items      OrderBatchItem[]
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([orderId, index])
+  @@index([orderId])
+  @@index([shipmentId])
+  @@index([receivedAt])
+}
+
+// Позиция партии — по образцу OrderLine (цвет + размер + кол-во), но с фактом
+// приёмки поштучно. variantId опционален: строку можно добавить руками при
+// приёмке, если фабрика сшила размер/цвет, которого не было в заказе.
+model OrderBatchItem {
+  id          String  @id @default(cuid())
+  batchId     String
+  batch       OrderBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  variantId   String?                              // Ссылка на ProductVariant (если позиция из заказа)
+  colorName   String                               // Цвет (денормализовано, как в OrderLine.productVariant.colorName)
+  size        String                               // Размер («42», «44», ...)
+
+  plannedQty  Int                                  // План — сколько этой позиции едет в партии
+  factQty     Int?                                 // Факт — сколько реально приняли (null — не принимали)
+  defectQty   Int?                                 // Брак — сколько с браком
+  note        String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([batchId])
+  @@index([variantId])
+}
+
+model Shipment {
+  id          String         @id @default(cuid())
+  number      String         @unique              // SHP-YYYY-NNNN (генерация как orderNumber)
+  status      ShipmentStatus @default(DRAFT)
+
+  departDate  DateTime?                            // Дата выезда (перевод в IN_TRANSIT)
+  arriveDate  DateTime?                            // Дата прибытия на склад (перевод в ARRIVED)
+  carrier     String?                              // Перевозчик / способ
+  comment     String?
+
+  createdById String
+  createdBy   User           @relation("ShipmentCreator", fields: [createdById], references: [id])
+
+  // Мягкое удаление (только OWNER/DIRECTOR) — «никогда не удаляем физически».
+  deletedAt   DateTime?
+
+  batches     OrderBatch[]
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([status])
+  @@index([deletedAt])
+  @@index([number])
 }
 
 // ======================================================
