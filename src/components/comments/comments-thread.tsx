@@ -248,7 +248,7 @@ export function CommentsThread({
           <button
             type="submit"
             disabled={(!body.trim() && pendingPhotos.length === 0) || posting || uploading}
-            className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+            className="inline-flex min-h-[44px] items-center rounded-lg bg-slate-900 px-4 text-xs font-medium text-white disabled:opacity-40 sm:min-h-0 sm:px-3 sm:py-1.5"
           >
             {posting ? "Сохраняю…" : "Добавить"}
           </button>

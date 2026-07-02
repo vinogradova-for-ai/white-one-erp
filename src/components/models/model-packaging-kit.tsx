@@ -116,7 +116,7 @@ export function ModelPackagingKit({
                 type="button"
                 onClick={() => removeLink(l.id)}
                 disabled={busyId === l.id}
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                className="inline-flex min-h-[44px] shrink-0 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50 sm:min-h-0 sm:py-1.5"
               >
                 Убрать
               </button>
