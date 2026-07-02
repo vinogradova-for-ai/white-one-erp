@@ -55,7 +55,7 @@ export function AddUserForm() {
         </div>
         <button
           onClick={() => { setCreated(null); setOpen(false); }}
-          className="mt-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+          className="mt-2 inline-flex min-h-[40px] items-center rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-600 hover:bg-slate-50"
         >
           Записала, закрыть
         </button>
@@ -67,7 +67,7 @@ export function AddUserForm() {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800"
+        className="flex h-10 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 active:bg-slate-800 sm:w-auto"
       >
         + Добавить сотрудника
       </button>
@@ -75,12 +75,12 @@ export function AddUserForm() {
   }
 
   return (
-    <form onSubmit={submit} className="rounded-xl border border-slate-200 bg-white p-3 flex flex-wrap items-end gap-2">
+    <form onSubmit={submit} className="flex w-full flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:w-auto sm:flex-row sm:flex-wrap sm:items-end">
       <label className="flex flex-col text-xs text-slate-500">
         Имя
         <input
           value={name} onChange={(e) => setName(e.target.value)} required
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm w-40"
+          className="h-11 w-full rounded-lg border border-slate-300 px-3 text-sm sm:h-auto sm:w-40 sm:py-1.5"
           placeholder="Дарья"
         />
       </label>
@@ -88,7 +88,7 @@ export function AddUserForm() {
         Логин
         <input
           value={email} onChange={(e) => setEmail(e.target.value)} required
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm w-40"
+          className="h-11 w-full rounded-lg border border-slate-300 px-3 text-sm sm:h-auto sm:w-40 sm:py-1.5"
           placeholder="darya"
         />
       </label>
@@ -96,7 +96,7 @@ export function AddUserForm() {
         Роль
         <select
           value={role} onChange={(e) => setRole(e.target.value as Role)}
-          className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm"
+          className="h-11 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm sm:h-auto sm:w-auto sm:py-1.5"
         >
           {CREATABLE_ROLES.map((r) => (
             <option key={r} value={r}>{ROLE_LABELS[r]}</option>
@@ -105,13 +105,13 @@ export function AddUserForm() {
       </label>
       <button
         type="submit" disabled={busy}
-        className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+        className="flex h-11 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 sm:h-9"
       >
         {busy ? "..." : "Создать"}
       </button>
       <button
         type="button" onClick={() => { setOpen(false); setErr(null); }}
-        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+        className="flex h-11 items-center justify-center rounded-lg border border-slate-300 px-4 text-sm text-slate-600 hover:bg-slate-50 sm:h-9"
       >
         Отмена
       </button>

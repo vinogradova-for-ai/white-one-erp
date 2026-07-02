@@ -26,7 +26,7 @@ export default async function UsersAdminPage() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Сотрудники</h1>
+          <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Сотрудники</h1>
           <p className="text-sm text-slate-500">
             Активных: {activeCount} из {users.length}. Только активные видны в выпадающих «Ответственный».
           </p>
@@ -34,7 +34,44 @@ export default async function UsersAdminPage() {
         {isAdmin && <AddUserForm />}
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+      {/* Мобайл: карточки сотрудников (таблица из 5 колонок не влезает в 390px) */}
+      <div className="space-y-2 md:hidden">
+        {users.map((u) => (
+          <div
+            key={u.id}
+            className={`rounded-2xl border border-slate-200 bg-white p-4 ${
+              u.isActive ? "" : "opacity-70"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate text-[15px] font-semibold text-slate-900">{u.name}</div>
+                <div className="truncate text-xs text-slate-500">{u.email}</div>
+              </div>
+              {u.isActive ? (
+                <span className="shrink-0 rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">активен</span>
+              ) : (
+                <span className="shrink-0 rounded bg-slate-200 px-2 py-0.5 text-xs text-slate-600">отключён</span>
+              )}
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <RoleCell
+                userId={u.id}
+                role={u.role}
+                canEdit={isAdmin && u.id !== meId}
+                actorIsOwner={isOwner}
+              />
+              <div className="flex items-center gap-2">
+                {isAdmin && <ResetPasswordButton userId={u.id} userName={u.name} />}
+                {isAdmin && <UserToggleButton userId={u.id} isActive={u.isActive} />}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Десктоп: таблица */}
+      <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white md:block">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
