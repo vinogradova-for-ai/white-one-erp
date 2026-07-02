@@ -38,6 +38,10 @@ export function KanbanFiltersClient({
     status: string[];
   }>("kanban:filters:v1", { category: [], ownerId: [], status: [] });
 
+  // Активен ли хоть один фильтр — для показа кнопки «Сбросить фильтры».
+  const hasActiveFilters =
+    filters.category.length > 0 || filters.ownerId.length > 0 || filters.status.length > 0;
+
   const filteredBuckets = useMemo(() => {
     const out: Record<string, KanbanCard[]> = {};
     let visibleCount = 0;
@@ -58,11 +62,20 @@ export function KanbanFiltersClient({
     <div className="space-y-2">
       <div className="rounded-xl border border-slate-200 bg-white p-2">
         <div className="no-scrollbar flex items-center gap-x-3 gap-y-2 overflow-x-auto md:flex-wrap">
-          <div className="flex shrink-0 items-baseline gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <h1 className="text-sm font-semibold text-slate-900">Канбан фасонов</h1>
             <span className="text-xs text-slate-500">
               {filteredBuckets.visibleCount}/{total}
             </span>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={() => setFilters({ category: [], ownerId: [], status: [] })}
+                className="inline-flex min-h-[44px] items-center gap-1 rounded-full border border-slate-200 px-3 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 md:min-h-0 md:py-1"
+              >
+                ✕ Сбросить фильтры
+              </button>
+            )}
           </div>
           <span className="mx-1 hidden h-5 w-px bg-slate-200 md:inline-block" aria-hidden />
           <span className="hidden shrink-0 text-xs uppercase tracking-wide text-slate-400 md:inline">Фильтры:</span>
