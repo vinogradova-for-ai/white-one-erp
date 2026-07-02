@@ -13,6 +13,7 @@ import { OrderPackagingSection } from "@/components/orders/order-packaging-secti
 import { OrderLinesSection } from "@/components/orders/order-lines-section";
 import { OrderTimelineEditor } from "@/components/orders/order-timeline-editor";
 import { OrderStatusChanger } from "@/components/orders/order-status-changer";
+import { OrderBatchesSection } from "@/components/orders/order-batches-section";
 import { CommentsThread } from "@/components/comments/comments-thread";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/rbac";
@@ -87,6 +88,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       payments: {
         where: { type: "ORDER" },
         orderBy: { plannedDate: "asc" },
+      },
+      batches: {
+        orderBy: { index: "asc" },
+        include: {
+          shipment: { select: { id: true, number: true, status: true } },
+          items: { orderBy: [{ colorName: "asc" }, { size: "asc" }] },
+        },
       },
     },
   });
@@ -270,6 +278,31 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             }))}
           />
         </div>
+      </section>
+
+      {/* Партии и доставка */}
+      <section>
+        <h2 className="mb-3 text-base font-semibold text-slate-900">Партии и доставка</h2>
+        <OrderBatchesSection
+          canManage={canChangeStatus}
+          totalBatches={order.batches.length}
+          batches={order.batches.map((b) => ({
+            id: b.id,
+            index: b.index,
+            receivedAt: b.receivedAt ? b.receivedAt.toISOString() : null,
+            shipment: b.shipment
+              ? { id: b.shipment.id, number: b.shipment.number, status: b.shipment.status }
+              : null,
+            items: b.items.map((i) => ({
+              id: i.id,
+              colorName: i.colorName,
+              size: i.size,
+              plannedQty: i.plannedQty,
+              factQty: i.factQty,
+              defectQty: i.defectQty,
+            })),
+          }))}
+        />
       </section>
 
       {/* График платежей */}

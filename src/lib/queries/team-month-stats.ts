@@ -130,6 +130,8 @@ export function shippedInMonth(
     qcDate: Date | null;
     readyAtFactoryDate: Date | null;
     statusLogs: { toStatus: OrderStatus; changedAt: Date }[];
+    // Партии заказа с датой выезда их поставки — доп. сигнал «отправлено».
+    batches?: { shipment: { departDate: Date | null } | null }[];
   },
   start: Date,
   next: Date,
@@ -139,6 +141,10 @@ export function shippedInMonth(
     (l) => l.toStatus === "IN_TRANSIT" && inMonth(l.changedAt, start, next),
   );
   if (wentInTransit) return true;
+
+  // 1b) Доп. сигнал: партия заказа уехала в поставке (departDate) в этом месяце.
+  const departed = order.batches?.some((b) => inMonth(b.shipment?.departDate ?? null, start, next));
+  if (departed) return true;
 
   // 2) Fallback: лога нет (старые заказы), но статус уже ≥ IN_TRANSIT и есть
   //    датированный факт «готово к отправке» в этом месяце.
@@ -171,6 +177,10 @@ export async function getTeamMonthStats(requestedYm?: number): Promise<TeamMonth
           { arrivalActualDate: { gte: start, lt: next } },
           { status: { in: ACTIVE_STATUSES } },
           { statusLogs: { some: { toStatus: "IN_TRANSIT", changedAt: { gte: start, lt: next } } } },
+          // Партия заказа принята в этом месяце (доп. сигнал «получено»).
+          { batches: { some: { receivedAt: { gte: start, lt: next } } } },
+          // Поставка партии заказа выехала в этом месяце (доп. сигнал «отправлено»).
+          { batches: { some: { shipment: { departDate: { gte: start, lt: next } } } } },
         ],
       },
       select: {
@@ -186,6 +196,13 @@ export async function getTeamMonthStats(requestedYm?: number): Promise<TeamMonth
         statusLogs: {
           where: { toStatus: "IN_TRANSIT" },
           select: { toStatus: true, changedAt: true },
+        },
+        // Партии + даты приёмки/выезда поставки — доп. сигналы «отправлено»/«получено».
+        batches: {
+          select: {
+            receivedAt: true,
+            shipment: { select: { departDate: true } },
+          },
         },
       },
     }),
@@ -274,8 +291,11 @@ export async function getTeamMonthStats(requestedYm?: number): Promise<TeamMonth
       acc.shippedModels.add(o.productModelId);
       acc.shippedUnits += units;
     }
-    // Получено: arrivalActualDate в M И статус ≥ WAREHOUSE_MSK.
-    if (inMonth(o.arrivalActualDate, start, next) && statusAtLeast(o.status, "WAREHOUSE_MSK")) {
+    // Получено: arrivalActualDate в M И статус ≥ WAREHOUSE_MSK (основной путь),
+    // ЛИБО доп. сигнал — партия заказа принята (receivedAt) в этом месяце.
+    const arrivedByOrder = inMonth(o.arrivalActualDate, start, next) && statusAtLeast(o.status, "WAREHOUSE_MSK");
+    const batchReceived = o.batches.some((b) => inMonth(b.receivedAt, start, next));
+    if (arrivedByOrder || batchReceived) {
       acc.receivedModels.add(o.productModelId);
       acc.receivedUnits += units;
     }

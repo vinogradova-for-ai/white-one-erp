@@ -26,7 +26,8 @@ const NAV = [
 // Они здесь только СМОТРЯТ; работаем в системе мы (отдел продукта).
 const MORE_NAV = [
   { href: "/payments", label: "Платежи", icon: "₽" },
-  { href: "/incoming", label: "Поставки", icon: "▣" },
+  { href: "/shipments", label: "Поставки", icon: "▣" },
+  { href: "/incoming", label: "Заказы в пути", icon: "▤" },
   { href: "/warehouse", label: "Склад", icon: "▩" },
   { href: "/content-schedule", label: "Артикулы для фотосессии", icon: "✿" },
 ];
