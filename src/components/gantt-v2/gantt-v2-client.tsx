@@ -56,10 +56,14 @@ export function GanttV2Client({
 
   // ---------- Фильтрация: Категория, Ответственный, Производство (RU/CN/Тяк) ----------
   const filtered = useMemo(() => {
+    // Поиск по названию фасона и номеру заказа (аудит блок ④). title строки —
+    // «Название · #ORD-...», subtitle — цвета/штуки; ищем по обоим, регистр не важен.
+    const q = filters.search.trim().toLowerCase();
     return rows.filter((r) => {
       if (filters.ownerId.length && (!r.ownerId || !filters.ownerId.includes(r.ownerId))) return false;
       if (filters.category.length && (!r.category || !filters.category.includes(r.category))) return false;
       if (filters.productionRegion.length && (!r.productionRegion || !filters.productionRegion.includes(r.productionRegion))) return false;
+      if (q && !(`${r.title} ${r.subtitle ?? ""}`.toLowerCase().includes(q))) return false;
       return true;
     });
   }, [rows, filters]);
@@ -151,6 +155,14 @@ export function GanttV2Client({
             + Заказ
           </Link>
           <span className="w-px h-5 bg-slate-200 mx-1" aria-hidden />
+          {/* Поиск по названию фасона / номеру заказа (аудит блок ④) */}
+          <input
+            type="search"
+            value={filters.search}
+            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+            placeholder="Поиск: фасон или № заказа…"
+            className="h-7 w-48 rounded-md border border-slate-300 bg-white px-2 text-xs placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+          />
           <span className="text-xs uppercase tracking-wide text-slate-400">Фильтры:</span>
           <FilterDropdown label="Категория" options={filterOptions.categories} value={filters.category}
             onChange={(v) => setFilters((f) => ({ ...f, category: v }))} />
