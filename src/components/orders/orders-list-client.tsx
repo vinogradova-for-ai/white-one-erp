@@ -71,7 +71,7 @@ export function OrdersListClient({
       <div className="sticky top-0 z-20 -mx-4 border-b border-slate-200 bg-slate-50/95 px-4 py-2 backdrop-blur md:static md:mx-0 md:rounded-xl md:border md:bg-white md:p-2 md:backdrop-blur-none">
         <div className="flex items-center justify-between gap-3 md:hidden">
           <div className="flex items-baseline gap-2">
-            <h1 className="text-lg font-semibold text-slate-900">Заказы</h1>
+            <h1 className="text-xl font-semibold text-slate-900">Заказы</h1>
             <span className="text-xs text-slate-500">
               {filtered.length}/{orders.length}
             </span>
