@@ -42,7 +42,7 @@ export default async function SeasonsPage({
     <div className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Цели</h1>
+          <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Цели</h1>
           <p className="text-sm text-slate-500">
             10 артикулов и 20 000 шт в месяц — общая цель отдела.
           </p>
@@ -51,15 +51,15 @@ export default async function SeasonsPage({
           <FillPlanButton />
           <Link
             href="/admin/plans"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+            className="flex h-10 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100"
           >
             Редактировать план →
           </Link>
         </div>
       </div>
 
-      {/* Табы сезонов */}
-      <div className="flex flex-wrap gap-1.5">
+      {/* Табы сезонов — одна прокручиваемая строка на мобиле */}
+      <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
         {summaries.map((s) => {
           const active = s.season.key === activeKey;
           const factPct = s.goalQuantity > 0 ? Math.round((s.factQuantity / s.goalQuantity) * 100) : 0;
@@ -67,7 +67,7 @@ export default async function SeasonsPage({
             <Link
               key={s.season.key}
               href={`/seasons?s=${s.season.key}`}
-              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
+              className={`inline-flex min-h-[40px] shrink-0 items-center gap-2 rounded-full border px-3 text-sm transition ${
                 active
                   ? "border-slate-900 bg-slate-900 text-white"
                   : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
