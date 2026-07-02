@@ -10,7 +10,22 @@ import {
   NotificationType,
   Currency,
   PackagingType,
+  ShipmentStatus,
 } from "@prisma/client";
+
+export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = {
+  DRAFT: "Черновик",
+  IN_TRANSIT: "В пути",
+  ARRIVED: "Приехала",
+  RECEIVED: "Принята",
+};
+
+export const SHIPMENT_STATUS_COLORS: Record<ShipmentStatus, string> = {
+  DRAFT: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  IN_TRANSIT: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+  ARRIVED: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  RECEIVED: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+};
 
 export const PACKAGING_TYPE_LABELS: Record<PackagingType, string> = {
   LABEL: "Бирка навесная",
