@@ -45,8 +45,10 @@ export default async function IncomingPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Поставки</h1>
-          <p className="text-sm text-slate-500">Заказы в пути и к отгрузке: {orders.length}</p>
+          {/* Не «Поставки» — так называется /shipments (сборные поставки-партии).
+              Это окно — все заказы в пути и к отгрузке, называем как в меню. */}
+          <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Заказы в пути</h1>
+          <p className="text-sm text-slate-500">В пути и к отгрузке: {orders.length}</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <IncomingExportButton />

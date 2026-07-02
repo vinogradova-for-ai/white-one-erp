@@ -150,8 +150,8 @@ export default async function IncomingCalendarPage({
     <div className="space-y-4">
       <div className="flex items-center gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Поставки</h1>
-          <p className="text-sm text-slate-500">Заказы в пути и к отгрузке: {orders.length}</p>
+          <h1 className="text-2xl font-semibold text-slate-900">Заказы в пути</h1>
+          <p className="text-sm text-slate-500">В пути и к отгрузке: {orders.length}</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <IncomingExportButton />

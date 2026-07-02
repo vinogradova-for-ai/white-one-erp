@@ -30,14 +30,17 @@ export function OrderStatusChanger({
   const [savingStatus, setSavingStatus] = useState<OrderStatus | null>(null);
 
   const allowedNext = ORDER_TRANSITIONS[currentStatus];
+  // Для «На складе Москва» спрашиваем дату прибытия (Сегодня/Вчера/…):
+  // без неё факт прибытия = момент клика, а Настя часто отмечает на 1-2 дня позже.
+  const [askArrivalDate, setAskArrivalDate] = useState(false);
 
-  async function move(toStatus: OrderStatus) {
+  async function move(toStatus: OrderStatus, dateIso?: string) {
     setError(null);
     setSavingStatus(toStatus);
     const res = await fetch(`/api/orders/${orderId}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ toStatus, comment }),
+      body: JSON.stringify({ toStatus, comment, ...(dateIso ? { dateIso } : {}) }),
     });
     setSavingStatus(null);
     if (!res.ok) {
@@ -50,7 +53,14 @@ export function OrderStatusChanger({
     toast.success(`Статус → ${ORDER_STATUS_LABELS[toStatus]}`);
     closeSheet();
     setComment("");
+    setAskArrivalDate(false);
     startTransition(() => router.refresh());
+  }
+
+  // Дата по МСК N дней назад в формате YYYY-MM-DD.
+  function mskDaysAgoIso(n: number): string {
+    const msk = new Date(Date.now() + 3 * 60 * 60_000 - n * 86_400_000);
+    return msk.toISOString().slice(0, 10);
   }
 
   if (currentStatus === "ON_SALE") {
@@ -76,6 +86,50 @@ export function OrderStatusChanger({
             </span>
           </div>
 
+          {askArrivalDate ? (
+            <div className="space-y-2">
+              <div className="text-xs font-medium text-slate-600">
+                Когда заказ приехал на склад?
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {[
+                  { label: "Сегодня", n: 0 },
+                  { label: "Вчера", n: 1 },
+                  { label: "−2 дн", n: 2 },
+                  { label: "−3 дн", n: 3 },
+                ].map((opt) => (
+                  <button
+                    key={opt.n}
+                    disabled={savingStatus !== null}
+                    onClick={() => move("WAREHOUSE_MSK", mskDaysAgoIso(opt.n))}
+                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 transition hover:border-slate-400 active:bg-slate-100 disabled:opacity-50"
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+                <input
+                  type="date"
+                  max={mskDaysAgoIso(0)}
+                  disabled={savingStatus !== null}
+                  onChange={(e) => {
+                    if (e.target.value) move("WAREHOUSE_MSK", e.target.value);
+                  }}
+                  className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-900"
+                  aria-label="Другая дата прибытия"
+                />
+                <button
+                  onClick={() => setAskArrivalDate(false)}
+                  disabled={savingStatus !== null}
+                  className="px-2 py-2 text-sm text-slate-500 hover:text-slate-700"
+                >
+                  Отмена
+                </button>
+              </div>
+              {savingStatus !== null && (
+                <div className="text-xs text-slate-500">сохраняем…</div>
+              )}
+            </div>
+          ) : (
           <div className="space-y-2">
             <div className="text-xs font-medium text-slate-600">Перевести в:</div>
             {ORDER_STATUS_ORDER.filter(
@@ -86,7 +140,7 @@ export function OrderStatusChanger({
                 <button
                   key={s}
                   disabled={!isAllowed || savingStatus !== null}
-                  onClick={() => move(s)}
+                  onClick={() => (s === "WAREHOUSE_MSK" ? setAskArrivalDate(true) : move(s))}
                   className={`flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left text-sm transition ${
                     isAllowed
                       ? "border-slate-200 bg-white text-slate-900 hover:border-slate-400 active:bg-slate-100"
@@ -100,6 +154,7 @@ export function OrderStatusChanger({
               );
             })}
           </div>
+          )}
 
           <textarea
             value={comment}
