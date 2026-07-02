@@ -56,12 +56,12 @@ export function PaymentRowActions({ id, status }: { id: string; status: "PENDING
   }
 
   return (
-    <div className="flex justify-end gap-1">
+    <div className="flex flex-wrap justify-end gap-1.5">
       {status === "PENDING" ? (
         <button
           onClick={markPaid}
           disabled={busy}
-          className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
+          className="inline-flex min-h-[40px] items-center rounded-lg bg-green-600 px-3 text-xs font-medium text-white hover:bg-green-700 disabled:opacity-50"
         >
           Оплачен
         </button>
@@ -69,21 +69,22 @@ export function PaymentRowActions({ id, status }: { id: string; status: "PENDING
         <button
           onClick={unmarkPaid}
           disabled={busy}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
         >
           Откатить
         </button>
       )}
       <Link
         href={`/payments/${id}/edit`}
-        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+        className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-600 hover:bg-slate-50"
       >
         Править
       </Link>
       <button
         onClick={remove}
         disabled={busy}
-        className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+        aria-label="Удалить платёж"
+        className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white text-base text-red-600 hover:bg-red-50 disabled:opacity-50"
       >
         ×
       </button>
