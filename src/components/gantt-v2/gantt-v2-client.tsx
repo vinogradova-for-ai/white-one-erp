@@ -29,7 +29,17 @@ const initialFilters: GanttFilters = {
   thisWeek: false,
   dateIssue: false,
   myOnly: null,
+  // Завершённые (приехали на склад и дальше) по умолчанию спрятаны —
+  // рабочие заказы не тонут в истории. Кнопкой можно показать.
+  hideDone: true,
 };
+
+// Строка Ганта считается завершённой: заказ приехал на склад (и дальше),
+// заказ упаковки прибыл или отменён.
+const DONE_RAW_STATUSES = new Set([
+  "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE", // Order
+  "ARRIVED", "CANCELLED",                              // PackagingOrder
+]);
 
 export function GanttV2Client({
   rows,
@@ -44,7 +54,9 @@ export function GanttV2Client({
   const router = useRouter();
   // Фильтры и зум запоминаются между заходами на страницу (localStorage),
   // чтобы «выбрала фильтр → провалилась в заказ → назад» не сбрасывало вид.
-  const [filters, setFilters] = usePersistedState<GanttFilters>("gantt-v2:filters:v1", initialFilters);
+  // v2: добавился hideDone (скрыть завершённые), дефолт true — ключ бампнут,
+  // чтобы у всех применился новый дефолт.
+  const [filters, setFilters] = usePersistedState<GanttFilters>("gantt-v2:filters:v2", initialFilters);
   const [zoom, setZoom] = usePersistedState<GanttZoom>("gantt-v2:zoom:v1", "3m");
   // pending — буфер изменений: drag → попадает сюда, через 600мс улетает в API.
   // Хранится и в state (для подсветки на барах), и в ref (для дебаунс-таймера —
@@ -60,6 +72,7 @@ export function GanttV2Client({
     // «Название · #ORD-...», subtitle — цвета/штуки; ищем по обоим, регистр не важен.
     const q = filters.search.trim().toLowerCase();
     return rows.filter((r) => {
+      if (filters.hideDone && r.rawStatus && DONE_RAW_STATUSES.has(r.rawStatus)) return false;
       if (filters.ownerId.length && (!r.ownerId || !filters.ownerId.includes(r.ownerId))) return false;
       if (filters.category.length && (!r.category || !filters.category.includes(r.category))) return false;
       if (filters.productionRegion.length && (!r.productionRegion || !filters.productionRegion.includes(r.productionRegion))) return false;
@@ -170,6 +183,18 @@ export function GanttV2Client({
             onChange={(v) => setFilters((f) => ({ ...f, ownerId: v }))} />
           <FilterDropdown label="Производство" options={filterOptions.productionRegions} value={filters.productionRegion}
             onChange={(v) => setFilters((f) => ({ ...f, productionRegion: v }))} />
+          <button
+            type="button"
+            onClick={() => setFilters((f) => ({ ...f, hideDone: !f.hideDone }))}
+            title="Завершённые = заказ приехал на склад (и дальше), упаковка прибыла"
+            className={`h-7 rounded-md border px-2 text-xs transition ${
+              filters.hideDone
+                ? "border-slate-900 bg-slate-900 text-white"
+                : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+            }`}
+          >
+            {filters.hideDone ? "Завершённые скрыты" : "Показаны завершённые"}
+          </button>
 
           <span className="ml-3 text-xs uppercase tracking-wide text-slate-400">Зум:</span>
           <RadioGroup

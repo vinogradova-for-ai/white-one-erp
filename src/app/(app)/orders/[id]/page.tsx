@@ -134,6 +134,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     qcDate: order.qcDate,
     arrivalPlannedDate: order.arrivalPlannedDate,
     arrivalActualDate: order.arrivalActualDate,
+    status: order.status,
   });
   // Fallback на лету: если у линии не сохранён batchCost, ищем себестоимость
   // в фасоне через общий хелпер (тот же приоритет, что в форме и backfill).

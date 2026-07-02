@@ -72,6 +72,7 @@ export default async function OrdersPage() {
         qcDate: o.qcDate,
         arrivalPlannedDate: o.arrivalPlannedDate,
         arrivalActualDate: o.arrivalActualDate,
+        status: o.status,
       }),
       totalAmount,
       productModel: {

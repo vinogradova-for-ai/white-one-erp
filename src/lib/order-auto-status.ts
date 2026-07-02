@@ -41,14 +41,25 @@ export function computeOrderStatus(d: OrderDates): OrderStatus {
   return "PREPARATION";
 }
 
+// Статусы, при которых заказ уже прибыл на склад (и дальше по цепочке):
+// «опаздывает» для них гасим, даже если факт прибытия не проставлен.
+const ARRIVED_STATUSES: OrderStatus[] = ["WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE"];
+
 /**
  * Опаздывает ли заказ: плановая дата прибытия прошла, а факта прибытия нет.
  * Это подсветка «опаздывает N дн» на карточке/в списке/в тултипе Ганта —
  * БЕЗ смены статуса в БД (заказ ещё едет, а не «на складе»).
  *
+ * Если заказ уже «На складе Москва» и дальше (status) — не опаздывает,
+ * даже когда факт прибытия забыли проставить: заказ приехал, ругаться не на что.
+ *
  * Возвращает число просроченных дней (>0) или 0, если не опаздывает.
  */
-export function orderLateDays(d: OrderDates, now: Date = new Date()): number {
+export function orderLateDays(
+  d: OrderDates & { status?: OrderStatus },
+  now: Date = new Date(),
+): number {
+  if (d.status && ARRIVED_STATUSES.includes(d.status)) return 0;
   if (!d.arrivalPlannedDate || d.arrivalActualDate) return 0;
   const today = new Date(now);
   today.setUTCHours(0, 0, 0, 0);

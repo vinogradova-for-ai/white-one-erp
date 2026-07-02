@@ -213,6 +213,7 @@ export default async function GanttV2Page() {
         qcDate: o.qcDate,
         arrivalPlannedDate: o.arrivalPlannedDate,
         arrivalActualDate: o.arrivalActualDate,
+        status: o.status,
       }),
       thumbnails: thumbs,
       bars,

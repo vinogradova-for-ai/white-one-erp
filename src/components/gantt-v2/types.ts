@@ -85,6 +85,7 @@ export type GanttFilters = {
   thisWeek: boolean;    // только с активностью на этой неделе
   dateIssue: boolean;   // только заказы с нарушенным порядком фаз
   myOnly: string | null; // userId или null
+  hideDone: boolean;    // скрыть завершённые (заказ приехал на склад и дальше)
 };
 
 export type GanttGrouping =
