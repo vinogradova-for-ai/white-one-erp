@@ -122,12 +122,20 @@ export default async function PlanVsFactPage({
             Факт = заказы по месяцу запуска (launchMonth).
           </p>
         </div>
-        <Link
-          href="/admin/plans"
-          className="flex h-10 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100"
-        >
-          Редактировать план →
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/seasons"
+            className="flex h-10 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+          >
+            Цели →
+          </Link>
+          <Link
+            href="/admin/plans"
+            className="flex h-10 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+          >
+            Редактировать план →
+          </Link>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 text-sm">

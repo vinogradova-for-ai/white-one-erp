@@ -12,6 +12,20 @@ import {
 import { CheckableRow } from "./checkable-row";
 import { isCheckable } from "./checkable-kinds";
 import { getDataGaps, countGaps } from "@/lib/queries/data-gaps";
+import { getRecentEvents, type DailyEvent } from "@/lib/queries/daily-events";
+
+// «сегодня 14:05» / «вчера 18:30» по МСК для ленты событий.
+function fmtEventTime(e: DailyEvent): string {
+  const msk = new Date(e.at.getTime() + 3 * 60 * 60_000);
+  const nowMsk = new Date(Date.now() + 3 * 60 * 60_000);
+  const sameDay =
+    msk.getUTCFullYear() === nowMsk.getUTCFullYear() &&
+    msk.getUTCMonth() === nowMsk.getUTCMonth() &&
+    msk.getUTCDate() === nowMsk.getUTCDate();
+  const hh = String(msk.getUTCHours()).padStart(2, "0");
+  const mm = String(msk.getUTCMinutes()).padStart(2, "0");
+  return `${sameDay ? "сегодня" : "вчера"} ${hh}:${mm}`;
+}
 
 const MONTH_NAMES_RU = [
   "январе", "феврале", "марте", "апреле", "мае", "июне",
@@ -47,7 +61,8 @@ export default async function DashboardPage({
 
   const all = await getMainScreenChecklist();
   const groups = groupByOwner(all);
-  const gapsCount = countGaps(await getDataGaps());
+  const [gaps, recentEvents] = await Promise.all([getDataGaps(), getRecentEvents()]);
+  const gapsCount = countGaps(gaps);
 
   // Кабинет общий — разбивку задач по сотрудникам видят ВСЕ (прозрачность), не только админ.
   // По умолчанию открыта своя подвкладка; если своих задач нет — самая загруженная.
@@ -90,6 +105,36 @@ export default async function DashboardPage({
           )}
         </div>
       </div>
+
+      {/* Что изменилось со вчера — свёрнутая лента событий (статусы, оплаты,
+          комментарии, образцы). Утренний обзор без телеграма. */}
+      {recentEvents.length > 0 && (
+        <details className="group rounded-2xl border border-slate-200 bg-white">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-slate-700 [&::-webkit-details-marker]:hidden">
+            <span className="text-slate-400 transition group-open:rotate-90">▸</span>
+            Что изменилось со вчера
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs tabular-nums text-slate-600">
+              {recentEvents.length}
+            </span>
+          </summary>
+          <ul className="max-h-80 space-y-0.5 overflow-y-auto border-t border-slate-100 px-2 py-2">
+            {recentEvents.map((e) => (
+              <li key={e.id}>
+                <Link
+                  href={e.href}
+                  className="flex items-baseline gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50"
+                >
+                  <span aria-hidden className="w-5 shrink-0 text-center text-xs">{e.icon}</span>
+                  <span className="min-w-0 flex-1 truncate text-slate-800">{e.text}</span>
+                  <span className="shrink-0 text-[11px] tabular-nums text-slate-400">
+                    {fmtEventTime(e)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       {visibleGroups.length > 0 && (
         <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
@@ -186,8 +231,9 @@ function ChecklistGroup({ tasks }: { tasks: ChecklistTask[] }) {
 function ZoneBody({ tasks, showIdle }: { tasks: ChecklistTask[]; showIdle: boolean }) {
   const orderTasks = tasks.filter((t) => ORDER_KINDS.includes(t.kind));
   const packagingTasks = tasks.filter((t) => PACKAGING_KINDS.includes(t.kind));
+  const moneyTasks = tasks.filter((t) => t.kind === "payment-due");
   const devTasks = tasks.filter(
-    (t) => !ORDER_KINDS.includes(t.kind) && !PACKAGING_KINDS.includes(t.kind),
+    (t) => !ORDER_KINDS.includes(t.kind) && !PACKAGING_KINDS.includes(t.kind) && t.kind !== "payment-due",
   );
   const devWithDeadline = devTasks.filter((t) => t.daysToDeadline !== null);
   const devIdle = devTasks.filter((t) => t.daysToDeadline === null);
@@ -200,6 +246,11 @@ function ZoneBody({ tasks, showIdle }: { tasks: ChecklistTask[]; showIdle: boole
 
   return (
     <div className="space-y-6">
+      {moneyTasks.length > 0 && (
+        <Section title="Деньги" count={moneyTasks.length}>
+          <TaskList tasks={moneyTasks} />
+        </Section>
+      )}
       {orderTasks.length > 0 && (
         <Section title="Заказы" count={orderTasks.length}>
           <TaskList tasks={orderTasks} />

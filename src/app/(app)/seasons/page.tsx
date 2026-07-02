@@ -57,6 +57,12 @@ export default async function SeasonsPage({
         <div className="flex flex-wrap items-center gap-2">
           <FillPlanButton />
           <Link
+            href="/plan-vs-fact"
+            className="flex h-10 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+          >
+            План/Факт →
+          </Link>
+          <Link
             href="/admin/plans"
             className="flex h-10 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100"
           >

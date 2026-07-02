@@ -49,7 +49,9 @@ export type ChecklistTask = {
     | "pkg-approve"          // образец заказан, не утверждён
     | "pkg-launch"           // утверждено, не запущено в производство
     // Заказы упаковки в пути
-    | "pkg-check-delivery";  // PackagingOrder со статусом IN_PRODUCTION/IN_TRANSIT, ожидаемая дата близка/прошла
+    | "pkg-check-delivery"   // PackagingOrder со статусом IN_PRODUCTION/IN_TRANSIT, ожидаемая дата близка/прошла
+    // Деньги: плановый платёж просрочен или скоро — отметить оплату/перенести срок
+    | "payment-due";
   /** Возраст задачи в днях (для разработки — `today - model.updatedAt`).
    *  Используется визуально (старение рамки) и для счётчика «в разработке >30 дн». */
   ageInDays: number | null;
@@ -138,7 +140,7 @@ function urgencyOf(days: number | null): TaskUrgency {
 export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
   const today = moscowTodayStart();
 
-  const [models, orders, packagingItems, packagingOrders, samples] = await Promise.all([
+  const [models, orders, packagingItems, packagingOrders, duePayments, samples] = await Promise.all([
     prisma.productModel.findMany({
       where: { deletedAt: null, activated: true },
       include: {
@@ -171,6 +173,25 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
       where: { status: { in: ["IN_PRODUCTION", "IN_TRANSIT"] } },
       include: {
         owner: { select: { id: true, name: true } },
+      },
+    }),
+    // Плановые платежи: просроченные + ближайшие 7 дней. Просроченный и не
+    // отмеченный платёж = вкладка «Платежи» врёт про долги фабрикам.
+    prisma.payment.findMany({
+      where: {
+        status: "PENDING",
+        plannedDate: { lt: new Date(today.getTime() + 8 * DAY) },
+      },
+      include: {
+        order: {
+          select: {
+            orderNumber: true,
+            productModel: { select: { name: true } },
+            owner: { select: { id: true, name: true } },
+          },
+        },
+        packagingItem: { select: { name: true } },
+        createdBy: { select: { id: true, name: true } },
       },
     }),
     // Образцы в работе: получен без вердикта / заказан-едет слишком долго.
@@ -254,6 +275,35 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
     if (m.status === "APPROVED" && m.sizeChartReady && !hasLiveOrder) {
       pushDev("start-production", `Запустите производство · ${m.name}`);
     }
+  }
+
+  // === Платежи — просроченные и ближайшие ===
+  // Владелец задачи: ответственный по заказу; для упаковки — кто завёл платёж.
+  for (const p of duePayments) {
+    const owner = p.order?.owner ?? p.createdBy;
+    if (!owner) continue;
+    const target = p.order
+      ? `${p.order.orderNumber} · ${p.order.productModel.name}`
+      : (p.packagingItem?.name ?? "упаковка");
+    const amount = `${Math.round(Number(p.amount)).toLocaleString("ru-RU")} ${p.currency === "CNY" ? "¥" : "₽"}`;
+    const days = daysFromToday(p.plannedDate, today);
+    const text =
+      days !== null && days < 0
+        ? `Оплата просрочена ${-days} дн — отметьте или перенесите срок · ${p.label} · ${amount} · ${target}`
+        : `Оплата через ${days} дн · ${p.label} · ${amount} · ${target}`;
+    tasks.push({
+      id: `payment-due:${p.id}`,
+      ownerId: owner.id,
+      ownerName: owner.name,
+      text,
+      href: "/payments",
+      daysToDeadline: days,
+      urgency: urgencyOf(days),
+      updatedAt: p.updatedAt,
+      kind: "payment-due",
+      ageInDays: null,
+      slaBreached: days !== null && days < 0,
+    });
   }
 
   // === Образцы (Sample) — точные задачи по конкретному образцу ===
