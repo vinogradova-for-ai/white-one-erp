@@ -83,7 +83,7 @@ export default async function DashboardPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Добрый день, {userName}</h1>
+        <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Добрый день, {userName}</h1>
         {all.length > 0 ? (
           <p className="text-sm text-slate-600">
             Задач на ближайшие дни: <b>{all.length}</b>
@@ -96,7 +96,7 @@ export default async function DashboardPage({
       <TeamMonthSection stats={teamStats} selectedOwnerId={selectedOwnerId ?? null} />
 
       {visibleGroups.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
           {visibleGroups.map((g) => {
             const isActive = g.ownerId === selectedOwnerId;
             const overdue = g.tasks.filter((t) => t.urgency === "overdue").length;
@@ -104,7 +104,7 @@ export default async function DashboardPage({
               <Link
                 key={g.ownerId}
                 href={`/dashboard?owner=${g.ownerId}`}
-                className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm transition ${
+                className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm whitespace-nowrap transition md:h-auto md:px-3 md:py-1.5 ${
                   isActive
                     ? "bg-slate-900 text-white"
                     : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"

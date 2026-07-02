@@ -51,17 +51,17 @@ export default async function PaymentsPage({
   return (
     <div className="space-y-4">
       <div className="flex items-baseline justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-slate-900">Платежи</h1>
+        <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Платежи</h1>
         <Link
           href="/payments/new"
-          className="rounded-lg bg-slate-900 px-4 py-3 text-sm font-medium text-white hover:bg-slate-800 md:py-2"
+          className="flex h-11 shrink-0 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 active:bg-slate-800"
         >
-          + Создать платёж
+          + Создать
         </Link>
       </div>
 
       {/* Вкладки */}
-      <div className="flex flex-wrap items-center gap-1 border-b border-slate-200">
+      <div className="no-scrollbar -mx-4 flex items-center gap-1 overflow-x-auto border-b border-slate-200 px-4 md:mx-0 md:flex-wrap md:px-0">
         <Tab href={`/payments?view=calendar`} active={view === "calendar"} label="Календарь" />
         <Tab href={`/payments?view=list`} active={view === "list"} label="Предстоящие" />
         <Tab href={`/payments?view=archive`} active={view === "archive"} label="Архив" />
@@ -70,8 +70,8 @@ export default async function PaymentsPage({
 
       {/* Фильтры по типу — общие для вкладок платежей (не для «Оплат») */}
       {view !== "payouts" && (
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-xs uppercase tracking-wide text-slate-400 mr-1">Тип:</span>
+      <div className="no-scrollbar -mx-4 flex items-center gap-1.5 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
+        <span className="mr-1 shrink-0 text-xs uppercase tracking-wide text-slate-400">Тип:</span>
         <FilterPill href={hrefWith(sp, { view, type: null })} active={!typeFilter} label="Все" />
         <FilterPill href={hrefWith(sp, { view, type: "ORDER" })} active={typeFilter === "ORDER"} label="Фабрики" />
         <FilterPill href={hrefWith(sp, { view, type: "PACKAGING" })} active={typeFilter === "PACKAGING"} label="Упаковка" />
@@ -231,20 +231,20 @@ async function CalendarView({
         <Summary title="Просрочено" value={formatCurrency(overdue)} danger={overdue > 0} />
       </div>
 
-      {/* Навигация по месяцам */}
-      <div className="flex items-center justify-between">
+      {/* Навигация по месяцам — на мобиле у боковых кнопок только стрелка, чтобы влезало */}
+      <div className="flex items-center justify-between gap-2">
         <Link
           href={`/payments?view=calendar&month=${monthIso(prevMonth)}${typeFilter ? `&type=${typeFilter}` : ""}`}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+          className="flex h-10 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm hover:bg-slate-50 active:bg-slate-100"
         >
-          ◀ {formatMonthLabel(monthIso(prevMonth))}
+          ◀ <span className="hidden sm:inline">&nbsp;{formatMonthLabel(monthIso(prevMonth))}</span>
         </Link>
-        <div className="text-lg font-semibold text-slate-900">{formatMonthLabel(month)}</div>
+        <div className="text-base font-semibold text-slate-900 md:text-lg">{formatMonthLabel(month)}</div>
         <Link
           href={`/payments?view=calendar&month=${monthIso(nextMonth)}${typeFilter ? `&type=${typeFilter}` : ""}`}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+          className="flex h-10 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm hover:bg-slate-50 active:bg-slate-100"
         >
-          {formatMonthLabel(monthIso(nextMonth))} ▶
+          <span className="hidden sm:inline">{formatMonthLabel(monthIso(nextMonth))}&nbsp;</span> ▶
         </Link>
       </div>
 
@@ -545,7 +545,7 @@ async function ArchiveView({
             name="q"
             defaultValue={q}
             placeholder="Поиск: контрагент, заказ, упаковка…"
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+            className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
           />
         </form>
       </div>
@@ -662,7 +662,7 @@ function Tab({ href, active, label }: { href: string; active: boolean; label: st
   return (
     <Link
       href={href}
-      className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
+      className={`-mb-px inline-flex min-h-[44px] shrink-0 items-center border-b-2 px-4 text-sm font-medium ${
         active
           ? "border-slate-900 text-slate-900"
           : "border-transparent text-slate-500 hover:text-slate-700"
@@ -677,7 +677,7 @@ function FilterPill({ href, active, label }: { href: string; active: boolean; la
   return (
     <Link
       href={href}
-      className={`rounded-full px-3 py-1 text-xs font-medium ${
+      className={`inline-flex min-h-[36px] shrink-0 items-center rounded-full px-3 text-xs font-medium ${
         active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
       }`}
     >

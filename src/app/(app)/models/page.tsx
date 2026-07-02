@@ -66,9 +66,9 @@ export default async function ModelsPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Каталог фасонов</h1>
+          <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Каталог фасонов</h1>
           <p className="text-sm text-slate-500">
             Всего: {totalCount}
             {totalCount > models.length && ` · показаны ${models.length}`}
@@ -76,17 +76,17 @@ export default async function ModelsPage({
         </div>
         <Link
           href="/models/new"
-          className="rounded-lg bg-slate-900 px-4 py-3 text-sm font-medium text-white hover:bg-slate-800 md:py-2"
+          className="flex h-11 shrink-0 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 active:bg-slate-800"
         >
-          + Создать фасон
+          + Создать
         </Link>
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-xs uppercase tracking-wide text-slate-400 mr-1">Показ:</span>
+      <div className="no-scrollbar -mx-4 flex items-center gap-1.5 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
+        <span className="mr-1 shrink-0 text-xs uppercase tracking-wide text-slate-400">Показ:</span>
         <Link
           href="/models"
-          className={`rounded-full border px-3 py-1 text-xs font-medium ${
+          className={`inline-flex min-h-[36px] shrink-0 items-center rounded-full border px-3 text-xs font-medium ${
             !showDrafts && !showAll
               ? "border-slate-900 bg-slate-900 text-white"
               : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
@@ -97,7 +97,7 @@ export default async function ModelsPage({
         {draftCount > 0 && (
           <Link
             href="/models?show=drafts"
-            className={`rounded-full border px-3 py-1 text-xs font-medium ${
+            className={`inline-flex min-h-[36px] shrink-0 items-center rounded-full border px-3 text-xs font-medium ${
               showDrafts
                 ? "border-amber-500 bg-amber-500 text-white"
                 : "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
@@ -108,7 +108,7 @@ export default async function ModelsPage({
         )}
         <Link
           href="/models?show=all"
-          className={`rounded-full border px-3 py-1 text-xs font-medium ${
+          className={`inline-flex min-h-[36px] shrink-0 items-center rounded-full border px-3 text-xs font-medium ${
             showAll
               ? "border-slate-900 bg-slate-900 text-white"
               : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
@@ -165,7 +165,8 @@ export default async function ModelsPage({
       </div>
 
       {models.length === 0 && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-sm text-slate-500">
+        <div className="rounded-2xl border border-slate-200 bg-white px-6 py-12 text-center text-sm text-slate-500">
+          <div className="mb-2 text-3xl">⬢</div>
           Ничего не найдено
         </div>
       )}

@@ -116,7 +116,7 @@ export default async function PlanVsFactPage({
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">План / Факт выпуска {year}</h1>
+          <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">План / Факт выпуска {year}</h1>
           <p className="text-sm text-slate-500">
             Сколько фасонов и штук выпустил каждый ответственный относительно плана.
             Факт = заказы по месяцу запуска (launchMonth).
@@ -124,7 +124,7 @@ export default async function PlanVsFactPage({
         </div>
         <Link
           href="/admin/plans"
-          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+          className="flex h-10 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100"
         >
           Редактировать план →
         </Link>
@@ -136,8 +136,8 @@ export default async function PlanVsFactPage({
           <Link
             key={y}
             href={`/plan-vs-fact?year=${y}`}
-            className={`rounded-full px-3 py-1 text-xs font-medium ${
-              y === year ? "bg-slate-900 text-white" : "bg-white text-slate-700 border border-slate-300"
+            className={`inline-flex min-h-[40px] items-center rounded-full px-4 text-sm font-medium ${
+              y === year ? "bg-slate-900 text-white" : "border border-slate-300 bg-white text-slate-700"
             }`}
           >
             {y}

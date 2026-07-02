@@ -43,16 +43,16 @@ export default async function IncomingPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4 flex-wrap">
+      <div className="flex flex-wrap items-center gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Поставки</h1>
+          <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Поставки</h1>
           <p className="text-sm text-slate-500">Заказы в пути и к отгрузке: {orders.length}</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <IncomingExportButton />
-          <div className="flex gap-1 bg-slate-100 rounded-lg p-0.5">
-            <span className="px-3 py-1 text-sm rounded-md bg-white text-slate-900 font-medium shadow-sm">Таблица</span>
-            <Link href="/incoming/calendar" className="px-3 py-1 text-sm rounded-md text-slate-600 hover:bg-white">Календарь</Link>
+          <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5">
+            <span className="flex h-9 items-center rounded-md bg-white px-3 text-sm font-medium text-slate-900 shadow-sm">Таблица</span>
+            <Link href="/incoming/calendar" className="flex h-9 items-center rounded-md px-3 text-sm text-slate-600 hover:bg-white">Календарь</Link>
           </div>
         </div>
       </div>
@@ -106,14 +106,16 @@ export default async function IncomingPage() {
           );
         })}
         {orders.length === 0 && (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">
+            <div className="mb-2 text-3xl">▣</div>
             Пока ничего не едет. Будет что-то на отгрузке — появится здесь.
           </div>
         )}
       </div>
 
       {/* Десктопная версия — таблица */}
-      <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white md:block">
+      <div className="scroll-x-hint hidden md:block">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="sticky top-0 z-10 bg-slate-50 shadow-[inset_0_-1px_0_rgb(226_232_240)]">
             <tr>
@@ -177,6 +179,7 @@ export default async function IncomingPage() {
           </tbody>
         </table>
         {orders.length === 0 && <div className="p-12 text-center text-sm text-slate-500">Поставок в движении нет</div>}
+      </div>
       </div>
     </div>
   );

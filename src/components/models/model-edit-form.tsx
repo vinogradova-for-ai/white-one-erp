@@ -201,6 +201,7 @@ export function ModelEditForm({
           <div className="flex items-stretch gap-2">
             <input
               type="number"
+              inputMode="decimal"
               step="0.01"
               value={form.purchasePriceRub || form.purchasePriceCny}
               onChange={(e) => {
@@ -253,6 +254,7 @@ export function ModelEditForm({
             <div className="flex items-stretch gap-2">
               <input
                 type="number"
+                inputMode="decimal"
                 step="0.0001"
                 value={form.cnyRubRate}
                 onChange={(e) => setForm({ ...form, cnyRubRate: e.target.value })}
@@ -339,7 +341,7 @@ export function ModelEditForm({
   );
 }
 
-const inputCls = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
+const inputCls = "min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (

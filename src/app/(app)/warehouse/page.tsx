@@ -30,7 +30,7 @@ export default async function WarehousePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Склад</h1>
+        <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Склад</h1>
         <p className="text-sm text-slate-500">
           Выгрузка заказов для внешней системы управления загрузкой склада. 1 строка = 1 заказ.
         </p>

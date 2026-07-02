@@ -37,7 +37,7 @@ export function ChangePasswordForm() {
   }
 
   const input =
-    "rounded-lg border border-slate-300 px-3 py-1.5 text-sm w-full";
+    "mt-1 h-11 w-full rounded-lg border border-slate-300 px-3 text-sm";
 
   return (
     <form onSubmit={submit} className="space-y-3">
@@ -55,7 +55,7 @@ export function ChangePasswordForm() {
       </label>
       <button
         type="submit" disabled={busy}
-        className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+        className="flex h-11 w-full items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 sm:w-auto"
       >
         {busy ? "..." : "Сменить пароль"}
       </button>

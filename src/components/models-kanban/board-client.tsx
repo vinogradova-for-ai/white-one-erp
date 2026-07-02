@@ -139,7 +139,7 @@ export function BoardClient({
                 key={col.key}
                 type="button"
                 onClick={() => setMobileCol(col.key)}
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                className={`inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-xs font-medium transition ${
                   active
                     ? "border-slate-900 bg-slate-900 text-white"
                     : "border-slate-200 bg-white text-slate-700"
@@ -322,8 +322,8 @@ function KanbanCardView({
               <img src={photos[cur]} alt="" draggable={false} className={`aspect-square w-full object-cover ${isDone ? "opacity-80 grayscale" : ""}`} />
               {photos.length > 1 && (
                 <>
-                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIdx((i) => (i - 1 + photos.length) % photos.length); }} className="absolute left-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-sm text-slate-700 opacity-0 shadow transition group-hover/ph:opacity-100">‹</button>
-                  <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIdx((i) => (i + 1) % photos.length); }} className="absolute right-1 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-sm text-slate-700 opacity-0 shadow transition group-hover/ph:opacity-100">›</button>
+                  <button type="button" aria-label="Пред. фото" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIdx((i) => (i - 1 + photos.length) % photos.length); }} className="absolute left-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-base text-slate-700 shadow transition md:h-6 md:w-6 md:text-sm md:opacity-0 md:group-hover/ph:opacity-100">‹</button>
+                  <button type="button" aria-label="След. фото" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIdx((i) => (i + 1) % photos.length); }} className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-white/85 text-base text-slate-700 shadow transition md:h-6 md:w-6 md:text-sm md:opacity-0 md:group-hover/ph:opacity-100">›</button>
                   <div className="absolute right-1.5 top-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[9px] font-medium text-white">{cur + 1}/{photos.length}</div>
                   <div className="absolute bottom-1.5 left-1/2 flex -translate-x-1/2 items-center gap-1">
                     {photos.slice(0, 7).map((_, i) => (<span key={i} className={`h-1 rounded-full ${i === cur ? "w-2.5 bg-white" : "w-1 bg-white/60"}`} />))}

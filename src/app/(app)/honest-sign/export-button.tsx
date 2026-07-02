@@ -42,7 +42,7 @@ export function ExportButton() {
       type="button"
       onClick={handleExport}
       disabled={loading}
-      className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 sm:w-auto"
     >
       {loading ? "Готовим файл…" : "⤓ XLSX"}
     </button>

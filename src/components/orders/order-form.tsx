@@ -415,7 +415,7 @@ export function OrderForm({
                           <button
                             type="button"
                             onClick={() => removeLine(idx)}
-                            className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                            className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-300 bg-white px-3 text-xs text-red-600 hover:bg-red-50 active:bg-red-50"
                           >
                             Удалить
                           </button>
@@ -535,38 +535,45 @@ export function OrderForm({
               )}
             </div>
             {payments.map((p, idx) => (
-              <div key={p.id} className="grid grid-cols-[140px_1fr_140px_auto_auto] gap-2 items-center">
+              <div
+                key={p.id}
+                className="grid grid-cols-2 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-2 sm:grid-cols-[140px_1fr_140px_auto_auto] sm:border-0 sm:bg-transparent sm:p-0"
+              >
                 <input
                   type="date"
                   value={p.plannedDate}
                   onChange={(e) => updatePayment(idx, { plannedDate: e.target.value })}
-                  className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm"
+                  className="h-11 rounded-lg border border-slate-300 bg-white px-2 text-sm sm:h-9"
+                />
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={p.amount}
+                  onChange={(e) => updatePayment(idx, { amount: Number(e.target.value) || 0 })}
+                  placeholder="сумма"
+                  className="h-11 rounded-lg border border-slate-300 bg-white px-2 text-right text-sm sm:order-3 sm:h-9"
                 />
                 <input
                   type="text"
                   value={p.label}
                   onChange={(e) => updatePayment(idx, { label: e.target.value })}
                   placeholder="Название"
-                  className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm"
+                  className="col-span-2 h-11 rounded-lg border border-slate-300 bg-white px-2 text-sm sm:order-2 sm:col-span-1 sm:h-9"
                 />
-                <input
-                  type="number"
-                  value={p.amount}
-                  onChange={(e) => updatePayment(idx, { amount: Number(e.target.value) || 0 })}
-                  className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-right text-sm"
-                />
-                <label className="flex items-center gap-1 text-xs text-slate-600 whitespace-nowrap">
+                <label className="flex items-center gap-1.5 whitespace-nowrap text-xs text-slate-600 sm:order-4">
                   <input
                     type="checkbox"
                     checked={p.paid}
                     onChange={(e) => updatePayment(idx, { paid: e.target.checked })}
+                    className="h-4 w-4"
                   />
                   Оплачено
                 </label>
                 <button
                   type="button"
                   onClick={() => removePayment(idx)}
-                  className="rounded-lg border border-slate-300 bg-white px-2 text-xs text-red-600 hover:bg-red-50"
+                  aria-label="Удалить платёж"
+                  className="ml-auto flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 bg-white text-base text-red-600 hover:bg-red-50 sm:order-5 sm:h-9 sm:w-9"
                 >
                   ×
                 </button>
@@ -676,11 +683,11 @@ export function OrderForm({
       {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       <FormErrorBanner error={apiErr} />
 
-      <div className="sticky bottom-0 z-30 flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white pt-4 pb-4 -mx-2 px-2 sm:mx-0 sm:px-0">
-        <button type="button" onClick={() => router.back()} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm">
+      <div className="pb-safe-4 sticky bottom-16 z-30 -mx-4 flex gap-3 border-t border-slate-200 bg-white px-4 pt-4 md:bottom-0 md:mx-0 md:flex-wrap md:justify-end md:px-0">
+        <button type="button" onClick={() => router.back()} className="flex h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm">
           Отмена
         </button>
-        <button type="submit" disabled={saving || !modelId || lines.length === 0} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+        <button type="submit" disabled={saving || !modelId || lines.length === 0} className="flex h-11 flex-1 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-50 md:flex-none">
           {saving ? "Сохранение…" : "Создать заказ"}
         </button>
       </div>
@@ -688,7 +695,7 @@ export function OrderForm({
   );
 }
 
-const inputCls = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
+const inputCls = "min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
 
 // Оценка даты готовности партии для дефолтного графика платежей.
 // Берём 1-е число месяца продаж (YYYY-MM) и вычитаем 45 дней.

@@ -34,13 +34,13 @@ export function MobileNav() {
 
   return (
     <>
-      <nav className="fixed right-0 bottom-0 left-0 z-50 border-t border-slate-200 bg-white md:hidden">
+      <nav className="pb-safe fixed right-0 bottom-0 left-0 z-50 border-t border-slate-200 bg-white md:hidden">
         <div className="grid grid-cols-5 gap-0.5">
           {TABS.map((tab) => (
             <Link
               key={tab.href}
               href={tab.href}
-              className="flex flex-col items-center gap-0.5 py-2 text-center text-xs text-slate-700 active:bg-slate-100"
+              className="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-2 text-center text-xs text-slate-700 active:bg-slate-100"
             >
               <span className="text-lg leading-none">{tab.icon}</span>
               <span className="text-[11px] leading-tight">{tab.label}</span>
@@ -49,7 +49,7 @@ export function MobileNav() {
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="flex flex-col items-center gap-0.5 py-2 text-center text-xs text-slate-700 active:bg-slate-100"
+            className="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-2 text-center text-xs text-slate-700 active:bg-slate-100"
           >
             <span className="text-lg leading-none">◉</span>
             <span className="text-[11px] leading-tight">Ещё</span>
@@ -63,7 +63,7 @@ export function MobileNav() {
           onClick={() => setOpen(false)}
         >
           <div
-            className="rounded-t-2xl bg-white pt-2 pb-4 shadow-xl"
+            className="pb-safe-4 max-h-[85vh] overflow-y-auto rounded-t-2xl bg-white pt-2 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-slate-300" />
@@ -76,7 +76,7 @@ export function MobileNav() {
                   <Link
                     href={item.href}
                     onClick={() => setOpen(false)}
-                    className="flex items-center gap-3 px-5 py-3 text-sm text-slate-800 active:bg-slate-100"
+                    className="flex min-h-[52px] items-center gap-3 px-5 py-3 text-sm text-slate-800 active:bg-slate-100"
                   >
                     <span className="w-5 text-center text-base text-slate-400">{item.icon}</span>
                     <span>{item.label}</span>

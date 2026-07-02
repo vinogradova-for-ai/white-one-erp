@@ -95,7 +95,8 @@ export function CheckableRow({ task, ageBorder }: { task: ChecklistTask; ageBord
           done ? "bg-emerald-50/60" : "hover:bg-slate-50"
         }`}
       >
-        <label className="mt-0.5 inline-flex shrink-0 cursor-pointer select-none">
+        {/* Тач-мишень чекбокса ≥44px: сам бокс 20px, но обёртка -m-2 p-2 расширяет зону нажатия. */}
+        <label className="-m-2 -mt-1.5 inline-flex shrink-0 cursor-pointer select-none p-2">
           <input
             type="checkbox"
             checked={picking || done}
@@ -183,7 +184,7 @@ function DatePicker({
             type="button"
             disabled={pending}
             onClick={() => onPick(b.iso, `${b.label} (${formatDM(b.iso)})`)}
-            className={`rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-50 ${
+            className={`inline-flex min-h-[44px] items-center rounded-lg border px-3 text-xs disabled:opacity-50 ${
               b.emphasis
                 ? "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
                 : "border-slate-300 bg-white text-slate-700 hover:border-slate-400"
@@ -196,7 +197,7 @@ function DatePicker({
           type="button"
           disabled={pending}
           onClick={onCancel}
-          className="rounded-lg border border-transparent px-2.5 py-1.5 text-xs text-slate-500 hover:text-slate-700 disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center rounded-lg border border-transparent px-3 text-xs text-slate-500 hover:text-slate-700 disabled:opacity-50"
         >
           Отмена
         </button>

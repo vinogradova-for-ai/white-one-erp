@@ -214,10 +214,10 @@ export function OrderEditForm({
         </Field>
         <div className="md:col-span-2 space-y-2">
           <div className="flex flex-wrap gap-1.5">
-            <span className="text-xs uppercase tracking-wide text-slate-400 mr-1 self-center">Шаблон:</span>
-            <button type="button" onClick={() => applyPreset("30/70")} className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs hover:bg-slate-50">Предоплата 30/70</button>
-            <button type="button" onClick={() => applyPreset("100-pre")} className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs hover:bg-slate-50">Предоплата 100%</button>
-            <button type="button" onClick={() => applyPreset("100-post")} className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs hover:bg-slate-50">Постоплата 100%</button>
+            <span className="mr-1 self-center text-xs uppercase tracking-wide text-slate-400">Шаблон:</span>
+            <button type="button" onClick={() => applyPreset("30/70")} className="inline-flex min-h-[36px] items-center rounded-full border border-slate-300 bg-white px-3 text-xs hover:bg-slate-50 active:bg-slate-100">Предоплата 30/70</button>
+            <button type="button" onClick={() => applyPreset("100-pre")} className="inline-flex min-h-[36px] items-center rounded-full border border-slate-300 bg-white px-3 text-xs hover:bg-slate-50 active:bg-slate-100">Предоплата 100%</button>
+            <button type="button" onClick={() => applyPreset("100-post")} className="inline-flex min-h-[36px] items-center rounded-full border border-slate-300 bg-white px-3 text-xs hover:bg-slate-50 active:bg-slate-100">Постоплата 100%</button>
           </div>
           {payments.length === 0 && (
             <p className="text-sm text-slate-500">График пуст. Выберите шаблон выше или добавьте платежи вручную.</p>
@@ -228,32 +228,35 @@ export function OrderEditForm({
                 type="date"
                 value={p.plannedDate}
                 onChange={(e) => updatePayment(idx, { plannedDate: e.target.value })}
-                className="rounded border border-slate-300 bg-white px-2 py-1 text-sm"
+                className="h-11 rounded border border-slate-300 bg-white px-2 text-sm"
               />
               <input
                 type="number"
+                inputMode="numeric"
                 value={p.amount}
                 onChange={(e) => updatePayment(idx, { amount: Number(e.target.value) || 0 })}
-                className="w-28 rounded border border-slate-300 bg-white px-2 py-1 text-right text-sm"
+                className="h-11 w-28 rounded border border-slate-300 bg-white px-2 text-right text-sm"
               />
               <span className="text-xs text-slate-500">₽</span>
               <input
                 value={p.label}
                 onChange={(e) => updatePayment(idx, { label: e.target.value })}
-                className="flex-1 min-w-[140px] rounded border border-slate-300 bg-white px-2 py-1 text-sm"
+                className="h-11 min-w-[140px] flex-1 rounded border border-slate-300 bg-white px-2 text-sm"
               />
-              <label className="flex items-center gap-1 text-xs text-slate-600 whitespace-nowrap">
+              <label className="flex items-center gap-1.5 whitespace-nowrap text-xs text-slate-600">
                 <input
                   type="checkbox"
                   checked={p.paid}
                   onChange={(e) => updatePayment(idx, { paid: e.target.checked })}
+                  className="h-4 w-4"
                 />
                 Оплачено
               </label>
               <button
                 type="button"
                 onClick={() => removePayment(idx)}
-                className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                aria-label="Удалить платёж"
+                className="flex h-11 w-11 items-center justify-center rounded border border-slate-300 bg-white text-base text-red-600 hover:bg-red-50 active:bg-red-50"
               >
                 ×
               </button>
@@ -263,7 +266,7 @@ export function OrderEditForm({
             <button
               type="button"
               onClick={addPayment}
-              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+              className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 hover:bg-slate-50 active:bg-slate-100"
             >
               + Добавить платёж
             </button>
@@ -282,11 +285,12 @@ export function OrderEditForm({
 
       {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
-      <div className="sticky bottom-0 z-30 flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white pt-4 pb-4 -mx-2 px-2 sm:mx-0 sm:px-0">
-        <button type="button" onClick={() => router.back()} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm">
+      {/* Sticky-панель сохранения: на мобиле прибита снизу с safe-area, кнопка растянута */}
+      <div className="pb-safe-4 sticky bottom-16 z-30 -mx-4 flex gap-3 border-t border-slate-200 bg-white px-4 pt-4 md:bottom-0 md:mx-0 md:flex-wrap md:justify-end md:px-0">
+        <button type="button" onClick={() => router.back()} className="flex h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm">
           Отмена
         </button>
-        <button type="submit" disabled={saving} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+        <button type="submit" disabled={saving} className="flex h-11 flex-1 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-50 md:flex-none">
           {saving ? "Сохранение…" : "Сохранить изменения"}
         </button>
       </div>
@@ -294,7 +298,7 @@ export function OrderEditForm({
   );
 }
 
-const inputCls = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
+const inputCls = "min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (

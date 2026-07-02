@@ -12,7 +12,7 @@ export default async function ProfilePage() {
   return (
     <div className="max-w-lg space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Профиль</h1>
+        <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Профиль</h1>
         <p className="text-sm text-slate-500">
           {user.name} · {ROLE_LABELS[user.role]} · логин <code className="rounded bg-slate-100 px-1">{user.email}</code>
         </p>

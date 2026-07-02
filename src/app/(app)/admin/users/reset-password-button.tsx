@@ -37,7 +37,7 @@ export function ResetPasswordButton({ userId, userName }: { userId: string; user
       <button
         onClick={reset}
         disabled={busy}
-        className="rounded-lg border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+        className="inline-flex min-h-[36px] items-center rounded-lg border border-slate-300 px-3 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-50"
         title="Выдать новый временный пароль"
       >
         {busy ? "..." : "Сбросить пароль"}

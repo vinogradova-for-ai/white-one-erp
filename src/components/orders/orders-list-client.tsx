@@ -67,10 +67,25 @@ export function OrdersListClient({
 
   return (
     <div className="space-y-4">
-      {/* Шапка в стиле Ганта v2: заголовок + счётчик + действие + фильтры в одной полосе */}
-      <div className="rounded-xl border border-slate-200 bg-white p-2">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      {/* Мобайл: заголовок + действие в отдельной строке, фильтры лентой ниже */}
+      <div className="sticky top-0 z-20 -mx-4 border-b border-slate-200 bg-slate-50/95 px-4 py-2 backdrop-blur md:static md:mx-0 md:rounded-xl md:border md:bg-white md:p-2 md:backdrop-blur-none">
+        <div className="flex items-center justify-between gap-3 md:hidden">
           <div className="flex items-baseline gap-2">
+            <h1 className="text-xl font-semibold text-slate-900">Заказы</h1>
+            <span className="text-xs text-slate-500">
+              {filtered.length}/{orders.length}
+            </span>
+          </div>
+          <Link
+            href="/orders/new"
+            className="flex h-10 shrink-0 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white active:bg-slate-800"
+          >
+            + Заказ
+          </Link>
+        </div>
+        {/* Фильтры: мобайл — лента, десктоп — в общей полосе с заголовком */}
+        <div className="no-scrollbar mt-2 flex items-center gap-2 overflow-x-auto md:mt-0 md:flex-wrap">
+          <div className="hidden items-baseline gap-2 md:flex">
             <h1 className="text-sm font-semibold text-slate-900">Заказы на производство</h1>
             <span className="text-xs text-slate-500">
               {filtered.length}/{orders.length}
@@ -78,12 +93,12 @@ export function OrdersListClient({
           </div>
           <Link
             href="/orders/new"
-            className="rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-800"
+            className="hidden rounded-md bg-slate-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-slate-800 md:inline-block"
           >
             + Заказ
           </Link>
-          <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden />
-          <span className="text-xs uppercase tracking-wide text-slate-400">Фильтры:</span>
+          <span className="mx-1 hidden h-5 w-px bg-slate-200 md:inline-block" aria-hidden />
+          <span className="hidden text-xs uppercase tracking-wide text-slate-400 md:inline">Фильтры:</span>
           <FilterDropdown
             label="Категория"
             options={filterOptions.categories}
@@ -167,10 +182,11 @@ export function OrdersListClient({
           );
         })}
         {filtered.length === 0 && (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">
+            <div className="mb-2 text-3xl">⬡</div>
             {orders.length === 0 ? (
               <>
-                Заказов не найдено.{" "}
+                Заказов пока нет.{" "}
                 <Link href="/orders/new" className="text-slate-900 underline">
                   Создать первый?
                 </Link>
@@ -183,7 +199,8 @@ export function OrdersListClient({
       </div>
 
       {/* Десктопная версия — таблица */}
-      <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white md:block">
+      <div className="scroll-x-hint hidden md:block">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="sticky top-0 z-10 bg-slate-50 shadow-[inset_0_-1px_0_rgb(226_232_240)]">
             <tr>
@@ -282,6 +299,7 @@ export function OrdersListClient({
             )}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

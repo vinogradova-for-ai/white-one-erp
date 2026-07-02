@@ -184,3 +184,54 @@ section:target {
   width: auto;
   display: block;
 }
+
+/* ===== Мобильные утилиты ===== */
+
+/* Safe-area: отступ снизу под домашнюю полосу iPhone (нижнее меню, sticky-кнопки). */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.mb-safe {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+/* Sticky-панель сохранения внизу длинных форм: базовый отступ + safe-area. */
+.pb-safe-4 {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+}
+
+/* Горизонтальный скролл внутри блока с намёком-затуханием справа.
+   Оборачиваем широкую таблицу: <div class="scroll-x-hint"><div class="overflow-x-auto">…</div></div> */
+.scroll-x-hint {
+  position: relative;
+}
+.scroll-x-hint::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 24px;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--background));
+}
+
+/* Скрыть скроллбар у горизонтальных лент фильтров/пилюль (визуально чище на тач). */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Увеличенная тач-мишень для мелких иконок-кнопок (◀▶, ✕): невидимый ≥44px hit-area,
+   визуал не растёт. Применять на кнопку с position: relative. */
+.tap-target::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
