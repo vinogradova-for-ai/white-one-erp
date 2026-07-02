@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { Prisma, PaymentStatus, PaymentType } from "@prisma/client";
+import { Prisma, PaymentStatus, PaymentType, type Role } from "@prisma/client";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { PaymentRowActions } from "@/components/payments/payment-row-actions";
 import { moscowTodayIso, moscowTodayStart } from "@/lib/dates";
+import { PayoutsPanel, type PayoutListItem } from "@/components/payments/payouts-panel";
+import { auth } from "@/lib/auth";
+import { can } from "@/lib/rbac";
+import { toKopecks } from "@/lib/payments/allocate-payout";
 
-type View = "calendar" | "list" | "archive";
+type View = "calendar" | "list" | "archive" | "payouts";
 
 const PAYMENT_INCLUDE = {
   order: {
@@ -33,7 +37,8 @@ export default async function PaymentsPage({
   searchParams: Promise<{ view?: string; month?: string; type?: string; q?: string }>;
 }) {
   const sp = await searchParams;
-  const view: View = sp.view === "list" || sp.view === "archive" ? sp.view : "calendar";
+  const view: View =
+    sp.view === "list" || sp.view === "archive" || sp.view === "payouts" ? sp.view : "calendar";
 
   // «Сегодня» по Москве (UTC+3), а не по локальной зоне сервера — иначе на
   // Vercel (UTC) ночью 00:00–03:00 МСК месяц по умолчанию и просрочка съезжали.
@@ -60,15 +65,18 @@ export default async function PaymentsPage({
         <Tab href={`/payments?view=calendar`} active={view === "calendar"} label="Календарь" />
         <Tab href={`/payments?view=list`} active={view === "list"} label="Предстоящие" />
         <Tab href={`/payments?view=archive`} active={view === "archive"} label="Архив" />
+        <Tab href={`/payments?view=payouts`} active={view === "payouts"} label="Оплаты" />
       </div>
 
-      {/* Фильтры по типу — общие для всех вкладок */}
+      {/* Фильтры по типу — общие для вкладок платежей (не для «Оплат») */}
+      {view !== "payouts" && (
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-xs uppercase tracking-wide text-slate-400 mr-1">Тип:</span>
         <FilterPill href={hrefWith(sp, { view, type: null })} active={!typeFilter} label="Все" />
         <FilterPill href={hrefWith(sp, { view, type: "ORDER" })} active={typeFilter === "ORDER"} label="Фабрики" />
         <FilterPill href={hrefWith(sp, { view, type: "PACKAGING" })} active={typeFilter === "PACKAGING"} label="Упаковка" />
       </div>
+      )}
 
       {view === "calendar" && (
         <CalendarView month={month} typeFilter={typeFilter} sp={sp} />
@@ -79,8 +87,76 @@ export default async function PaymentsPage({
       {view === "archive" && (
         <ArchiveView typeFilter={typeFilter} q={q} sp={sp} />
       )}
+      {view === "payouts" && <PayoutsView />}
     </div>
   );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// VIEW: Оплаты — фактические переводы фабрикам с разнесением по плановым платежам
+// ──────────────────────────────────────────────────────────────────────────────
+async function PayoutsView() {
+  const session = await auth();
+  const role = (session?.user as { role?: Role } | undefined)?.role;
+  const canDelete = role ? can(role, "payment.delete") : false;
+  const canCreate = role ? can(role, "payment.markPaid") : false;
+
+  const [payouts, factories] = await Promise.all([
+    prisma.factoryPayout.findMany({
+      where: { deletedAt: null },
+      orderBy: { date: "desc" },
+      take: 300,
+      include: {
+        factory: { select: { name: true } },
+        createdBy: { select: { name: true } },
+        allocations: {
+          include: {
+            payment: {
+              select: {
+                type: true,
+                order: { select: { orderNumber: true, productModel: { select: { name: true } } } },
+                packagingOrder: { select: { orderNumber: true } },
+                packagingItem: { select: { name: true } },
+                supplierName: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.factory.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
+
+  const items: PayoutListItem[] = payouts.map((p) => {
+    const allocatedKopecks = p.allocations.reduce((a, x) => a + toKopecks(x.amount.toString()), 0);
+    const amountKopecks = toKopecks(p.amount.toString());
+    const leftoverKopecks = Math.max(0, amountKopecks - allocatedKopecks);
+    return {
+      id: p.id,
+      date: p.date.toISOString(),
+      factoryName: p.factory.name,
+      amount: p.amount.toString(),
+      currencyNote: p.currencyNote,
+      comment: p.comment,
+      createdByName: p.createdBy.name,
+      allocatedTotal: (allocatedKopecks / 100).toFixed(2),
+      leftover: (leftoverKopecks / 100).toFixed(2),
+      allocations: p.allocations.map((a) => {
+        const pm = a.payment;
+        const label =
+          pm.type === "ORDER"
+            ? `${pm.order?.orderNumber ?? "заказ"}${pm.order?.productModel.name ? " · " + pm.order.productModel.name : ""}`
+            : `${pm.packagingOrder?.orderNumber ?? pm.supplierName ?? "упаковка"}${pm.packagingItem?.name ? " · " + pm.packagingItem.name : ""}`;
+        return { id: a.id, paymentLabel: label, amount: a.amount.toString() };
+      }),
+    };
+  });
+
+  return <PayoutsPanel payouts={items} factories={factories} canDelete={canDelete} canCreate={canCreate} />;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

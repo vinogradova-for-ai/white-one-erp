@@ -22,6 +22,7 @@ import { backfillOrderEconomicsFromModel } from "@/server/backfill-order-economi
 import { syncOrderStatusForward } from "@/server/sync-order-status";
 import { orderLateDays } from "@/lib/order-auto-status";
 import { resolveModelCost } from "@/lib/calculations/resolve-model-cost";
+import { getPaymentFactInfo } from "@/lib/payments/payout-queries";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -110,6 +111,12 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       select: { id: true, sku: true, colorName: true, photoUrls: true },
     }),
   ]);
+
+  // Статус плановых платежей по ФАКТУ (разнесённые оплаты фабрикам).
+  const paymentFact = await getPaymentFactInfo(order.payments.map((p) => p.id));
+  const planKopecks = order.payments.reduce((a, p) => a + Math.round(Number(p.amount) * 100), 0);
+  const paidKopecks = order.payments.reduce((a, p) => a + (paymentFact.get(p.id)?.allocatedKopecks ?? 0), 0);
+  const remainderKopecks = Math.max(0, planKopecks - paidKopecks);
 
   const sizes = order.productModel.sizeGrid?.sizes ?? [];
   const totalQty = order.lines.reduce((a, l) => a + l.quantity, 0);
@@ -281,18 +288,53 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             </div>
           ) : (
             <div className="space-y-1.5">
-              {order.payments.map((pp) => (
-                <div key={pp.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className={`inline-block h-2 w-2 rounded-full ${pp.status === "PAID" ? "bg-emerald-500" : "bg-amber-400"}`} />
-                    <span className="text-slate-900">{pp.label}</span>
-                    <span className="text-xs text-slate-500">· {formatDate(pp.plannedDate)}</span>
+              {order.payments.map((pp) => {
+                const fact = paymentFact.get(pp.id);
+                const st = fact?.status ?? (pp.status === "PAID" ? "legacy-paid" : "unpaid");
+                // Точка-индикатор: оплачен (в т.ч. legacy) — зелёный, частично — синий, нет — янтарный.
+                const dot =
+                  st === "paid" || st === "legacy-paid" ? "bg-emerald-500" : st === "partial" ? "bg-blue-500" : "bg-amber-400";
+                const firstPayout = fact?.payouts[0];
+                let statusText: string;
+                if (st === "paid" && firstPayout) {
+                  statusText = `оплачен ${formatDate(firstPayout.date)}`;
+                } else if (st === "paid") {
+                  statusText = "оплачен";
+                } else if (st === "partial") {
+                  const paid = (fact?.allocatedKopecks ?? 0) / 100;
+                  statusText = `частично ${formatCurrency(paid)} из ${formatCurrency(Number(pp.amount))}`;
+                } else if (st === "legacy-paid") {
+                  statusText = "оплачен (старая запись)";
+                } else {
+                  statusText = "не оплачен";
+                }
+                return (
+                  <div key={pp.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${dot}`} />
+                      <span className="text-slate-900">{pp.label}</span>
+                      <span className="text-xs text-slate-500">· {formatDate(pp.plannedDate)}</span>
+                      <span className="text-xs text-slate-500">· {statusText}</span>
+                    </div>
+                    <div className="text-sm font-medium text-slate-900">{formatCurrency(Number(pp.amount))}</div>
                   </div>
-                  <div className="text-sm font-medium text-slate-900">{formatCurrency(Number(pp.amount))}</div>
+                );
+              })}
+              <div className="mt-2 grid grid-cols-3 gap-2 border-t border-slate-100 pt-2 text-center text-xs">
+                <div>
+                  <div className="text-slate-500">План</div>
+                  <div className="font-semibold text-slate-900">{formatCurrency(planKopecks / 100)}</div>
                 </div>
-              ))}
-              <div className="pt-1 text-right text-xs text-slate-500">
-                Сумма: {formatCurrency(order.payments.reduce((a, p) => a + Number(p.amount), 0))}
+                <div>
+                  <div className="text-slate-500">Оплачено</div>
+                  <div className="font-semibold text-emerald-700">{formatCurrency(paidKopecks / 100)}</div>
+                </div>
+                <div>
+                  <div className="text-slate-500">Остаток</div>
+                  <div className={`font-semibold ${remainderKopecks > 0 ? "text-amber-700" : "text-slate-900"}`}>
+                    {formatCurrency(remainderKopecks / 100)}
+                  </div>
+                </div>
               </div>
             </div>
           )}
