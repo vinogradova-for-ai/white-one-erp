@@ -4,6 +4,9 @@ import { useRouter } from "next/navigation";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { FilterDropdown } from "@/components/common/filter-dropdown";
 import type { StatsPage, TrendMetricKey } from "@/lib/queries/stats-page";
+import type { TeamMonthStats } from "@/lib/queries/team-month-stats";
+import type { OwnerProjects } from "@/lib/queries/team-projects";
+import { TeamMonthSection } from "@/components/dashboard/team-month-section";
 import { TrendChart } from "./trend-chart";
 import { MonthCompareCards } from "./month-compare";
 import { PeopleTable } from "./people-table";
@@ -42,9 +45,13 @@ function ymTitle(yearMonth: number): string {
 
 export function StatsClient({
   stats,
+  teamMonth,
+  projects,
   selectedOwnerId,
 }: {
   stats: StatsPage;
+  teamMonth: TeamMonthStats;
+  projects: Record<string, OwnerProjects>;
   selectedOwnerId: string | null;
 }) {
   const router = useRouter();
@@ -80,6 +87,14 @@ export function StatsClient({
           />
         </div>
       </div>
+
+      {/* Команда в месяце + проекты по людям (переехали с дашборда) */}
+      <TeamMonthSection
+        stats={teamMonth}
+        selectedOwnerId={selectedOwnerId}
+        basePath="/stats"
+        projects={projects}
+      />
 
       {/* Тренд */}
       <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">

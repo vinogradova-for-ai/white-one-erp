@@ -1,17 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { ROLE_LABELS } from "@/lib/constants";
+import { ROLE_LABELS, PRODUCT_MODEL_STATUS_LABELS, ORDER_STATUS_LABELS } from "@/lib/constants";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import type { OwnerMonthStats, StageTotals, TeamMonthStats } from "@/lib/queries/team-month-stats";
+import type { OwnerProjects } from "@/lib/queries/team-projects";
 
 /**
- * Блок «Команда в месяце» на дашборде.
+ * Блок «Команда в месяце».
  *
  * Сводная полоса из 4 этапов (командные итоги) + карточка на человека с
  * нагрузкой, чипами этапов и барами плана (только у PM). Клик по карточке
- * ставит ?owner=<id> — общий фильтр задач дашборда. Переключатель месяца и
+ * ставит ?owner=<id> — общий фильтр задач. Переключатель месяца и
  * сворачивание — через URL / localStorage.
+ *
+ * basePath параметризует, на какую страницу ведут ссылки (клик по человеку и
+ * переключатель месяца): «/dashboard» (главная) или «/stats» (статистика).
+ * По умолчанию — «/dashboard» (историческое поведение).
+ *
+ * projects (опц.) — «Проекты по людям»: у каждого человека раскрывашка с
+ * фасонами в разработке и активными заказами. Ключ — ownerId.
  */
 
 const MONTH_NAMES_RU = [
@@ -81,9 +89,15 @@ function fmtTotals(t: StageTotals): string {
 export function TeamMonthSection({
   stats,
   selectedOwnerId,
+  basePath = "/dashboard",
+  projects,
 }: {
   stats: TeamMonthStats;
   selectedOwnerId: string | null;
+  /** Куда ведут ссылки: «/dashboard» или «/stats». */
+  basePath?: string;
+  /** Проекты по людям (ownerId → фасоны в разработке + активные заказы). */
+  projects?: Record<string, OwnerProjects>;
 }) {
   const [collapsed, setCollapsed] = usePersistedState<boolean>("dashboard:teamMonth:v1", false);
 
@@ -96,7 +110,7 @@ export function TeamMonthSection({
     const params = new URLSearchParams();
     params.set("month", `${Math.floor(ym / 100)}-${String(ym % 100).padStart(2, "0")}`);
     if (selectedOwnerId) params.set("owner", selectedOwnerId);
-    return `/dashboard?${params.toString()}`;
+    return `${basePath}?${params.toString()}`;
   };
 
   return (
@@ -167,6 +181,8 @@ export function TeamMonthSection({
                   owner={o}
                   active={o.ownerId === selectedOwnerId}
                   yearMonth={stats.yearMonth}
+                  basePath={basePath}
+                  projects={projects?.[o.ownerId]}
                 />
               ))}
             </div>
@@ -181,28 +197,41 @@ function PersonCard({
   owner,
   active,
   yearMonth,
+  basePath,
+  projects,
 }: {
   owner: OwnerMonthStats;
   active: boolean;
   yearMonth: number;
+  basePath: string;
+  projects?: OwnerProjects;
 }) {
   // Клик ставит ?owner=<id>; повторный клик (когда уже выбран) снимает фильтр.
   const params = new URLSearchParams();
   params.set("month", `${Math.floor(yearMonth / 100)}-${String(yearMonth % 100).padStart(2, "0")}`);
   if (!active) params.set("owner", owner.ownerId);
-  const href = `/dashboard?${params.toString()}`;
+  const href = `${basePath}?${params.toString()}`;
 
   const roleLabel = owner.role ? ROLE_LABELS[owner.role] : "";
 
+  // Раскрывашка «Проекты» — только если есть что показать. Живёт ВНЕ ссылки на
+  // карточку (иначе вложенные <a> на фасоны/заказы дали бы невалидный HTML).
+  const devModels = projects?.devModels ?? [];
+  const activeOrders = projects?.activeOrders ?? [];
+  const hasProjects = devModels.length > 0 || activeOrders.length > 0;
+
   return (
-    <Link
-      href={href}
-      scroll={false}
-      className={`block rounded-xl border bg-white p-3 transition ${
+    <div
+      className={`rounded-xl border bg-white transition ${
         active
           ? "border-blue-400 ring-1 ring-blue-400 dark:ring-blue-400/30"
           : "border-slate-200 hover:border-slate-300"
       }`}
+    >
+    <Link
+      href={href}
+      scroll={false}
+      className="block p-3"
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0">
@@ -249,7 +278,115 @@ function PersonCard({
         </div>
       )}
     </Link>
+
+      {/* Проекты по человеку — раскрывашка ВНЕ ссылки карточки. */}
+      {hasProjects && <PersonProjects devModels={devModels} activeOrders={activeOrders} />}
+    </div>
   );
+}
+
+/**
+ * Раскрывашка «Проекты: N фасонов · M заказов» для карточки человека.
+ * Внутри — два списка со статус-бейджами и ссылками. Пустые группы скрыты.
+ */
+function PersonProjects({
+  devModels,
+  activeOrders,
+}: {
+  devModels: OwnerProjects["devModels"];
+  activeOrders: OwnerProjects["activeOrders"];
+}) {
+  const summary = [
+    devModels.length > 0 ? `${devModels.length} ${pluralModels(devModels.length)}` : null,
+    activeOrders.length > 0 ? `${activeOrders.length} ${pluralOrders(activeOrders.length)}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <details className="group border-t border-slate-100">
+      <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-2 px-3 text-xs font-medium text-slate-600 hover:text-slate-900">
+        <span className="text-slate-400 transition-transform group-open:rotate-90" aria-hidden>
+          ▸
+        </span>
+        <span>Проекты: {summary}</span>
+      </summary>
+
+      <div className="space-y-3 px-3 pb-3">
+        {devModels.length > 0 && (
+          <div>
+            <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+              В разработке
+            </div>
+            <ul className="space-y-1">
+              {devModels.map((m) => (
+                <li key={m.id}>
+                  <Link
+                    href={`/models/${m.id}`}
+                    className="flex min-h-[44px] items-center gap-2 rounded-lg px-2 text-xs hover:bg-slate-50"
+                  >
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                      {PRODUCT_MODEL_STATUS_LABELS[m.status]}
+                    </span>
+                    <span className="flex-1 truncate text-slate-800">{m.name}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {activeOrders.length > 0 && (
+          <div>
+            <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+              Активные заказы
+            </div>
+            <ul className="space-y-1">
+              {activeOrders.map((o) => (
+                <li key={o.id}>
+                  <Link
+                    href={`/orders/${o.id}`}
+                    className="flex min-h-[44px] items-center gap-2 rounded-lg px-2 text-xs hover:bg-slate-50"
+                  >
+                    <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-400/10 dark:text-blue-300">
+                      {ORDER_STATUS_LABELS[o.status]}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-slate-800">
+                      <span className="text-slate-400">#{o.orderNumber}</span> {o.modelName}
+                    </span>
+                    {o.units > 0 && (
+                      <span className="shrink-0 text-[10px] text-slate-500 tabular-nums">
+                        {fmt(o.units)} шт
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+// Склонение «фасон / фасона / фасонов» и «заказ / заказа / заказов».
+function pluralModels(n: number): string {
+  const m100 = n % 100;
+  const m10 = n % 10;
+  if (m100 >= 11 && m100 <= 14) return "фасонов";
+  if (m10 === 1) return "фасон";
+  if (m10 >= 2 && m10 <= 4) return "фасона";
+  return "фасонов";
+}
+
+function pluralOrders(n: number): string {
+  const m100 = n % 100;
+  const m10 = n % 10;
+  if (m100 >= 11 && m100 <= 14) return "заказов";
+  if (m10 === 1) return "заказ";
+  if (m10 >= 2 && m10 <= 4) return "заказа";
+  return "заказов";
 }
 
 function PlanBar({
