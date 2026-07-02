@@ -36,7 +36,7 @@ export function MobileList({ groups, todayIso }: { groups: GanttGroupView[]; tod
 export function MobilePhaseCard({ row, todayIso }: { row: GanttRowV2; todayIso: string }) {
   if (row.bars.length === 0) {
     return (
-      <Link href={row.href} className="block rounded-xl border border-slate-200 bg-white p-3 active:bg-slate-50">
+      <Link href={row.href} className="block min-h-[44px] rounded-xl border border-slate-200 bg-white px-4 py-3 active:bg-slate-50">
         <div className="text-sm font-medium text-slate-900">{row.title}</div>
         <div className="text-[11px] text-slate-400">Нет фаз</div>
       </Link>
@@ -112,7 +112,7 @@ export function MobilePhaseCard({ row, todayIso }: { row: GanttRowV2; todayIso: 
 
   return (
     <details className="group rounded-xl border border-slate-200 bg-white open:border-slate-300 open:shadow-sm">
-      <summary className="list-none p-3 [&::-webkit-details-marker]:hidden">
+      <summary className="list-none px-4 py-3 [&::-webkit-details-marker]:hidden">
         <div className="flex items-start gap-2.5">
           {photoUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
@@ -170,7 +170,7 @@ export function MobilePhaseCard({ row, todayIso }: { row: GanttRowV2; todayIso: 
         {/* Подписи фаз — короткие, под сегментами. Активная фаза жирная.
             У слишком узких сегментов (<10% ширины) подпись прячем, иначе
             соседние сокращения наезжают друг на друга («ПРОИЗ О...»). */}
-        <div className="mt-1 flex text-[10px] uppercase tracking-tight text-slate-400">
+        <div className="mt-1 flex text-[11px] uppercase tracking-tight text-slate-400">
           {segments.map(({ bar, days }) => {
             const widthPct = (days / totalSegDays) * 100;
             const isActive = bar.state === "active";
@@ -195,7 +195,7 @@ export function MobilePhaseCard({ row, todayIso }: { row: GanttRowV2; todayIso: 
       </summary>
 
       {/* Раскрытый блок — детальные фазы */}
-      <div className="border-t border-slate-100 px-3 pb-3 pt-2.5">
+      <div className="border-t border-slate-100 px-4 pb-3 pt-2.5">
         <div className="space-y-1.5">
           {row.bars.map((b) => {
             const days = dayDiff(b.start, b.end);
@@ -234,7 +234,7 @@ export function MobilePhaseCard({ row, todayIso }: { row: GanttRowV2; todayIso: 
         </div>
         <Link
           href={row.href}
-          className="mt-3 flex w-full items-center justify-center rounded-lg bg-slate-900 px-3 py-2 text-[13px] font-medium text-white active:bg-slate-700"
+          className="mt-3 flex min-h-[44px] w-full items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-[13px] font-medium text-white active:bg-slate-700"
         >
           Открыть карточку →
         </Link>
