@@ -72,19 +72,19 @@ export function GanttPageClient({ rows }: { rows: GanttRow[] }) {
 
       {/* Sticky-панель снизу — появляется если есть изменения в буфере */}
       {count > 0 && (
-        <div className="sticky bottom-3 z-30 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-3 shadow-lg">
+        <div className="sticky bottom-3 z-30 flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-3 shadow-lg dark:border-amber-400/20 dark:bg-amber-400/10">
           <div className="flex-1 text-sm">
-            <span className="font-semibold text-amber-900">Несохранённых изменений: {count}</span>
-            <div className="text-xs text-amber-800">
+            <span className="font-semibold text-amber-900 dark:text-amber-300">Несохранённых изменений: {count}</span>
+            <div className="text-xs text-amber-800 dark:text-amber-300">
               Перетащите ещё или сохраните разом — каждый заказ получит один запрос на обновление.
             </div>
-            {error && <div className="mt-1 text-xs text-red-600">{error}</div>}
+            {error && <div className="mt-1 text-xs text-red-600 dark:text-red-300">{error}</div>}
           </div>
           <button
             type="button"
             onClick={discard}
             disabled={saving}
-            className="rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-sm text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+            className="rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-sm text-amber-900 hover:bg-amber-100 disabled:opacity-50 dark:text-amber-300 dark:hover:bg-amber-400/10"
           >
             Отменить
           </button>

@@ -336,7 +336,7 @@ export function ModelEditForm({
           approvedDate/productionStartDate/plannedLaunchMonth остаются в БД
           и в payload (значения сохраняются как есть, без UI). */}
 
-      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-400/10 dark:text-red-300">{error}</div>}
     </form>
   );
 }

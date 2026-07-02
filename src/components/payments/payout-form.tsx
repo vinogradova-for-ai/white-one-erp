@@ -314,7 +314,7 @@ export function PayoutForm({
           {/* Live-строка */}
           <div
             className={`rounded-lg px-3 py-2 text-sm font-medium ${
-              overAllocated ? "bg-red-50 text-red-700" : "bg-slate-50 text-slate-700"
+              overAllocated ? "bg-red-50 text-red-700 dark:bg-red-400/10 dark:text-red-300" : "bg-slate-50 text-slate-700"
             }`}
           >
             Разнесено {fmtRub(allocatedKopecks)} из {fmtRub(totalKopecks)} ₽ · остаток{" "}
@@ -325,7 +325,7 @@ export function PayoutForm({
         </div>
       )}
 
-      {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-400/10 dark:text-red-300">{error}</div>}
 
       <div className="flex justify-end gap-2">
         <button onClick={onCancel} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">

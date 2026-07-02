@@ -285,11 +285,11 @@ function classifyRow(
 }
 
 function StatusChip({ status }: { status: RowStatus }) {
-  if (status === "ok") return <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">✓ ОК</span>;
-  if (status === "in-progress") return <span className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700">⏳ Идёт</span>;
+  if (status === "ok") return <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300">✓ ОК</span>;
+  if (status === "in-progress") return <span className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-400/10 dark:text-blue-300">⏳ Идёт</span>;
   if (status === "future") return <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">📅 Запланировано</span>;
-  if (status === "warning") return <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">⚠ Недобор</span>;
-  if (status === "critical") return <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">🔴 Разрыв</span>;
+  if (status === "warning") return <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700 dark:bg-amber-400/10 dark:text-amber-300">⚠ Недобор</span>;
+  if (status === "critical") return <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700 dark:bg-red-400/10 dark:text-red-300">🔴 Разрыв</span>;
   return <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">план не задан</span>;
 }
 

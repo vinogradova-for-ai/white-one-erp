@@ -65,8 +65,8 @@ export function SizeGridPicker({
 
   if (mode === "create") {
     return (
-      <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
-        <div className="text-sm font-medium text-blue-900">Новая размерная сетка</div>
+      <div className="space-y-2 rounded-lg border border-blue-200 dark:border-blue-400/20 bg-blue-50 dark:bg-blue-400/10 p-3">
+        <div className="text-sm font-medium text-blue-900 dark:text-blue-300">Новая размерная сетка</div>
         <input
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -85,12 +85,12 @@ export function SizeGridPicker({
             <code>40-46 step 1</code> · <code>XS-XXL</code>
           </div>
           {preview.length > 0 && (
-            <div className="mt-1 text-blue-900">
+            <div className="mt-1 text-blue-900 dark:text-blue-300">
               Получится: <b>{preview.join(", ")}</b>
             </div>
           )}
         </div>
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="text-xs text-red-600 dark:text-red-300">{error}</p>}
         <div className="flex gap-2">
           <button
             type="button"

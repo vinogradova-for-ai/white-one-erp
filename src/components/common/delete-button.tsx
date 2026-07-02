@@ -49,11 +49,11 @@ export function DeleteButton({
         type="button"
         onClick={onClick}
         disabled={busy}
-        className="flex h-10 items-center rounded-lg border border-red-200 bg-white px-4 text-sm font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
+        className="flex h-10 items-center rounded-lg border border-red-200 dark:border-red-400/20 bg-white px-4 text-sm font-medium text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-400/10 disabled:opacity-50"
       >
         {busy ? "Удаление…" : label}
       </button>
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-1 text-xs text-red-600 dark:text-red-300">{error}</p>}
     </div>
   );
 }

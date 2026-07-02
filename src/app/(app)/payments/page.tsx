@@ -272,11 +272,11 @@ async function CalendarView({
                 {c.day != null && (
                   <>
                     <div className={`mb-1 flex items-baseline justify-between gap-1 ${isPast ? "text-slate-400" : "text-slate-700"}`}>
-                      <span className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full text-sm font-semibold ${isToday ? "bg-blue-600 px-2 text-white shadow ring-2 ring-blue-300" : ""}`}>
+                      <span className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full text-sm font-semibold ${isToday ? "bg-blue-600 px-2 text-white shadow ring-2 ring-blue-300 dark:ring-blue-400/30" : ""}`}>
                         {c.day}
                       </span>
                       {sum > 0 && (
-                        <span className={`text-[11px] font-semibold ${isPast && dayPays.some((p) => p.status === "PENDING") ? "text-red-600" : "text-slate-600"}`}>
+                        <span className={`text-[11px] font-semibold ${isPast && dayPays.some((p) => p.status === "PENDING") ? "text-red-600 dark:text-red-300" : "text-slate-600"}`}>
                           {formatCurrency(sum)}
                         </span>
                       )}
@@ -348,7 +348,7 @@ function MobileMonthList({
           <div
             key={day}
             className={`overflow-hidden rounded-2xl border bg-white ${
-              isToday ? "border-blue-300 ring-1 ring-blue-200" : "border-slate-200"
+              isToday ? "border-blue-300 ring-1 ring-blue-200 dark:border-blue-400/20 dark:ring-blue-400/30" : "border-slate-200"
             }`}
           >
             <div className="flex items-baseline justify-between gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2">
@@ -363,9 +363,9 @@ function MobileMonthList({
                 <span className="text-xs uppercase tracking-wide text-slate-500">
                   {["пн", "вт", "ср", "чт", "пт", "сб", "вс"][dow]}
                 </span>
-                {isToday && <span className="text-xs font-medium text-blue-600">сегодня</span>}
+                {isToday && <span className="text-xs font-medium text-blue-600 dark:text-blue-300">сегодня</span>}
               </div>
-              <span className={`text-sm font-semibold tabular-nums ${hasPendingPast ? "text-red-600" : "text-slate-700"}`}>
+              <span className={`text-sm font-semibold tabular-nums ${hasPendingPast ? "text-red-600 dark:text-red-300" : "text-slate-700"}`}>
                 {formatCurrency(sum)}
               </span>
             </div>
@@ -385,12 +385,12 @@ function MobilePaymentRow({ p, isPast }: { p: PaymentWithRelations; isPast: bool
   const isPaid = p.status === "PAID";
   const isOverdue = !isPaid && isPast;
   const statusCls = isPaid
-    ? "bg-emerald-100 text-emerald-700"
+    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300"
     : isOverdue
-    ? "bg-red-100 text-red-700"
+    ? "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-300"
     : p.type === "ORDER"
-    ? "bg-blue-100 text-blue-700"
-    : "bg-amber-100 text-amber-800";
+    ? "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-300"
+    : "bg-amber-100 text-amber-800 dark:bg-amber-400/10 dark:text-amber-300";
   const statusLabel = isPaid ? "Оплачено" : isOverdue ? "Просрочено" : "К оплате";
   const subject = p.type === "ORDER"
     ? (p.order?.productModel.name ?? p.factory?.name ?? "—")
@@ -425,12 +425,12 @@ function CalendarChip({ p, isPast }: { p: PaymentWithRelations; isPast: boolean 
   const isPaid = p.status === "PAID";
   const isOverdue = !isPaid && isPast;
   const cls = isPaid
-    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-400/10 dark:text-emerald-300 dark:border-emerald-400/20"
     : isOverdue
-    ? "bg-red-50 text-red-700 border-red-200"
+    ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-400/10 dark:text-red-300 dark:border-red-400/20"
     : p.type === "ORDER"
-    ? "bg-blue-50 text-blue-700 border-blue-200"
-    : "bg-amber-50 text-amber-800 border-amber-200";
+    ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-400/10 dark:text-blue-300 dark:border-blue-400/20"
+    : "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-400/10 dark:text-amber-300 dark:border-amber-400/20";
   // ЗА ЧТО плачу: для заказа — имя фасона, для упаковки — имя упаковки
   const subject = p.type === "ORDER"
     ? (p.order?.productModel.name ?? p.factory?.name ?? "—")
@@ -583,20 +583,20 @@ function BigCard({
   return (
     <div
       className={`flex flex-wrap items-center gap-3 rounded-2xl border bg-white p-4 ${
-        isOverdue ? "border-red-300 bg-red-50/40" : isPaid ? "border-emerald-200" : "border-slate-200"
+        isOverdue ? "border-red-300 bg-red-50/40 dark:border-red-400/20 dark:bg-red-400/10" : isPaid ? "border-emerald-200 dark:border-emerald-400/20" : "border-slate-200"
       }`}
     >
       {/* Дата */}
       <div className="min-w-[88px] text-left">
-        <div className={`text-3xl font-bold leading-none ${isOverdue ? "text-red-700" : "text-slate-900"}`}>
+        <div className={`text-3xl font-bold leading-none ${isOverdue ? "text-red-700 dark:text-red-300" : "text-slate-900"}`}>
           {String(p.plannedDate.getDate()).padStart(2, "0")}
         </div>
-        <div className={`text-xs uppercase ${isOverdue ? "text-red-600" : "text-slate-500"}`}>
+        <div className={`text-xs uppercase ${isOverdue ? "text-red-600 dark:text-red-300" : "text-slate-500"}`}>
           {monthShort(p.plannedDate)} {p.plannedDate.getFullYear()}
         </div>
-        {isOverdue && <div className="text-[10px] font-semibold text-red-600">просрочен</div>}
+        {isOverdue && <div className="text-[10px] font-semibold text-red-600 dark:text-red-300">просрочен</div>}
         {archived && p.paidAt && (
-          <div className="mt-1 text-[10px] text-emerald-700">опл. {formatDate(p.paidAt)}</div>
+          <div className="mt-1 text-[10px] text-emerald-700 dark:text-emerald-300">опл. {formatDate(p.paidAt)}</div>
         )}
       </div>
 
@@ -632,7 +632,7 @@ function BigCard({
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
           <span
             className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-              p.type === "ORDER" ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"
+              p.type === "ORDER" ? "bg-blue-50 text-blue-700 dark:bg-blue-400/10 dark:text-blue-300" : "bg-amber-50 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300"
             }`}
           >
             {p.type === "ORDER" ? "Фабрика" : "Упаковка"}
@@ -700,11 +700,11 @@ function Summary({
   return (
     <div
       className={`rounded-xl border p-4 ${
-        danger ? "border-red-200 bg-red-50" : muted ? "border-slate-200 bg-slate-50" : "border-slate-200 bg-white"
+        danger ? "border-red-200 bg-red-50 dark:border-red-400/20 dark:bg-red-400/10" : muted ? "border-slate-200 bg-slate-50" : "border-slate-200 bg-white"
       }`}
     >
       <div className="text-xs text-slate-500">{title}</div>
-      <div className={`mt-1 text-xl font-semibold ${danger ? "text-red-700" : "text-slate-900"}`}>{value}</div>
+      <div className={`mt-1 text-xl font-semibold ${danger ? "text-red-700 dark:text-red-300" : "text-slate-900"}`}>{value}</div>
     </div>
   );
 }

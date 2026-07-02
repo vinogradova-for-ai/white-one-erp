@@ -158,7 +158,7 @@ export function PaymentForm({ orders, initial }: { orders: OrderOption[]; initia
         />
       </Field>
 
-      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-400/10 dark:text-red-300">{error}</div>}
 
       <div className="flex gap-2 border-t border-slate-200 pt-4 md:justify-end">
         <button

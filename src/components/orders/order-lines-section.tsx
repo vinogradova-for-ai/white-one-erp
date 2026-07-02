@@ -190,7 +190,7 @@ function LineCard({
           disabled={saving}
           aria-label="Удалить позицию"
           title="Удалить позицию"
-          className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md text-slate-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 focus:opacity-100 disabled:opacity-30"
+          className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md text-slate-400 opacity-0 transition hover:bg-red-50 dark:hover:bg-red-400/10 hover:text-red-600 dark:hover:text-red-300 group-hover:opacity-100 focus:opacity-100 disabled:opacity-30"
         >
           ✕
         </button>
@@ -223,7 +223,7 @@ function LineCard({
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-10 shrink-0 text-[10px] uppercase tracking-wider text-emerald-600">Факт</span>
+                <span className="w-10 shrink-0 text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-300">Факт</span>
                 <div className="flex-1 min-w-0">
                   <SizeRow sizes={sizes} dist={fact} onChange={setFact} accent="emerald" placeholder="—" />
                 </div>
@@ -246,11 +246,11 @@ function LineCard({
                   : "Факт совпадает с планом"
             }
           >
-            <span className={`text-[9px] uppercase ${factEmpty ? "text-slate-300" : "text-emerald-600"}`}>факт</span>
+            <span className={`text-[9px] uppercase ${factEmpty ? "text-slate-300" : "text-emerald-600 dark:text-emerald-300"}`}>факт</span>
             <div className={`text-sm font-semibold ${
               factEmpty ? "text-slate-300" :
-              factQty !== qty ? "text-amber-700" :
-              "text-emerald-700"
+              factQty !== qty ? "text-amber-700 dark:text-amber-300" :
+              "text-emerald-700 dark:text-emerald-300"
             }`}>
               {factEmpty ? "—" : factQty}{!factEmpty && <span className="text-[11px] font-normal text-slate-500"> шт</span>}
             </div>
@@ -268,7 +268,7 @@ function LineCard({
           )}
         </div>
       </div>
-      {error && <div className="mt-2 text-xs text-red-600">{error}</div>}
+      {error && <div className="mt-2 text-xs text-red-600 dark:text-red-300">{error}</div>}
     </div>
   );
 }
@@ -287,7 +287,7 @@ function SizeRow({
   placeholder?: string;
 }) {
   const ringClass = accent === "emerald"
-    ? "border-emerald-200 focus:border-emerald-400 text-emerald-800"
+    ? "border-emerald-200 dark:border-emerald-400/20 focus:border-emerald-400 text-emerald-800 dark:text-emerald-300"
     : "border-slate-200 focus:border-slate-400 text-slate-900";
   return (
     <div>
@@ -416,7 +416,7 @@ function AddLineForm({
           Отмена
         </button>
       </div>
-      {error && <div className="mt-2 text-xs text-red-600">{error}</div>}
+      {error && <div className="mt-2 text-xs text-red-600 dark:text-red-300">{error}</div>}
     </div>
   );
 }

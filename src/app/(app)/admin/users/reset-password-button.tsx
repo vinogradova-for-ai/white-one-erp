@@ -26,7 +26,7 @@ export function ResetPasswordButton({ userId, userName }: { userId: string; user
   if (temp) {
     return (
       <span className="inline-flex items-center gap-1 text-[11px] text-slate-700">
-        новый: <code className="rounded bg-amber-100 px-1 py-0.5 font-mono">{temp}</code>
+        новый: <code className="rounded bg-amber-100 dark:bg-amber-400/10 px-1 py-0.5 font-mono">{temp}</code>
         <span className="text-slate-400">(запишите — показан один раз)</span>
       </span>
     );
@@ -42,7 +42,7 @@ export function ResetPasswordButton({ userId, userName }: { userId: string; user
       >
         {busy ? "..." : "Сбросить пароль"}
       </button>
-      {err && <span className="ml-2 text-[11px] text-red-600">{err}</span>}
+      {err && <span className="ml-2 text-[11px] text-red-600 dark:text-red-300">{err}</span>}
     </span>
   );
 }

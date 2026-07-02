@@ -316,7 +316,7 @@ export function ModelForm({
             )}
           </span>
           {bannedBrand && (
-            <span className="mt-2 block rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <span className="mt-2 block rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-300">
               ⛔ В артикуле нельзя использовать чужой бренд: <b>«{bannedBrand}»</b>. Поменяйте метку или название — иначе WB заблокирует карточку.
             </span>
           )}

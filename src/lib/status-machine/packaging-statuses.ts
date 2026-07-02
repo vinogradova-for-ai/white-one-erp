@@ -28,11 +28,11 @@ export const PACKAGING_STATUS_LABELS: Record<PackagingItemStatus, string> = {
 };
 
 export const PACKAGING_STATUS_COLORS: Record<PackagingItemStatus, string> = {
-  IDEA: "bg-emerald-100 text-emerald-800",
-  DESIGN: "bg-emerald-100 text-emerald-800",
-  SAMPLE: "bg-emerald-100 text-emerald-800",
-  APPROVED: "bg-emerald-100 text-emerald-800",
-  ACTIVE: "bg-emerald-100 text-emerald-800",
+  IDEA: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  DESIGN: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  SAMPLE: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  APPROVED: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  ACTIVE: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   ARCHIVED: "bg-slate-100 text-slate-500",
 };
 

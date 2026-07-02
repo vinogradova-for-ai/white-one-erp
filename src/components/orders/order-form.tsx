@@ -415,7 +415,7 @@ export function OrderForm({
                           <button
                             type="button"
                             onClick={() => removeLine(idx)}
-                            className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-300 bg-white px-3 text-xs text-red-600 hover:bg-red-50 active:bg-red-50"
+                            className="inline-flex min-h-[40px] items-center rounded-lg border border-slate-300 bg-white px-3 text-xs text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-400/10 active:bg-red-50 dark:active:bg-red-400/10"
                           >
                             Удалить
                           </button>
@@ -524,7 +524,7 @@ export function OrderForm({
               const diffsFromModel = Math.abs(unitCostNum - Number(defaultCost)) > 0.01;
               if (diffsFromModel) {
                 return (
-                  <p className="mt-1 text-xs text-amber-700">
+                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
                     Отличается от себестоимости фасона ({formatCurrency(Number(defaultCost))}). Изменение применится только к этому заказу.
                   </p>
                 );
@@ -603,7 +603,7 @@ export function OrderForm({
                   type="button"
                   onClick={() => removePayment(idx)}
                   aria-label="Удалить платёж"
-                  className="ml-auto flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 bg-white text-base text-red-600 hover:bg-red-50 sm:order-5 sm:h-9 sm:w-9"
+                  className="ml-auto flex h-11 w-11 items-center justify-center rounded-lg border border-slate-300 bg-white text-base text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-400/10 sm:order-5 sm:h-9 sm:w-9"
                 >
                   ×
                 </button>
@@ -619,11 +619,11 @@ export function OrderForm({
               </button>
               <div className="text-sm">
                 <span className="text-slate-500">Итого:</span>{" "}
-                <span className={paymentsMismatch ? "font-semibold text-red-600" : "font-semibold text-slate-900"}>
+                <span className={paymentsMismatch ? "font-semibold text-red-600 dark:text-red-300" : "font-semibold text-slate-900"}>
                   {formatCurrency(paymentsTotal)}
                 </span>
                 {paymentsMismatch && (
-                  <span className="ml-2 text-xs text-red-600">
+                  <span className="ml-2 text-xs text-red-600 dark:text-red-300">
                     расхождение с суммой заказа: {formatCurrency(paymentsTotal - totalBatchCost)}
                   </span>
                 )}
@@ -653,7 +653,7 @@ export function OrderForm({
                       {p.quantityPerUnit} × {totalQty} шт = <span className="font-semibold text-slate-700">{needed} шт</span>
                       {" · "}В наличии: {p.stock} · В производстве: {p.inProductionQty}
                       {shortage > 0 && (
-                        <span className="ml-2 font-medium text-red-600">не хватает {shortage} шт</span>
+                        <span className="ml-2 font-medium text-red-600 dark:text-red-300">не хватает {shortage} шт</span>
                       )}
                     </div>
                   </div>
@@ -680,7 +680,7 @@ export function OrderForm({
         </Field>
       </Section>
 
-      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && <div className="rounded-lg bg-red-50 dark:bg-red-400/10 p-3 text-sm text-red-700 dark:text-red-300">{error}</div>}
       <FormErrorBanner error={apiErr} />
 
       <div className="pb-safe-4 sticky bottom-16 z-30 -mx-4 flex gap-3 border-t border-slate-200 bg-white px-4 pt-4 md:bottom-0 md:mx-0 md:flex-wrap md:justify-end md:px-0">

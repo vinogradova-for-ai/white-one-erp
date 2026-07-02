@@ -132,10 +132,10 @@ export function PayoutsPanel({
                           .join(" + ")}
                       </span>
                     ) : (
-                      <span className="text-amber-600">не разнесено</span>
+                      <span className="text-amber-600 dark:text-amber-300">не разнесено</span>
                     )}
                     {hasLeftover && (
-                      <span className="ml-1 text-amber-600">· нераспределено {fmt(p.leftover)}</span>
+                      <span className="ml-1 text-amber-600 dark:text-amber-300">· нераспределено {fmt(p.leftover)}</span>
                     )}
                   </div>
                   <div className="text-xs text-slate-400">{p.createdByName}</div>
@@ -166,7 +166,7 @@ export function PayoutsPanel({
                         <button
                           onClick={() => remove(p.id)}
                           disabled={busyId === p.id}
-                          className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50"
+                          className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-400/20 dark:text-red-300 dark:hover:bg-red-400/10"
                         >
                           Удалить оплату
                         </button>

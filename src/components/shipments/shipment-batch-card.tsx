@@ -199,7 +199,7 @@ export function ShipmentBatchCard({
             type="button"
             onClick={removeFromShipment}
             disabled={busy}
-            className="ml-auto text-xs text-slate-400 hover:text-rose-600 disabled:opacity-50"
+            className="ml-auto text-xs text-slate-400 hover:text-rose-600 disabled:opacity-50 dark:hover:text-rose-400"
           >
             убрать
           </button>
@@ -216,7 +216,7 @@ export function ShipmentBatchCard({
               </span>
               <span>план {i.plannedQty}</span>
               {i.factQty != null ? <span>· факт {i.factQty}</span> : null}
-              {(i.defectQty ?? 0) > 0 ? <span className="text-rose-500">· брак {i.defectQty}</span> : null}
+              {(i.defectQty ?? 0) > 0 ? <span className="text-rose-500 dark:text-rose-400">· брак {i.defectQty}</span> : null}
               {i.factQty != null && i.factQty < i.plannedQty ? (
                 <span className="text-amber-600 dark:text-amber-400">· недостача {i.plannedQty - i.factQty}</span>
               ) : null}
@@ -290,7 +290,7 @@ export function ShipmentBatchCard({
                 <button
                   type="button"
                   onClick={() => removeRow(idx)}
-                  className="mt-1 text-xs text-slate-400 hover:text-rose-600"
+                  className="mt-1 text-xs text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
                 >
                   удалить строку
                 </button>
@@ -361,7 +361,7 @@ export function ShipmentBatchCard({
                       <button
                         type="button"
                         onClick={() => removeRow(idx)}
-                        className="text-xs text-slate-400 hover:text-rose-600"
+                        className="text-xs text-slate-400 hover:text-rose-600 dark:hover:text-rose-400"
                       >
                         ✕
                       </button>
@@ -388,7 +388,7 @@ export function ShipmentBatchCard({
             <span className="text-slate-400">План: {totals.planned}</span>
           </div>
 
-          {error ? <p className="text-xs text-rose-600">{error}</p> : null}
+          {error ? <p className="text-xs text-rose-600 dark:text-rose-400">{error}</p> : null}
 
           <div className="flex flex-wrap gap-2">
             <button

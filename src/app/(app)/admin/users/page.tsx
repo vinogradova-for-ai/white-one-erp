@@ -49,7 +49,7 @@ export default async function UsersAdminPage() {
                 <div className="truncate text-xs text-slate-500">{u.email}</div>
               </div>
               {u.isActive ? (
-                <span className="shrink-0 rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">активен</span>
+                <span className="shrink-0 rounded bg-emerald-100 dark:bg-emerald-400/10 px-2 py-0.5 text-xs text-emerald-700 dark:text-emerald-300">активен</span>
               ) : (
                 <span className="shrink-0 rounded bg-slate-200 px-2 py-0.5 text-xs text-slate-600">отключён</span>
               )}
@@ -97,7 +97,7 @@ export default async function UsersAdminPage() {
                 </td>
                 <td className="px-3 py-2">
                   {u.isActive ? (
-                    <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">активен</span>
+                    <span className="rounded bg-emerald-100 dark:bg-emerald-400/10 px-2 py-0.5 text-xs text-emerald-700 dark:text-emerald-300">активен</span>
                   ) : (
                     <span className="rounded bg-slate-200 px-2 py-0.5 text-xs text-slate-600">отключён</span>
                   )}

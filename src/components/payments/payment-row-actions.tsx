@@ -84,7 +84,7 @@ export function PaymentRowActions({ id, status }: { id: string; status: "PENDING
         onClick={remove}
         disabled={busy}
         aria-label="Удалить платёж"
-        className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white text-base text-red-600 hover:bg-red-50 disabled:opacity-50"
+        className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 bg-white text-base text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-400/10"
       >
         ×
       </button>

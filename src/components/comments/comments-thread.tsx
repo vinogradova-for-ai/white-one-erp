@@ -178,7 +178,7 @@ export function CommentsThread({
         onPaste={handlePaste}
         className={`space-y-2 rounded-2xl border-2 bg-white p-3 transition ${
           dropOver
-            ? "border-dashed border-emerald-500 bg-emerald-50/60"
+            ? "border-dashed border-emerald-500 bg-emerald-50/60 dark:bg-emerald-400/10"
             : "border-dashed border-slate-300"
         }`}
       >
@@ -196,7 +196,7 @@ export function CommentsThread({
           onClick={() => fileInputRef.current?.click()}
           className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-2.5 text-xs transition ${
             dropOver
-              ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+              ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-400/10 text-emerald-700 dark:text-emerald-300"
               : "border-slate-300 bg-slate-50 text-slate-500 hover:border-slate-400 hover:text-slate-700"
           }`}
         >
@@ -232,7 +232,7 @@ export function CommentsThread({
           </div>
         )}
 
-        {error && <div className="text-xs text-red-600">{error}</div>}
+        {error && <div className="text-xs text-red-600 dark:text-red-300">{error}</div>}
         <div className="flex items-center justify-end gap-2">
           <input
             ref={fileInputRef}
@@ -282,7 +282,7 @@ export function CommentsThread({
                       <button
                         type="button"
                         onClick={() => remove(c.id)}
-                        className="text-slate-400 hover:text-red-600"
+                        className="text-slate-400 hover:text-red-600 dark:hover:text-red-300"
                         aria-label="Удалить"
                         title="Удалить"
                       >

@@ -100,7 +100,7 @@ export default async function ModelsPage({
             className={`inline-flex min-h-[36px] shrink-0 items-center rounded-full border px-3 text-xs font-medium ${
               showDrafts
                 ? "border-amber-500 bg-amber-500 text-white"
-                : "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                : "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-300 dark:hover:bg-amber-400/15"
             }`}
           >
             Черновики из образцов ({draftCount})

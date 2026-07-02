@@ -132,7 +132,7 @@ export function OrdersListClient({
               key={o.id}
               href={`/orders/${o.id}`}
               className={`block rounded-xl border bg-white p-3 active:bg-slate-50 ${
-                o.isDelayed ? "border-red-200 bg-red-50/40" : "border-slate-200"
+                o.isDelayed ? "border-red-200 dark:border-red-400/20 bg-red-50/40 dark:bg-red-400/10" : "border-slate-200"
               }`}
             >
               <div className="flex items-center gap-3">
@@ -164,7 +164,7 @@ export function OrdersListClient({
                   <div className="text-slate-400">Прибытие</div>
                   <div className="font-medium text-slate-900">{formatDate(o.arrivalPlannedDate)}</div>
                   {o.lateDays > 0 && (
-                    <div className="text-[10px] font-semibold text-amber-600">опаздывает {o.lateDays} дн</div>
+                    <div className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">опаздывает {o.lateDays} дн</div>
                   )}
                 </div>
                 <div>
@@ -226,7 +226,7 @@ export function OrdersListClient({
                 <ClickableRow
                   key={o.id}
                   href={`/orders/${o.id}`}
-                  className={`hover:bg-slate-50 ${o.isDelayed ? "bg-red-50/40" : ""}`}
+                  className={`hover:bg-slate-50 ${o.isDelayed ? "bg-red-50/40 dark:bg-red-400/10" : ""}`}
                 >
                   <td className="px-3 py-2">
                     <VariantVisual
@@ -257,14 +257,14 @@ export function OrdersListClient({
                     <span className={`inline-block rounded px-2 py-0.5 text-xs ${ORDER_STATUS_COLORS[o.status]}`}>
                       {ORDER_STATUS_LABELS[o.status]}
                     </span>
-                    {o.isDelayed && <span className="ml-1 text-xs text-red-600">⚠</span>}
-                    {o.hasIssue && <span className="ml-1 text-xs text-red-600">🔴</span>}
+                    {o.isDelayed && <span className="ml-1 text-xs text-red-600 dark:text-red-300">⚠</span>}
+                    {o.hasIssue && <span className="ml-1 text-xs text-red-600 dark:text-red-300">🔴</span>}
                   </td>
                   <td className="px-3 py-2 text-xs text-slate-600">{o.factory?.name ?? "—"}</td>
                   <td className="px-3 py-2 text-xs text-slate-600">
                     {formatDate(o.arrivalPlannedDate)}
                     {o.lateDays > 0 && (
-                      <span className="ml-1 font-semibold text-amber-600">· опаздывает {o.lateDays} дн</span>
+                      <span className="ml-1 font-semibold text-amber-600 dark:text-amber-400">· опаздывает {o.lateDays} дн</span>
                     )}
                   </td>
                   <td className="max-w-[180px] px-3 py-2 text-xs text-slate-600">

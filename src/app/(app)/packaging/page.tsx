@@ -64,9 +64,9 @@ export default async function PackagingListPage() {
       </div>
 
       {shortageRows.length > 0 && (
-        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-400/20 dark:bg-amber-400/10">
           <div className="mb-2 flex items-baseline justify-between gap-2">
-            <div className="font-medium text-amber-900">
+            <div className="font-medium text-amber-900 dark:text-amber-300">
               Нужно запустить в производство: {shortageRows.length}
             </div>
             <Link
@@ -76,7 +76,7 @@ export default async function PackagingListPage() {
               + Заказ упаковки
             </Link>
           </div>
-          <ul className="space-y-1 text-sm text-amber-900">
+          <ul className="space-y-1 text-sm text-amber-900 dark:text-amber-300">
             {shortageRows.map((r) => (
               <li key={r.id} className="flex items-baseline justify-between gap-2">
                 <Link href={`/packaging/${r.id}`} className="hover:underline">
@@ -84,7 +84,7 @@ export default async function PackagingListPage() {
                 </Link>
                 <span className="text-xs">
                   нужно {r.required.toLocaleString("ru-RU")} шт · есть {(r.stock + r.inProduction).toLocaleString("ru-RU")} ·
-                  <span className="ml-1 font-semibold text-red-700">
+                  <span className="ml-1 font-semibold text-red-700 dark:text-red-300">
                     дефицит {r.shortage.toLocaleString("ru-RU")}
                   </span>
                 </span>
@@ -100,7 +100,7 @@ export default async function PackagingListPage() {
           <Link
             key={r.id}
             href={`/packaging/${r.id}`}
-            className={`block rounded-xl border bg-white p-3 active:bg-slate-50 ${r.shortage > 0 ? "border-red-200" : "border-slate-200"} ${r.isActive ? "" : "opacity-60"}`}
+            className={`block rounded-xl border bg-white p-3 active:bg-slate-50 ${r.shortage > 0 ? "border-red-200 dark:border-red-400/20" : "border-slate-200"} ${r.isActive ? "" : "opacity-60"}`}
           >
             <div className="flex items-center gap-3">
               {r.photoUrl ? (
@@ -118,17 +118,17 @@ export default async function PackagingListPage() {
                 </div>
               </div>
               {r.shortage > 0 ? (
-                <span className="shrink-0 rounded bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                <span className="shrink-0 rounded bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700 dark:bg-red-400/10 dark:text-red-300">
                   -{r.shortage.toLocaleString("ru-RU")}
                 </span>
               ) : (
-                <span className="shrink-0 text-[11px] text-emerald-600">✓ Хватает</span>
+                <span className="shrink-0 text-[11px] text-emerald-600 dark:text-emerald-300">✓ Хватает</span>
               )}
             </div>
             <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
               <div>
                 <div className="text-slate-400">Склад</div>
-                <div className={`font-semibold ${r.lowStock ? "text-amber-700" : "text-slate-900"}`}>
+                <div className={`font-semibold ${r.lowStock ? "text-amber-700 dark:text-amber-300" : "text-slate-900"}`}>
                   {r.stock.toLocaleString("ru-RU")}
                 </div>
               </div>
@@ -191,7 +191,7 @@ export default async function PackagingListPage() {
                   {PACKAGING_TYPE_LABELS[r.type]}
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <span className={r.lowStock ? "font-semibold text-amber-700" : ""}>
+                  <span className={r.lowStock ? "font-semibold text-amber-700 dark:text-amber-300" : ""}>
                     {r.stock.toLocaleString("ru-RU")}
                   </span>
                   {r.minStock != null && (
@@ -206,11 +206,11 @@ export default async function PackagingListPage() {
                 </td>
                 <td className="px-3 py-2 text-right">
                   {r.shortage > 0 ? (
-                    <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                    <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-400/10 dark:text-red-300">
                       -{r.shortage.toLocaleString("ru-RU")}
                     </span>
                   ) : (
-                    <span className="text-xs text-emerald-600">Хватает</span>
+                    <span className="text-xs text-emerald-600 dark:text-emerald-300">Хватает</span>
                   )}
                 </td>
                 <td className="px-3 py-2 text-xs">

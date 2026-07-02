@@ -281,7 +281,7 @@ function DemandMetric({
   shortage: number;
   breakdown: Array<{ orderId: string; orderNumber: string; modelName: string; qty: number }>;
 }) {
-  const accentClass = shortage > 0 ? "border-red-200 bg-red-50" : "border-slate-200 bg-white";
+  const accentClass = shortage > 0 ? "border-red-200 bg-red-50 dark:border-red-400/20 dark:bg-red-400/10" : "border-slate-200 bg-white";
   return (
     <div className={`rounded-2xl border p-4 ${accentClass}`}>
       <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Потребность по заказам</div>
@@ -320,7 +320,7 @@ function Metric({
   inline?: React.ReactNode;
 }) {
   const accentClass =
-    accent === "danger" ? "border-red-200 bg-red-50" : accent === "warn" ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white";
+    accent === "danger" ? "border-red-200 bg-red-50 dark:border-red-400/20 dark:bg-red-400/10" : accent === "warn" ? "border-amber-200 bg-amber-50 dark:border-amber-400/20 dark:bg-amber-400/10" : "border-slate-200 bg-white";
   return (
     <div className={`rounded-2xl border p-4 ${accentClass}`}>
       <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</div>

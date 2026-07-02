@@ -256,7 +256,7 @@ export function OrderEditForm({
                 type="button"
                 onClick={() => removePayment(idx)}
                 aria-label="Удалить платёж"
-                className="flex h-11 w-11 items-center justify-center rounded border border-slate-300 bg-white text-base text-red-600 hover:bg-red-50 active:bg-red-50"
+                className="flex h-11 w-11 items-center justify-center rounded border border-slate-300 bg-white text-base text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-400/10 active:bg-red-50 dark:active:bg-red-400/10"
               >
                 ×
               </button>
@@ -283,7 +283,7 @@ export function OrderEditForm({
         </div>
       </Section>
 
-      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && <div className="rounded-lg bg-red-50 dark:bg-red-400/10 p-3 text-sm text-red-700 dark:text-red-300">{error}</div>}
 
       {/* Sticky-панель сохранения: на мобиле прибита снизу с safe-area, кнопка растянута */}
       <div className="pb-safe-4 sticky bottom-16 z-30 -mx-4 flex gap-3 border-t border-slate-200 bg-white px-4 pt-4 md:bottom-0 md:mx-0 md:flex-wrap md:justify-end md:px-0">

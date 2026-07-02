@@ -359,9 +359,9 @@ export function PackagingOrderForm({
 
       {/* Стоимость (общая) */}
       {totalRub > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-emerald-50 p-4">
-          <div className="text-xs uppercase tracking-wide text-emerald-700">Сумма заказа</div>
-          <div className="mt-1 text-2xl font-semibold text-emerald-900">
+        <div className="rounded-xl border border-slate-200 bg-emerald-50 p-4 dark:bg-emerald-400/10">
+          <div className="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Сумма заказа</div>
+          <div className="mt-1 text-2xl font-semibold text-emerald-900 dark:text-emerald-300">
             {totalRub.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽
           </div>
         </div>
@@ -443,7 +443,7 @@ export function PackagingOrderForm({
                 <button
                   type="button"
                   onClick={() => removePayment(idx)}
-                  className="rounded-lg border border-slate-300 bg-white px-2 text-xs text-red-600 hover:bg-red-50"
+                  className="rounded-lg border border-slate-300 bg-white px-2 text-xs text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-400/10"
                 >
                   ×
                 </button>
@@ -459,11 +459,11 @@ export function PackagingOrderForm({
               </button>
               <div className="text-sm">
                 <span className="text-slate-500">Итого:</span>{" "}
-                <span className={paymentsMismatch ? "font-semibold text-red-600" : "font-semibold text-slate-900"}>
+                <span className={paymentsMismatch ? "font-semibold text-red-600 dark:text-red-300" : "font-semibold text-slate-900"}>
                   {paymentsTotal.toLocaleString("ru-RU")} ₽
                 </span>
                 {paymentsMismatch && (
-                  <span className="ml-2 text-xs text-red-600">
+                  <span className="ml-2 text-xs text-red-600 dark:text-red-300">
                     расхождение: {(paymentsTotal - totalRub).toLocaleString("ru-RU")} ₽
                   </span>
                 )}
@@ -558,7 +558,7 @@ export function PackagingOrderForm({
         </div>
       </Section>
 
-      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-400/10 dark:text-red-300">{error}</div>}
       <FormErrorBanner error={apiErr} />
 
       <div className="sticky bottom-0 z-30 flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white pt-4 pb-4 -mx-2 px-2 sm:mx-0 sm:px-0">

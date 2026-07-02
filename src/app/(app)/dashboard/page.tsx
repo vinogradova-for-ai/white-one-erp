@@ -89,7 +89,7 @@ export default async function DashboardPage({
             Задач на ближайшие дни: <b>{all.length}</b>
           </p>
         ) : (
-          <p className="text-sm text-emerald-700">Всё под контролем. Срочного нет.</p>
+          <p className="text-sm text-emerald-700 dark:text-emerald-300">Всё под контролем. Срочного нет.</p>
         )}
       </div>
 
@@ -130,9 +130,9 @@ export default async function DashboardPage({
       )}
 
       {monthClosed > 0 && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 text-sm text-emerald-900">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 text-sm text-emerald-900 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300">
           <span className="font-semibold">✓ Закрыто в {monthName}: {monthClosed}</span>
-          <span className="text-emerald-700"> {pluralOrders(monthClosed)}</span>
+          <span className="text-emerald-700 dark:text-emerald-300"> {pluralOrders(monthClosed)}</span>
         </div>
       )}
 
@@ -288,7 +288,7 @@ function Section({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">{title}</h2>
         <span className="text-xs text-slate-400">{count}</span>
         {rightHint && (
-          <span className="ml-auto text-xs text-orange-600">{rightHint}</span>
+          <span className="ml-auto text-xs text-orange-600 dark:text-orange-300">{rightHint}</span>
         )}
       </div>
       {children}
@@ -336,7 +336,7 @@ function ChecklistRow({ task, ageBorder }: { task: ChecklistTask; ageBorder: str
         <UrgencyDot urgency={task.urgency} />
         <span
           className={`flex-1 ${
-            task.urgency === "overdue" ? "font-medium text-red-700" : "text-slate-800"
+            task.urgency === "overdue" ? "font-medium text-red-700 dark:text-red-300" : "text-slate-800"
           }`}
         >
           {task.text}

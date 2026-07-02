@@ -78,7 +78,7 @@ export function MobilePhaseCard({ row, todayIso }: { row: GanttRowV2; todayIso: 
   if (overdueBar) {
     const daysOver = dayDiff(overdueBar.end, todayIso);
     statusEl = (
-      <span className="font-semibold text-red-600">
+      <span className="font-semibold text-red-600 dark:text-red-300">
         🔥 {overdueBar.title} просрочено на {daysOver} {pluralDays(daysOver)}
       </span>
     );
@@ -86,10 +86,10 @@ export function MobilePhaseCard({ row, todayIso }: { row: GanttRowV2; todayIso: 
     const daysLeft = dayDiff(todayIso, activeBar.end);
     const urgent = activeBar.nearlyDue;
     statusEl = (
-      <span className={urgent ? "font-semibold text-amber-600" : "text-slate-700"}>
+      <span className={urgent ? "font-semibold text-amber-600 dark:text-amber-300" : "text-slate-700"}>
         <span className="font-semibold">► {activeBar.title}</span>
         <span className="text-slate-500"> · до {fmtDM(activeBar.end)}</span>
-        <span className={`ml-1 ${urgent ? "text-amber-600" : "text-slate-500"}`}>
+        <span className={`ml-1 ${urgent ? "text-amber-600 dark:text-amber-300" : "text-slate-500"}`}>
           ({daysLeft >= 0 ? `${daysLeft} ${pluralDays(daysLeft)}` : `опоздание ${-daysLeft} ${pluralDays(-daysLeft)}`})
         </span>
       </span>
@@ -102,7 +102,7 @@ export function MobilePhaseCard({ row, todayIso }: { row: GanttRowV2; todayIso: 
     );
   } else if (allDone && lastDone) {
     statusEl = (
-      <span className="font-medium text-emerald-600">
+      <span className="font-medium text-emerald-600 dark:text-emerald-300">
         ✓ Готово {fmtDM(lastDone.end)}
       </span>
     );
@@ -180,7 +180,7 @@ export function MobilePhaseCard({ row, todayIso }: { row: GanttRowV2; todayIso: 
               <div
                 key={bar.key}
                 className={`truncate text-center ${
-                  isOverdue ? "font-semibold text-red-600" : isActive ? "font-semibold text-slate-900" : ""
+                  isOverdue ? "font-semibold text-red-600 dark:text-red-300" : isActive ? "font-semibold text-slate-900" : ""
                 }`}
                 style={{ width: `${widthPct}%` }}
               >
@@ -214,7 +214,7 @@ export function MobilePhaseCard({ row, todayIso }: { row: GanttRowV2; todayIso: 
                 <span
                   className={`flex-1 truncate ${
                     b.overdue
-                      ? "font-semibold text-red-600"
+                      ? "font-semibold text-red-600 dark:text-red-300"
                       : isActive
                         ? "font-semibold text-slate-900"
                         : isDone

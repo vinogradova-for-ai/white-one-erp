@@ -20,7 +20,7 @@ export function ListCapNotice({
 }) {
   if (shown < cap) return null;
   return (
-    <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+    <div className="rounded-lg border border-amber-300 dark:border-amber-400/20 bg-amber-50 dark:bg-amber-400/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
       Показаны первые {cap} {unit} — возможно, есть ещё. Уточните фильтры, чтобы
       увидеть нужное.
     </div>

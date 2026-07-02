@@ -44,7 +44,7 @@ export function AddUserForm() {
 
   if (created) {
     return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">
+      <div className="rounded-xl border border-amber-200 dark:border-amber-400/20 bg-amber-50 dark:bg-amber-400/10 p-3 text-sm">
         <div className="font-medium text-slate-900">Сотрудник создан. Передайте доступ:</div>
         <div className="mt-1">
           логин <code className="rounded bg-white px-1 py-0.5 font-mono">{created.login}</code>{" "}
@@ -115,7 +115,7 @@ export function AddUserForm() {
       >
         Отмена
       </button>
-      {err && <div className="w-full text-xs text-red-600">{err}</div>}
+      {err && <div className="w-full text-xs text-red-600 dark:text-red-300">{err}</div>}
       <div className="w-full text-[11px] text-slate-400">
         Пароль сгенерируется автоматически и покажется один раз после создания.
       </div>

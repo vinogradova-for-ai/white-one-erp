@@ -200,7 +200,7 @@ function PersonCard({
       scroll={false}
       className={`block rounded-xl border bg-white p-3 transition ${
         active
-          ? "border-blue-400 ring-1 ring-blue-400"
+          ? "border-blue-400 ring-1 ring-blue-400 dark:ring-blue-400/30"
           : "border-slate-200 hover:border-slate-300"
       }`}
     >

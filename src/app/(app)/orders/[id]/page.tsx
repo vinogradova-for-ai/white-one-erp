@@ -168,8 +168,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               <span>{order.lines.length} {order.lines.length === 1 ? "цвет" : "цвета"}</span>
               <span>·</span>
               <span>{formatNumber(totalQty)} шт</span>
-              {order.isDelayed && <span className="text-red-600">· задержка</span>}
-              {order.hasIssue && <span className="text-red-600">· проблема</span>}
+              {order.isDelayed && <span className="text-red-600 dark:text-red-300">· задержка</span>}
+              {order.hasIssue && <span className="text-red-600 dark:text-red-300">· проблема</span>}
             </div>
           </div>
         </div>
@@ -178,7 +178,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             {ORDER_STATUS_LABELS[order.status]}
           </span>
           {lateDays > 0 && (
-            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+            <span className="rounded-full bg-amber-100 dark:bg-amber-400/10 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
               опаздывает {lateDays} дн
             </span>
           )}
@@ -360,11 +360,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                 </div>
                 <div>
                   <div className="text-slate-500">Оплачено</div>
-                  <div className="font-semibold text-emerald-700">{formatCurrency(paidKopecks / 100)}</div>
+                  <div className="font-semibold text-emerald-700 dark:text-emerald-300">{formatCurrency(paidKopecks / 100)}</div>
                 </div>
                 <div>
                   <div className="text-slate-500">Остаток</div>
-                  <div className={`font-semibold ${remainderKopecks > 0 ? "text-amber-700" : "text-slate-900"}`}>
+                  <div className={`font-semibold ${remainderKopecks > 0 ? "text-amber-700 dark:text-amber-300" : "text-slate-900"}`}>
                     {formatCurrency(remainderKopecks / 100)}
                   </div>
                 </div>

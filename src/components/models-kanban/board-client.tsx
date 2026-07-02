@@ -123,7 +123,7 @@ export function BoardClient({
   return (
     <div className="pb-4 -mx-4 px-4 md:overflow-x-auto">
       {error && (
-        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-300">
           {error}
         </div>
       )}
@@ -164,7 +164,7 @@ export function BoardClient({
       <div className="hidden gap-3 mb-2 md:flex">
         <div className="flex gap-3 shrink-0">
           <div className="w-[210px] shrink-0 px-1">
-            <div className="text-[10px] uppercase tracking-wider font-semibold text-purple-600">Разработка</div>
+            <div className="text-[10px] uppercase tracking-wider font-semibold text-purple-600 dark:text-purple-300">Разработка</div>
             <div className="text-[10px] text-slate-400">видна только на канбане</div>
           </div>
           <div className="w-[210px] shrink-0"></div>
@@ -173,7 +173,7 @@ export function BoardClient({
         </div>
         <div className="flex gap-3 shrink-0">
           <div className="w-[210px] shrink-0 px-1">
-            <div className="text-[10px] uppercase tracking-wider font-semibold text-green-600">После заказа</div>
+            <div className="text-[10px] uppercase tracking-wider font-semibold text-green-600 dark:text-green-300">После заказа</div>
             <div className="text-[10px] text-slate-400">синхронизировано с Гантом</div>
           </div>
           <div className="w-[210px] shrink-0"></div>
@@ -201,7 +201,7 @@ export function BoardClient({
               key={col.key}
               className={`flex flex-col bg-white rounded-xl border border-slate-200 transition w-full md:w-[210px] md:shrink-0 ${
                 isMobileActive ? "" : "hidden md:flex"
-              } ${isOver ? "ring-2 ring-blue-400 ring-offset-1" : ""} ${
+              } ${isOver ? "ring-2 ring-blue-400 ring-offset-1 dark:ring-blue-400/30" : ""} ${
                 dragging && !canDrop ? "opacity-50" : ""
               }`}
               onDragOver={(e) => {
@@ -293,8 +293,8 @@ function KanbanCardView({
   const href = isPackaging ? `/packaging-orders/${c.modelId}` : `/models/${c.modelId}`;
   const dlClass = isDone
     ? "text-slate-600 bg-slate-100"
-    : c.dlColor === "red" ? "text-red-700 bg-red-50"
-    : c.dlColor === "amber" ? "text-amber-700 bg-amber-50"
+    : c.dlColor === "red" ? "text-red-700 bg-red-50 dark:text-red-300 dark:bg-red-400/10"
+    : c.dlColor === "amber" ? "text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-400/10"
     : "text-slate-500 bg-slate-100";
   const dlPrefix = isDone ? "📦" : c.dlColor === "red" ? "🔥" : c.dlColor === "amber" ? "⚠️" : "📅";
 
@@ -370,7 +370,7 @@ function KanbanCardView({
                 </span>
               ))}
               {commentCount > lastComments.length && (
-                <span className="block text-[10px] text-blue-600">Показать все {commentCount} →</span>
+                <span className="block text-[10px] text-blue-600 dark:text-blue-300">Показать все {commentCount} →</span>
               )}
             </span>
           ) : (
@@ -382,7 +382,7 @@ function KanbanCardView({
       {/* Ссылки на заказ/Гант */}
       {!isPackaging && c.orderId && (
         <div className="flex border-t border-slate-100 text-[10px]">
-          <Link href={`/orders/${c.orderId}`} className="flex-1 truncate border-r border-slate-100 px-2 py-1.5 text-center text-blue-600 hover:bg-blue-50">#{c.orderNumber}</Link>
+          <Link href={`/orders/${c.orderId}`} className="flex-1 truncate border-r border-slate-100 px-2 py-1.5 text-center text-blue-600 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-400/10">#{c.orderNumber}</Link>
           <Link href={`/gantt-v2`} className="px-2 py-1.5 text-slate-600 hover:bg-slate-50" title="Гант">📊 Гант</Link>
         </div>
       )}

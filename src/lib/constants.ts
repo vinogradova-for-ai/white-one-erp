@@ -95,10 +95,10 @@ export const PRODUCT_MODEL_STATUS_ORDER: ProductModelStatus[] = [
 
 export const PRODUCT_MODEL_STATUS_COLORS: Record<ProductModelStatus, string> = {
   IDEA: "bg-slate-100 text-slate-700",
-  PATTERNS: "bg-indigo-100 text-indigo-700",
-  SAMPLE: "bg-purple-100 text-purple-700",
-  APPROVED: "bg-emerald-100 text-emerald-700",
-  IN_PRODUCTION: "bg-green-100 text-green-800",
+  PATTERNS: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
+  SAMPLE: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+  APPROVED: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
+  IN_PRODUCTION: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
 };
 
 export const PRODUCT_VARIANT_STATUS_LABELS: Record<ProductVariantStatus, string> = {
@@ -109,7 +109,7 @@ export const PRODUCT_VARIANT_STATUS_LABELS: Record<ProductVariantStatus, string>
 
 export const PRODUCT_VARIANT_STATUS_COLORS: Record<ProductVariantStatus, string> = {
   DRAFT: "bg-slate-100 text-slate-700",
-  READY_TO_ORDER: "bg-emerald-100 text-emerald-700",
+  READY_TO_ORDER: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
   DISCONTINUED: "bg-gray-100 text-gray-500",
 };
 
@@ -147,15 +147,15 @@ export const ORDER_STATUS_ORDER: OrderStatus[] = [
 
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
   PREPARATION: "bg-slate-100 text-slate-700",
-  FABRIC_ORDERED: "bg-sky-100 text-sky-700",
-  SEWING: "bg-blue-100 text-blue-700",
-  QC: "bg-indigo-100 text-indigo-700",
-  READY_SHIP: "bg-violet-100 text-violet-700",
-  IN_TRANSIT: "bg-purple-100 text-purple-700",
-  WAREHOUSE_MSK: "bg-amber-100 text-amber-700",
-  PACKING: "bg-orange-100 text-orange-700",
-  SHIPPED_WB: "bg-lime-100 text-lime-700",
-  ON_SALE: "bg-emerald-100 text-emerald-800",
+  FABRIC_ORDERED: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
+  SEWING: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+  QC: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300",
+  READY_SHIP: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+  IN_TRANSIT: "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+  WAREHOUSE_MSK: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+  PACKING: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",
+  SHIPPED_WB: "bg-lime-100 text-lime-700 dark:bg-lime-900/40 dark:text-lime-300",
+  ON_SALE: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
 };
 
 export const DELIVERY_METHOD_LABELS: Record<DeliveryMethod, string> = {

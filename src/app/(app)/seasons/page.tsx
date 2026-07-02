@@ -66,10 +66,10 @@ export default async function SeasonsPage({
       </div>
 
       {noSeasonForToday && (
-        <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-300">
           ⚠️ Сезоны на {currentYear} год не настроены — показан последний
           описанный сезон, данные могут быть неактуальны. Добавьте сезоны на{" "}
-          {currentYear} в <code className="rounded bg-amber-100 px-1">src/lib/seasons.ts</code>.
+          {currentYear} в <code className="rounded bg-amber-100 px-1 dark:bg-amber-400/10">src/lib/seasons.ts</code>.
         </div>
       )}
 
@@ -186,7 +186,7 @@ function GoalBar({
       </div>
       {/* Двойной бар: подложка = цель, синяя = план, зелёная = факт */}
       <div className="relative mt-1.5 h-2.5 overflow-hidden rounded-full bg-slate-100">
-        <div className="absolute inset-y-0 left-0 bg-blue-100" style={{ width: `${planPct}%` }} />
+        <div className="absolute inset-y-0 left-0 bg-blue-100 dark:bg-blue-400/15" style={{ width: `${planPct}%` }} />
         <div
           className={`absolute inset-y-0 left-0 ${pct >= 90 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-red-400"}`}
           style={{ width: `${pct}%` }}
@@ -194,9 +194,9 @@ function GoalBar({
       </div>
       <div className="mt-1 flex items-baseline justify-between gap-2 text-[11px] text-slate-500">
         <span>{pct}% к цели</span>
-        {gap > 0 && <span className="text-amber-700">план короче цели на {gap.toLocaleString("ru-RU")}</span>}
-        {gap === 0 && <span className="text-emerald-700">план = цели</span>}
-        {gap < 0 && <span className="text-blue-700">план выше цели на {(-gap).toLocaleString("ru-RU")}</span>}
+        {gap > 0 && <span className="text-amber-700 dark:text-amber-300">план короче цели на {gap.toLocaleString("ru-RU")}</span>}
+        {gap === 0 && <span className="text-emerald-700 dark:text-emerald-300">план = цели</span>}
+        {gap < 0 && <span className="text-blue-700 dark:text-blue-300">план выше цели на {(-gap).toLocaleString("ru-RU")}</span>}
       </div>
     </div>
   );
@@ -207,9 +207,9 @@ function MonthlyHeatmap({ overview }: { overview: SeasonOverview }) {
     <div className="grid gap-2 sm:grid-cols-3">
       {overview.monthly.map((m) => {
         const cls =
-          m.loadStatus === "ok" ? "border-emerald-200 bg-emerald-50"
-          : m.loadStatus === "underplan" ? "border-amber-200 bg-amber-50"
-          : m.loadStatus === "overload" ? "border-red-200 bg-red-50"
+          m.loadStatus === "ok" ? "border-emerald-200 bg-emerald-50 dark:border-emerald-400/20 dark:bg-emerald-400/10"
+          : m.loadStatus === "underplan" ? "border-amber-200 bg-amber-50 dark:border-amber-400/20 dark:bg-amber-400/10"
+          : m.loadStatus === "overload" ? "border-red-200 bg-red-50 dark:border-red-400/20 dark:bg-red-400/10"
           : m.loadStatus === "gap" ? "border-slate-300 bg-slate-50 border-dashed"
           : "border-slate-200 bg-white";
         const label =
@@ -275,9 +275,9 @@ function OwnersBreakdown({ overview }: { overview: SeasonOverview }) {
           : status === "critical" ? "bg-red-400"
           : "bg-slate-300";
         const chipCls =
-          status === "ok" ? "bg-emerald-100 text-emerald-700"
-          : status === "warning" ? "bg-amber-100 text-amber-700"
-          : status === "critical" ? "bg-red-100 text-red-700"
+          status === "ok" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300"
+          : status === "warning" ? "bg-amber-100 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300"
+          : status === "critical" ? "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-300"
           : "bg-slate-100 text-slate-500";
         const chipLabel =
           status === "ok" ? "✓ ОК"
@@ -329,9 +329,9 @@ function CategoriesBreakdown({ overview }: { overview: SeasonOverview }) {
           : pct >= 50 ? "warning"
           : "critical";
         const ringCls =
-          status === "ok" ? "border-emerald-300"
-          : status === "warning" ? "border-amber-300"
-          : status === "critical" ? "border-red-300"
+          status === "ok" ? "border-emerald-300 dark:border-emerald-400/20"
+          : status === "warning" ? "border-amber-300 dark:border-amber-400/20"
+          : status === "critical" ? "border-red-300 dark:border-red-400/20"
           : "border-slate-200";
         return (
           <div

@@ -256,7 +256,7 @@ export function FactoriesAdmin({ initialFactories }: { initialFactories: Factory
             <span className="text-sm text-slate-700">Активна (показывать в списках для выбора)</span>
           </label>
 
-          {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+          {error && <div className="rounded-lg bg-red-50 dark:bg-red-400/10 p-3 text-sm text-red-700 dark:text-red-300">{error}</div>}
 
           <div className="flex justify-end gap-2 pt-2">
             <button
@@ -320,7 +320,7 @@ export function FactoriesAdmin({ initialFactories }: { initialFactories: Factory
                   </td>
                   <td className="px-3 py-2 text-xs">
                     {f.isActive ? (
-                      <span className="rounded bg-emerald-100 px-2 py-0.5 text-emerald-700">Активна</span>
+                      <span className="rounded bg-emerald-100 dark:bg-emerald-400/10 px-2 py-0.5 text-emerald-700 dark:text-emerald-300">Активна</span>
                     ) : (
                       <span className="rounded bg-slate-100 px-2 py-0.5 text-slate-500">В архиве</span>
                     )}
@@ -343,7 +343,7 @@ export function FactoriesAdmin({ initialFactories }: { initialFactories: Factory
                       {canDelete && (
                         <button
                           onClick={() => remove(f)}
-                          className="rounded border border-red-200 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50"
+                          className="rounded border border-red-200 dark:border-red-400/20 bg-white px-2 py-1 text-xs text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-400/10"
                         >
                           Удалить
                         </button>

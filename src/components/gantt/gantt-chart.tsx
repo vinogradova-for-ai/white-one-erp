@@ -272,7 +272,7 @@ function RowView({
       <div className="flex items-start gap-2 px-3 py-2">
         {row.thumbnails && row.thumbnails.length > 0 && <ThumbnailStack thumbs={row.thumbnails} />}
         <div className="min-w-0 flex-1">
-          <Link href={row.href} className="block text-sm font-medium text-slate-900 hover:text-blue-600 truncate" title={row.title}>
+          <Link href={row.href} className="block text-sm font-medium text-slate-900 hover:text-blue-600 dark:hover:text-blue-300 truncate" title={row.title}>
             {row.title}
           </Link>
           <div className="text-[11px] text-slate-500 truncate">
@@ -522,7 +522,7 @@ function DraggableBar({
   return (
     <div
       ref={ref}
-      className={`group absolute h-6 rounded ${barColor} ${done ? "opacity-60" : ""} shadow-sm transition-all duration-300 ${flash ? "ring-2 ring-emerald-400 ring-offset-1" : ""}`}
+      className={`group absolute h-6 rounded ${barColor} ${done ? "opacity-60" : ""} shadow-sm transition-all duration-300 ${flash ? "ring-2 ring-emerald-400 ring-offset-1 dark:ring-emerald-400/30" : ""}`}
       style={{ left: `${left}%`, width: `${width}%`, top }}
       title={tooltip}
     >

@@ -166,11 +166,11 @@ export function OrderPackagingSection({
                     <td className="px-2 py-2 text-right font-semibold">{total.toLocaleString("ru-RU")}</td>
                     <td className="px-2 py-2">
                       {shortage > 0 ? (
-                        <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">
+                        <span className="rounded bg-red-100 dark:bg-red-400/10 px-2 py-0.5 text-xs text-red-700 dark:text-red-300">
                           Не хватает {shortage}
                         </span>
                       ) : (
-                        <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
+                        <span className="rounded bg-emerald-100 dark:bg-emerald-400/10 px-2 py-0.5 text-xs text-emerald-700 dark:text-emerald-300">
                           Хватает
                         </span>
                       )}
@@ -184,7 +184,7 @@ export function OrderPackagingSection({
                     <td className="px-2 py-2 text-right">
                       <button
                         onClick={() => removeItem(x.id)}
-                        className="inline-flex min-h-[44px] items-center px-2 text-xs text-red-600 hover:underline"
+                        className="inline-flex min-h-[44px] items-center px-2 text-xs text-red-600 dark:text-red-300 hover:underline"
                       >
                         Убрать
                       </button>
@@ -253,7 +253,7 @@ export function OrderPackagingSection({
         </form>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-300">{error}</p>}
 
       {options.length === 0 && !adding && availablePackaging.length === 0 && (
         <p className="text-xs text-slate-400">
