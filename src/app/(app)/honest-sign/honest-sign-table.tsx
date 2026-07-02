@@ -115,7 +115,7 @@ export function HonestSignTable({ rows }: { rows: HonestSignRow[] }) {
             <div className="text-sm text-slate-500">Нет цветомоделей под текущие фильтры.</div>
           </div>
         )}
-        {filtered.map((row, i) => (
+        {filtered.map((row) => (
           <div
             key={`m-${row.variantId}-${row.size}`}
             className="rounded-2xl border border-slate-200 bg-white p-4"
