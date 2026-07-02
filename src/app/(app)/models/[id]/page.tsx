@@ -15,6 +15,7 @@ import { ColorChip } from "@/components/common/color-chip";
 import { DeleteButton } from "@/components/common/delete-button";
 import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
 import { CommentsThread } from "@/components/comments/comments-thread";
+import { SamplesSection } from "@/components/models/samples-section";
 import { auth } from "@/lib/auth";
 
 export default async function ModelDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -40,6 +41,11 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
       packagingItems: {
         include: { packagingItem: { select: { id: true, name: true, type: true, photoUrl: true } } },
         orderBy: { createdAt: "asc" },
+      },
+      samples: {
+        where: { deletedAt: null },
+        orderBy: { createdAt: "desc" },
+        include: { factory: { select: { name: true } } },
       },
       orders: {
         where: { deletedAt: null },
@@ -171,6 +177,23 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
           </div>
         </div>
       </div>
+
+      {/* Образцы — заказан → едет → получен → вердикт */}
+      <SamplesSection
+        modelId={model.id}
+        isAdmin={isAdmin}
+        samples={model.samples.map((s) => ({
+          id: s.id,
+          label: s.label,
+          status: s.status,
+          orderedDate: s.orderedDate?.toISOString() ?? null,
+          receivedDate: s.receivedDate?.toISOString() ?? null,
+          verdictDate: s.verdictDate?.toISOString() ?? null,
+          verdictNote: s.verdictNote,
+          photoUrls: s.photoUrls,
+          factoryName: s.factory?.name ?? null,
+        }))}
+      />
 
       {/* Комплект упаковки — что прикреплено к фасону */}
       <section>

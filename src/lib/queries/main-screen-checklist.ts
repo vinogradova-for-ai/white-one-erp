@@ -35,6 +35,9 @@ export type ChecklistTask = {
   kind:
     | "order-sample"
     | "approve-sample"
+    // Образцы-сущности (Sample): точные задачи по конкретному образцу
+    | "sample-verdict"       // образец получен — дайте вердикт (ок/на доработку)
+    | "sample-stuck"         // образец заказан/едет слишком долго — дёрните фабрику
     | "size-chart"
     | "start-production"
     | "order-qc"
@@ -135,7 +138,7 @@ function urgencyOf(days: number | null): TaskUrgency {
 export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
   const today = moscowTodayStart();
 
-  const [models, orders, packagingItems, packagingOrders] = await Promise.all([
+  const [models, orders, packagingItems, packagingOrders, samples] = await Promise.all([
     prisma.productModel.findMany({
       where: { deletedAt: null, activated: true },
       include: {
@@ -168,6 +171,19 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
       where: { status: { in: ["IN_PRODUCTION", "IN_TRANSIT"] } },
       include: {
         owner: { select: { id: true, name: true } },
+      },
+    }),
+    // Образцы в работе: получен без вердикта / заказан-едет слишком долго.
+    prisma.sample.findMany({
+      where: {
+        deletedAt: null,
+        status: { in: ["ORDERED", "IN_TRANSIT", "RECEIVED"] },
+        productModel: { deletedAt: null },
+      },
+      include: {
+        productModel: {
+          select: { id: true, name: true, ownerId: true, owner: { select: { id: true, name: true } } },
+        },
       },
     }),
   ]);
@@ -237,6 +253,57 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
     }
     if (m.status === "APPROVED" && m.sizeChartReady && !hasLiveOrder) {
       pushDev("start-production", `Запустите производство · ${m.name}`);
+    }
+  }
+
+  // === Образцы (Sample) — точные задачи по конкретному образцу ===
+  // «Получен — дайте вердикт»: дедлайн = получен + 2 дн.
+  // «Завис»: заказан/едет дольше 14 дн — дёрните фабрику (без дедлайна, но overdue).
+  const SAMPLE_VERDICT_SLA_DAYS = 2;
+  const SAMPLE_STUCK_DAYS = 14;
+  for (const s of samples) {
+    const m = s.productModel;
+    if (!m.ownerId || !m.owner) continue;
+    const name = s.label ? `${m.name} (${s.label})` : m.name;
+    const href = `/models/${m.id}`;
+
+    if (s.status === "RECEIVED") {
+      const received = s.receivedDate ?? s.updatedAt;
+      const deadline = new Date(received.getTime() + SAMPLE_VERDICT_SLA_DAYS * DAY);
+      const days = daysFromToday(deadline, today);
+      const age = Math.max(0, Math.round((today.getTime() - received.getTime()) / DAY));
+      tasks.push({
+        id: `sample-verdict:${s.id}`,
+        ownerId: m.ownerId,
+        ownerName: m.owner.name,
+        text: `Дайте вердикт по образцу · ${name} · получен ${age} дн назад`,
+        href,
+        daysToDeadline: days,
+        urgency: urgencyOf(days),
+        updatedAt: s.updatedAt,
+        kind: "sample-verdict",
+        ageInDays: age,
+        slaBreached: days !== null && days < 0,
+      });
+    } else {
+      // ORDERED / IN_TRANSIT
+      const since = s.orderedDate ?? s.createdAt;
+      const age = Math.max(0, Math.round((today.getTime() - since.getTime()) / DAY));
+      if (age <= SAMPLE_STUCK_DAYS) continue;
+      const statusRu = s.status === "ORDERED" ? "заказан" : "едет";
+      tasks.push({
+        id: `sample-stuck:${s.id}`,
+        ownerId: m.ownerId,
+        ownerName: m.owner.name,
+        text: `Образец завис (${statusRu} ${age} дн) — дёрните фабрику · ${name}`,
+        href,
+        daysToDeadline: null,
+        urgency: "overdue",
+        updatedAt: s.updatedAt,
+        kind: "sample-stuck",
+        ageInDays: age,
+        slaBreached: true,
+      });
     }
   }
 

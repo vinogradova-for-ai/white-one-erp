@@ -139,6 +139,16 @@ enum ShipmentStatus {
   RECEIVED    // Приёмка завершена по всем партиям
 }
 
+// Статус образца фасона: заказан у фабрики → едет → получен → вердикт.
+// «На доработку» = итерация: правки уходят фабрике, следующий образец — новой записью.
+enum SampleStatus {
+  ORDERED     // Заказан у фабрики
+  IN_TRANSIT  // Едет к нам
+  RECEIVED    // Получен, ждёт вердикта
+  APPROVED    // Ок — образец утверждён
+  REWORK      // На доработку
+}
+
 enum PackagingType {
   LABEL        // Бирки (навесные, обшивные)
   SIZE_LABEL   // Размерники
@@ -178,6 +188,7 @@ model User {
   auditLogs         AuditLog[]
   notifications     Notification[]
   createdPayments   Payment[]            @relation("PaymentCreator")
+  createdSamples    Sample[]             @relation("SampleCreator")
   paidPayments      Payment[]            @relation("PaymentPayer")
   createdPayouts    FactoryPayout[]      @relation("PayoutCreator")
   ownedPackagingItems PackagingItem[]    @relation("PackagingOwner")
@@ -213,8 +224,44 @@ model Factory {
   payments           Payment[]
   packagingOrders    PackagingOrder[] @relation("PackagingOrderFactory")
   payouts            FactoryPayout[]
+  samples            Sample[]
 
   @@index([isActive])
+}
+
+// ======================================================
+// SAMPLE (образец фасона) — вторая, лёгкая версия.
+// Первую убили 26.04.2026 как переусложнённую; 03.07.2026 Алёна попросила
+// вернуть простой учёт: заказан → едет → получен → вердикт, фото и даты.
+// История хранится записями (итерация доработки = новый образец), не логом.
+// ======================================================
+model Sample {
+  id             String       @id @default(cuid())
+  productModelId String
+  productModel   ProductModel @relation(fields: [productModelId], references: [id], onDelete: Cascade)
+  factoryId      String?
+  factory        Factory?     @relation(fields: [factoryId], references: [id], onDelete: SetNull)
+
+  label          String?      // «44 размер, ткань лён», «2-я итерация»
+  status         SampleStatus @default(ORDERED)
+
+  orderedDate    DateTime?    // когда заказали у фабрики
+  receivedDate   DateTime?    // когда получили
+  verdictDate    DateTime?    // когда дали вердикт (ок / на доработку)
+  verdictNote    String?      // текст вердикта: что не так / что ок
+
+  photoUrls      String[]
+
+  createdById    String?
+  createdBy      User?        @relation("SampleCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([productModelId])
+  @@index([status])
+  @@index([deletedAt])
 }
 
 // ======================================================
@@ -365,6 +412,7 @@ model ProductModel {
   orders      Order[]                                         @relation("ModelOrders")
   statusLogs  ProductModelStatusLog[]
   packagingItems   ModelPackaging[]
+  samples     Sample[]
 
   @@index([status])
   @@index([ownerId])
