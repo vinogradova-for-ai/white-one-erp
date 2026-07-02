@@ -619,6 +619,10 @@ model MonthlyPlan {
   @@unique([yearMonth, ownerId, category])
   @@index([yearMonth])
   @@index([ownerId])
+  // Плюс ЧАСТИЧНЫЕ уникальные индексы на NULL-комбинации (yearMonth+category при
+  // ownerId=NULL, yearMonth+ownerId при category=NULL, yearMonth при обоих NULL)
+  // — миграция 20260702200000_monthly_plan_null_unique. Prisma их не отражает в
+  // схеме (partial WHERE), но БД ими блокирует дубли «общего плана месяца».
 }
 
 // ======================================================

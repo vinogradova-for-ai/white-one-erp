@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { logAudit } from "@/server/audit";
@@ -63,23 +64,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ deleted: true });
     }
 
-    // upsert по составному ключу не работает с NULL — делаем findFirst + create/update.
-    const existing = await prisma.monthlyPlan.findFirst({
-      where: {
-        yearMonth: data.yearMonth,
-        ownerId: data.ownerId ?? null,
-        category: data.category ?? null,
-      },
-    });
+    // upsert Prisma по составному ключу с NULL не работает (NULL≠NULL), поэтому
+    // делаем findFirst + create/update. Идемпотентность при двойном клике:
+    // если параллельный запрос успел вставить строку между find и create,
+    // ловим P2002 (частичные NULL-уникальные индексы, миграция
+    // 20260702200000) и повторяем как update — дубль «общего плана» не создаём.
+    const keyWhere = {
+      yearMonth: data.yearMonth,
+      ownerId: data.ownerId ?? null,
+      category: data.category ?? null,
+    };
+    const updateData = {
+      plannedModelCount: data.plannedModelCount ?? null,
+      plannedQuantity: data.plannedQuantity ?? null,
+      notes: data.notes ?? undefined,
+    };
+
+    const existing = await prisma.monthlyPlan.findFirst({ where: keyWhere });
 
     if (existing) {
       const updated = await prisma.monthlyPlan.update({
         where: { id: existing.id },
-        data: {
-          plannedModelCount: data.plannedModelCount ?? null,
-          plannedQuantity: data.plannedQuantity ?? null,
-          notes: data.notes ?? undefined,
-        },
+        data: updateData,
       });
       await logAudit({
         action: "UPDATE",
@@ -91,24 +97,36 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(updated);
     }
 
-    const created = await prisma.monthlyPlan.create({
-      data: {
-        yearMonth: data.yearMonth,
-        ownerId: data.ownerId ?? null,
-        category: data.category ?? null,
-        plannedModelCount: data.plannedModelCount ?? null,
-        plannedQuantity: data.plannedQuantity ?? null,
-        notes: data.notes ?? null,
-      },
-    });
-    await logAudit({
-      action: "CREATE",
-      entityType: "MonthlyPlan",
-      entityId: created.id,
-      userId: session.user.id,
-      changes: { yearMonth: data.yearMonth, plannedModelCount: data.plannedModelCount ?? null, plannedQuantity: data.plannedQuantity ?? null },
-    });
-    return NextResponse.json(created);
+    try {
+      const created = await prisma.monthlyPlan.create({
+        data: {
+          yearMonth: data.yearMonth,
+          ownerId: data.ownerId ?? null,
+          category: data.category ?? null,
+          plannedModelCount: data.plannedModelCount ?? null,
+          plannedQuantity: data.plannedQuantity ?? null,
+          notes: data.notes ?? null,
+        },
+      });
+      await logAudit({
+        action: "CREATE",
+        entityType: "MonthlyPlan",
+        entityId: created.id,
+        userId: session.user.id,
+        changes: { yearMonth: data.yearMonth, plannedModelCount: data.plannedModelCount ?? null, plannedQuantity: data.plannedQuantity ?? null },
+      });
+      return NextResponse.json(created);
+    } catch (err) {
+      // Гонка: параллельный запрос уже создал эту строку → обновляем её.
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        const raced = await prisma.monthlyPlan.findFirst({ where: keyWhere });
+        if (raced) {
+          const updated = await prisma.monthlyPlan.update({ where: { id: raced.id }, data: updateData });
+          return NextResponse.json(updated);
+        }
+      }
+      throw err;
+    }
   } catch (e) {
     return apiError(e);
   }
