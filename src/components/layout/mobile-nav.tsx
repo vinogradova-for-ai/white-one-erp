@@ -21,6 +21,7 @@ const MORE_LINKS = [
   { href: "/gantt-v2", label: "График Ганта", icon: "▦" },
   { href: "/plan-vs-fact", label: "План / Факт", icon: "⎋" },
   { href: "/stats", label: "Статистика", icon: "▤" },
+  { href: "/data-gaps", label: "Дыры в данных", icon: "⚠" },
   { href: "/payments", label: "Платежи", icon: "₽" },
   { href: "/shipments", label: "Поставки", icon: "▣" },
   { href: "/incoming", label: "Заказы в пути", icon: "▤" },

@@ -11,6 +11,7 @@ import {
 } from "@/lib/queries/main-screen-checklist";
 import { CheckableRow } from "./checkable-row";
 import { isCheckable } from "./checkable-kinds";
+import { getDataGaps, countGaps } from "@/lib/queries/data-gaps";
 
 const MONTH_NAMES_RU = [
   "январе", "феврале", "марте", "апреле", "мае", "июне",
@@ -46,6 +47,7 @@ export default async function DashboardPage({
 
   const all = await getMainScreenChecklist();
   const groups = groupByOwner(all);
+  const gapsCount = countGaps(await getDataGaps());
 
   // Кабинет общий — разбивку задач по сотрудникам видят ВСЕ (прозрачность), не только админ.
   // По умолчанию открыта своя подвкладка; если своих задач нет — самая загруженная.
@@ -70,13 +72,23 @@ export default async function DashboardPage({
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Добрый день, {userName}</h1>
-        {all.length > 0 ? (
-          <p className="text-sm text-slate-600">
-            Задач на ближайшие дни: <b>{all.length}</b>
-          </p>
-        ) : (
-          <p className="text-sm text-emerald-700 dark:text-emerald-300">Всё под контролем. Срочного нет.</p>
-        )}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          {all.length > 0 ? (
+            <p className="text-sm text-slate-600">
+              Задач на ближайшие дни: <b>{all.length}</b>
+            </p>
+          ) : (
+            <p className="text-sm text-emerald-700 dark:text-emerald-300">Всё под контролем. Срочного нет.</p>
+          )}
+          {gapsCount > 0 && (
+            <Link
+              href="/data-gaps"
+              className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700 hover:bg-red-100 dark:bg-red-400/10 dark:text-red-300 dark:hover:bg-red-400/20"
+            >
+              ⚠ Дыры в данных: {gapsCount} · исправить →
+            </Link>
+          )}
+        </div>
       </div>
 
       {visibleGroups.length > 0 && (

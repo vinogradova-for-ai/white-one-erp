@@ -20,6 +20,7 @@ const NAV = [
   { href: "/seasons", label: "Цели", icon: "◈" },
   { href: "/plan-vs-fact", label: "План/Факт", icon: "⎋" },
   { href: "/stats", label: "Статистика", icon: "▤" },
+  { href: "/data-gaps", label: "Дыры в данных", icon: "⚠" },
 ];
 
 // Смежные отделы — разделы, за которыми приходят финансы / склад / ВЭД / контент.
