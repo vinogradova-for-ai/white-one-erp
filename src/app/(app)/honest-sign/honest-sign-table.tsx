@@ -6,23 +6,34 @@ import { FilterDropdown } from "@/components/common/filter-dropdown";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import type { HonestSignRow } from "./build-rows";
 
-// Колонки таблицы = целевой набор атрибутов для карточки ЧЗ.
-// key совпадает с полем HonestSignRow. hole=true — колонка, где пустое значение
-// это «дыра» для ЧЗ (подсвечиваем красным и пишем «— не заполнено»).
-const COLUMNS: Array<{ key: keyof HonestSignRow; label: string; hole?: boolean; width?: string }> = [
-  { key: "name", label: "Наименование", width: "min-w-[280px]" },
-  { key: "sku", label: "Артикул", width: "min-w-[160px]" },
+// Порядок колонок для копирования строк/выгрузки — как в XLSX-роуте.
+// Компоновка экрана другая (карточки по цветомоделям), но буфер обмена
+// отдаёт те же колонки в том же порядке, чтобы вставка в Excel/ЧЗ совпадала.
+const COLUMNS: Array<{ key: keyof HonestSignRow; label: string }> = [
+  { key: "name", label: "Наименование" },
+  { key: "sku", label: "Артикул" },
   { key: "brand", label: "Товарный знак" },
   { key: "category", label: "Вид одежды" },
   { key: "gender", label: "Целевой пол" },
-  { key: "colorName", label: "Цвет", hole: true },
+  { key: "colorName", label: "Цвет" },
   { key: "size", label: "Размер" },
-  { key: "composition", label: "Состав", hole: true, width: "min-w-[180px]" },
-  { key: "tnved", label: "ТНВЭД", hole: true },
+  { key: "composition", label: "Состав" },
+  { key: "tnved", label: "ТНВЭД" },
   { key: "country", label: "Страна производства" },
 ];
 
-// Значения этих ячеек уходят в буфер/файл; порядок — как в COLUMNS.
+// Общие поля цветомодели (одинаковы для всех её размеров) — показываем ОДИН раз
+// в шапке карточки, а не в каждой строке. hole=true — пустота критична для ЧЗ.
+const COMMON_FIELDS: Array<{ key: keyof HonestSignRow; label: string; hole?: boolean }> = [
+  { key: "category", label: "Вид одежды" },
+  { key: "colorName", label: "Цвет", hole: true },
+  { key: "composition", label: "Состав", hole: true },
+  { key: "tnved", label: "ТНВЭД", hole: true },
+  { key: "country", label: "Страна" },
+  { key: "brand", label: "Товарный знак" },
+  { key: "gender", label: "Целевой пол" },
+];
+
 function rowValue(row: HonestSignRow, key: keyof HonestSignRow): string {
   return String(row[key] ?? "");
 }
@@ -33,18 +44,9 @@ export function HonestSignTable({ rows }: { rows: HonestSignRow[] }) {
   const [colorFilter, setColorFilter] = usePersistedState<string[]>("hs:color:v1", []);
 
   // Опции фильтров — из всех строк (не из отфильтрованных), чтобы список не «схлопывался».
-  const catOptions = useMemo(
-    () => uniqueOptions(rows.map((r) => r.category)),
-    [rows],
-  );
-  const modelOptions = useMemo(
-    () => uniqueOptions(rows.map((r) => r.modelName)),
-    [rows],
-  );
-  const colorOptions = useMemo(
-    () => uniqueOptions(rows.map((r) => r.colorName)),
-    [rows],
-  );
+  const catOptions = useMemo(() => uniqueOptions(rows.map((r) => r.category)), [rows]);
+  const modelOptions = useMemo(() => uniqueOptions(rows.map((r) => r.modelName)), [rows]);
+  const colorOptions = useMemo(() => uniqueOptions(rows.map((r) => r.colorName)), [rows]);
 
   const filtered = useMemo(
     () =>
@@ -57,6 +59,17 @@ export function HonestSignTable({ rows }: { rows: HonestSignRow[] }) {
     [rows, catFilter, modelFilter, colorFilter],
   );
 
+  // Группируем строки по цветомодели: одна карточка = фасон+цвет, внутри размеры.
+  const groups = useMemo(() => {
+    const map = new Map<string, HonestSignRow[]>();
+    for (const r of filtered) {
+      const list = map.get(r.variantId);
+      if (list) list.push(r);
+      else map.set(r.variantId, [r]);
+    }
+    return Array.from(map.values());
+  }, [filtered]);
+
   async function copyText(text: string, note: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -66,104 +79,122 @@ export function HonestSignTable({ rows }: { rows: HonestSignRow[] }) {
     }
   }
 
-  // Клик по ячейке — копируем её значение.
-  function copyCell(row: HonestSignRow, key: keyof HonestSignRow) {
-    copyText(rowValue(row, key), "Скопировано");
-  }
-
-  // Клик по «№» строки — вся строка через таб (готово для вставки в Excel/форму ЧЗ).
   function copyRow(row: HonestSignRow) {
     const line = COLUMNS.map((c) => rowValue(row, c.key)).join("\t");
     copyText(line, "Строка скопирована");
   }
 
+  // Все размеры цветомодели одним блоком (строки через перенос, колонки через таб).
+  function copyGroup(group: HonestSignRow[]) {
+    const block = group
+      .map((row) => COLUMNS.map((c) => rowValue(row, c.key)).join("\t"))
+      .join("\n");
+    copyText(block, `Скопированы все размеры (${group.length})`);
+  }
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <FilterDropdown
-          label="Категория"
-          options={catOptions}
-          value={catFilter}
-          onChange={setCatFilter}
-        />
-        <FilterDropdown
-          label="Фасон"
-          options={modelOptions}
-          value={modelFilter}
-          onChange={setModelFilter}
-          widthClass="w-72"
-        />
-        <FilterDropdown
-          label="Цветомодель"
-          options={colorOptions}
-          value={colorFilter}
-          onChange={setColorFilter}
-        />
+        <FilterDropdown label="Категория" options={catOptions} value={catFilter} onChange={setCatFilter} />
+        <FilterDropdown label="Фасон" options={modelOptions} value={modelFilter} onChange={setModelFilter} widthClass="w-72" />
+        <FilterDropdown label="Цветомодель" options={colorOptions} value={colorFilter} onChange={setColorFilter} />
         <span className="ml-auto text-xs text-slate-500">
-          Строк: {filtered.length}
+          Цветомоделей: {groups.length} · строк: {filtered.length}
           {filtered.length !== rows.length ? ` из ${rows.length}` : ""}
         </span>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-        <table className="w-full border-collapse text-left text-xs">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50 text-slate-500">
-              <th className="sticky left-0 z-10 bg-slate-50 px-2 py-2 text-center font-medium">
-                №
-              </th>
-              {COLUMNS.map((c) => (
-                <th key={c.key} className="px-3 py-2 font-medium whitespace-nowrap">
-                  {c.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={COLUMNS.length + 1} className="px-3 py-8 text-center text-slate-400">
-                  Нет цветомоделей под текущие фильтры.
-                </td>
-              </tr>
-            )}
-            {filtered.map((row, i) => (
-              <tr
-                key={`${row.variantId}-${row.size}`}
-                className="border-b border-slate-100 last:border-0 hover:bg-slate-50"
+      {groups.length === 0 && (
+        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-10 text-center text-sm text-slate-400">
+          Нет цветомоделей под текущие фильтры.
+        </div>
+      )}
+
+      {groups.map((group) => {
+        const first = group[0];
+        return (
+          <div key={first.variantId} className="rounded-2xl border border-slate-200 bg-white">
+            {/* Шапка карточки: фасон · цвет · артикул */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-100 px-4 py-2.5">
+              <span className="text-sm font-semibold text-slate-900">
+                {first.modelName} · {first.colorName || "цвет не указан"}
+              </span>
+              <button
+                type="button"
+                onClick={() => copyText(first.sku, "Артикул скопирован")}
+                className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-600 hover:bg-slate-200"
+                title="Скопировать артикул"
               >
-                <td
-                  className="sticky left-0 z-10 cursor-pointer bg-white px-2 py-1.5 text-center text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                  title="Скопировать всю строку (через таб)"
-                  onClick={() => copyRow(row)}
-                >
-                  {i + 1}
-                </td>
-                {COLUMNS.map((c) => {
-                  const raw = rowValue(row, c.key);
-                  const isHole = Boolean(c.hole) && raw.trim() === "";
-                  return (
-                    <td
-                      key={c.key}
-                      className={`cursor-pointer px-3 py-1.5 align-top ${
-                        c.width ?? ""
-                      } ${
+                {first.sku || "без артикула"}
+              </button>
+              <button
+                type="button"
+                onClick={() => copyGroup(group)}
+                className="ml-auto rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:border-slate-300"
+                title="Все размеры одним блоком — для вставки в Excel"
+              >
+                ⧉ Все размеры ({group.length})
+              </button>
+            </div>
+
+            {/* Общие поля — один раз, кликом копируются */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 px-4 py-3 sm:grid-cols-4">
+              {COMMON_FIELDS.map((f) => {
+                const raw = rowValue(first, f.key);
+                const isHole = Boolean(f.hole) && raw.trim() === "";
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => !isHole && copyText(raw, "Скопировано")}
+                    className="min-w-0 text-left"
+                    title={isHole ? "Не заполнено — нужно для ЧЗ" : "Скопировать"}
+                  >
+                    <div className="text-[11px] text-slate-400">{f.label}</div>
+                    <div
+                      className={`truncate text-[13px] ${
                         isHole
-                          ? "bg-red-50 text-red-500 italic"
-                          : "text-slate-700 hover:bg-slate-100"
+                          ? "italic text-red-500 dark:text-red-400"
+                          : "text-slate-700 hover:text-slate-900"
                       }`}
-                      title={isHole ? "Не заполнено — нужно для ЧЗ" : "Скопировать ячейку"}
-                      onClick={() => copyCell(row, c.key)}
                     >
                       {isHole ? "— не заполнено" : raw}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Размеры: только то, что различается — размер и наименование */}
+            <div className="border-t border-slate-100">
+              {group.map((row) => (
+                <div
+                  key={`${row.variantId}-${row.size}`}
+                  className="flex items-center gap-2 border-b border-slate-50 px-4 py-1.5 last:border-0 hover:bg-slate-50"
+                >
+                  <span className="w-12 shrink-0 text-[13px] font-medium text-slate-800">{row.size}</span>
+                  <button
+                    type="button"
+                    onClick={() => copyText(row.name, "Наименование скопировано")}
+                    className="min-w-0 flex-1 truncate text-left text-[13px] text-slate-600 hover:text-slate-900"
+                    title="Скопировать наименование"
+                  >
+                    {row.name}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => copyRow(row)}
+                    className="shrink-0 rounded px-1.5 py-0.5 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                    title="Скопировать всю строку (через таб)"
+                  >
+                    ⧉ строка
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
