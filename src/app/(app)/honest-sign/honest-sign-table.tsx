@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { FilterDropdown } from "@/components/common/filter-dropdown";
 import { usePersistedState } from "@/lib/use-persisted-state";
@@ -142,6 +143,21 @@ export function HonestSignTable({ rows }: { rows: HonestSignRow[] }) {
               {COMMON_FIELDS.map((f) => {
                 const raw = rowValue(first, f.key);
                 const isHole = Boolean(f.hole) && raw.trim() === "";
+                // Состав и ТНВЭД живут на фасоне — дыру можно закрыть прямо
+                // отсюда, не проваливаясь в форму фасона.
+                const editableField =
+                  f.key === "composition" ? "fabricComposition" :
+                  f.key === "tnved" ? "tnvedCode" : null;
+                if (isHole && editableField) {
+                  return (
+                    <HoleEditor
+                      key={f.key}
+                      modelId={first.modelId}
+                      field={editableField}
+                      label={f.label}
+                    />
+                  );
+                }
                 return (
                   <button
                     key={f.key}
@@ -209,4 +225,77 @@ function uniqueOptions(values: string[]): Array<{ value: string; label: string; 
   return Array.from(counts.entries())
     .sort((a, b) => a[0].localeCompare(b[0], "ru"))
     .map(([value, count]) => ({ value, label: value, count }));
+}
+
+// Инлайн-закрытие дыры ЧЗ: клик по «не заполнено» → поле ввода → PATCH фасона.
+// Состав/ТНВЭД общие для всех цветов фасона, поэтому пишем в ProductModel.
+function HoleEditor({
+  modelId,
+  field,
+  label,
+}: {
+  modelId: string;
+  field: "fabricComposition" | "tnvedCode";
+  label: string;
+}) {
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    const v = val.trim();
+    if (!v) {
+      setEditing(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/models/${modelId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: v }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        toast.error(j?.error?.message ?? "Не сохранилось");
+        return;
+      }
+      toast.success(`${label} сохранён`);
+      setEditing(false);
+      router.refresh();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="min-w-0 text-left">
+      <div className="text-[11px] text-slate-400">{label}</div>
+      {editing ? (
+        <input
+          autoFocus
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") save();
+            if (e.key === "Escape") setEditing(false);
+          }}
+          disabled={saving}
+          placeholder={field === "tnvedCode" ? "6204630000" : "70% вискоза, 30% пэ"}
+          className="mt-0.5 h-7 w-full rounded border border-slate-300 bg-white px-1.5 text-[13px] text-slate-900 focus:border-slate-500 focus:outline-none disabled:opacity-50"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="truncate text-[13px] font-medium text-red-600 underline decoration-dotted underline-offset-2 hover:text-red-700 dark:text-red-300"
+          title="Заполнить прямо здесь — сохранится в фасон"
+        >
+          — заполнить
+        </button>
+      )}
+    </div>
+  );
 }

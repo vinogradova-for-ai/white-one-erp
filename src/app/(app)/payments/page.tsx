@@ -393,8 +393,8 @@ function MobilePaymentRow({ p, isPast }: { p: PaymentWithRelations; isPast: bool
     : "bg-amber-100 text-amber-800 dark:bg-amber-400/10 dark:text-amber-300";
   const statusLabel = isPaid ? "Оплачено" : isOverdue ? "Просрочено" : "К оплате";
   const subject = p.type === "ORDER"
-    ? (p.order?.productModel.name ?? p.factory?.name ?? "—")
-    : (p.packagingItem?.name ?? p.supplierName ?? "—");
+    ? (p.order?.productModel.name ?? p.factory?.name ?? p.label)
+    : (p.packagingItem?.name ?? p.supplierName ?? p.label);
   const counterparty = p.type === "ORDER" ? p.factory?.name : p.supplierName;
   return (
     <Link href={paymentTargetHref(p)} className="block px-3 py-2.5 active:bg-slate-50">
@@ -433,8 +433,8 @@ function CalendarChip({ p, isPast }: { p: PaymentWithRelations; isPast: boolean 
     : "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-400/10 dark:text-amber-300 dark:border-amber-400/20";
   // ЗА ЧТО плачу: для заказа — имя фасона, для упаковки — имя упаковки
   const subject = p.type === "ORDER"
-    ? (p.order?.productModel.name ?? p.factory?.name ?? "—")
-    : (p.packagingItem?.name ?? p.supplierName ?? "—");
+    ? (p.order?.productModel.name ?? p.factory?.name ?? p.label)
+    : (p.packagingItem?.name ?? p.supplierName ?? p.label);
   const counterparty = p.type === "ORDER" ? p.factory?.name : p.supplierName;
   return (
     <Link

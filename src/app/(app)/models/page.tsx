@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatNumber } from "@/lib/format";
-import { CATEGORIES, BRAND_LABELS } from "@/lib/constants";
+import {
+  CATEGORIES,
+  BRAND_LABELS,
+  PRODUCT_MODEL_STATUS_LABELS,
+  PRODUCT_MODEL_STATUS_COLORS,
+} from "@/lib/constants";
 import { PhotoThumb } from "@/components/common/photo-thumb";
 import { Brand } from "@prisma/client";
 import { ModelsFilters } from "@/components/models/models-filters";
@@ -148,11 +153,23 @@ export default async function ModelsPage({
                 <div className="mt-1 text-xs text-slate-500">
                   {BRAND_LABELS[m.brand]} · {m.category}{m.subcategory && m.subcategory !== m.category ? ` · ${m.subcategory}` : ""}
                 </div>
-                {m.isRepeat && (
-                  <div className="mt-2">
+                {/* Этап разработки на карточке — чтобы не прыгать в канбан за статусом */}
+                <div className="mt-2 flex flex-wrap gap-1">
+                  <span className={`rounded px-1.5 py-0.5 text-[10px] ${PRODUCT_MODEL_STATUS_COLORS[m.status]}`}>
+                    {PRODUCT_MODEL_STATUS_LABELS[m.status]}
+                  </span>
+                  {m.isRepeat && (
                     <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">повтор</span>
-                  </div>
-                )}
+                  )}
+                  {m._count.variants === 0 && (
+                    <span
+                      className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-800 dark:bg-amber-400/10 dark:text-amber-300"
+                      title="У фасона нет ни одной цветомодели — пустая заготовка"
+                    >
+                      без цветов
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">

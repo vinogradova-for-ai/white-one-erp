@@ -148,6 +148,31 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
               ))}
             </dl>
 
+            {/* Маркировка ЧЗ — состав и ТНВЭД видны прямо в карточке;
+                пустые подсвечены красным (дыра для Честного знака). */}
+            <div className="mt-4 space-y-1.5 border-t border-slate-100 pt-4 text-xs">
+              <div>
+                <span className="text-slate-400">Состав (для ЧЗ):</span>{" "}
+                {model.fabricComposition ? (
+                  <span className="text-slate-700">{model.fabricComposition}</span>
+                ) : (
+                  <Link href={`/models/${model.id}/edit`} className="font-medium text-red-600 hover:underline dark:text-red-300">
+                    не заполнено — заполнить
+                  </Link>
+                )}
+              </div>
+              <div>
+                <span className="text-slate-400">ТНВЭД:</span>{" "}
+                {model.tnvedCode ? (
+                  <span className="text-slate-700">{model.tnvedCode}</span>
+                ) : (
+                  <Link href={`/models/${model.id}/edit`} className="font-medium text-red-600 hover:underline dark:text-red-300">
+                    не заполнено — заполнить
+                  </Link>
+                )}
+              </div>
+            </div>
+
             {/* Документация и ткань — мелким шрифтом ниже, без отдельной карточки */}
             {(model.patternsUrl || model.fabricName) && (
               <div className="mt-4 space-y-1.5 border-t border-slate-100 pt-4 text-xs text-slate-500">
