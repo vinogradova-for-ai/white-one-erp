@@ -225,9 +225,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </dl>
       </div>
 
-      {/* Позиции */}
+      {/* Позиции — заголовок с итогами рисует сама секция */}
       <section>
-        <h2 className="mb-3 text-base font-semibold text-slate-900">Позиции</h2>
         <OrderLinesSection
           orderId={order.id}
           sizes={sizes}
