@@ -34,20 +34,20 @@ export function NewVariantButton({ models }: { models: ModelOption[] }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+        className="flex h-11 shrink-0 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 active:bg-slate-800"
       >
-        + Создать цветомодель
+        + Создать
       </button>
       {open && (
-        <div className="absolute right-0 z-30 mt-1 w-80 max-h-[70vh] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+        <div className="absolute right-0 z-30 mt-1 max-h-[70vh] w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
           <div className="border-b border-slate-200 p-2">
-            <div className="text-xs text-slate-500 mb-1.5 px-1">Сначала выберите фасон:</div>
+            <div className="mb-1.5 px-1 text-xs text-slate-500">Сначала выберите фасон:</div>
             <input
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Поиск по названию фасона…"
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm"
+              className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
             />
           </div>
           <div className="max-h-80 overflow-auto">

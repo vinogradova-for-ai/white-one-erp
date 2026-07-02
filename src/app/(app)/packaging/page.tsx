@@ -52,14 +52,14 @@ export default async function PackagingListPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Упаковка</h1>
+          <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Упаковка</h1>
           <p className="text-sm text-slate-500">Активных: {activeCount} из {rows.length}</p>
         </div>
         <Link
           href="/packaging/new"
-          className="rounded-lg bg-slate-900 px-4 py-3 text-sm font-medium text-white hover:bg-slate-800 md:py-2"
+          className="flex h-11 shrink-0 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 active:bg-slate-800"
         >
-          + Добавить карточку
+          + Добавить
         </Link>
       </div>
 
@@ -71,7 +71,7 @@ export default async function PackagingListPage() {
             </div>
             <Link
               href="/packaging-orders/new"
-              className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
+              className="inline-flex h-9 shrink-0 items-center rounded-lg bg-amber-600 px-3 text-xs font-medium text-white hover:bg-amber-700 active:bg-amber-700"
             >
               + Заказ упаковки
             </Link>
@@ -144,7 +144,8 @@ export default async function PackagingListPage() {
           </Link>
         ))}
         {rows.length === 0 && (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">
+            <div className="mb-2 text-3xl">▯</div>
             Карточек упаковки пока нет.{" "}
             <Link href="/packaging/new" className="text-slate-900 underline">Создать первую?</Link>
           </div>
@@ -152,7 +153,8 @@ export default async function PackagingListPage() {
       </div>
 
       {/* Десктопная версия — таблица */}
-      <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white md:block">
+      <div className="scroll-x-hint hidden md:block">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="sticky top-0 z-10 bg-slate-50 shadow-[inset_0_-1px_0_rgb(226_232_240)]">
             <tr>
@@ -227,6 +229,7 @@ export default async function PackagingListPage() {
             )}
           </tbody>
         </table>
+      </div>
       </div>
 
       <p className="text-xs text-slate-400">
