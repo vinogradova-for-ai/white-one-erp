@@ -20,6 +20,7 @@ const MORE_LINKS = [
   { href: "/packaging-orders", label: "Заказы упаковки", icon: "▥" },
   { href: "/gantt-v2", label: "График Ганта", icon: "▦" },
   { href: "/plan-vs-fact", label: "План / Факт", icon: "⎋" },
+  { href: "/stats", label: "Статистика", icon: "▤" },
   { href: "/payments", label: "Платежи", icon: "₽" },
   { href: "/incoming", label: "Поставки", icon: "▣" },
   { href: "/warehouse", label: "Склад", icon: "▩" },

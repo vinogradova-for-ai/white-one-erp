@@ -19,6 +19,7 @@ const NAV = [
   { href: "/gantt-v2", label: "График Ганта", icon: "▦" },
   { href: "/seasons", label: "Цели", icon: "◈" },
   { href: "/plan-vs-fact", label: "План/Факт", icon: "⎋" },
+  { href: "/stats", label: "Статистика", icon: "▤" },
   { href: "/admin/plans", label: "Планирование работы", icon: "Σ" },
 ];
 
