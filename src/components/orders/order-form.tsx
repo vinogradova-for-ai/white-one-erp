@@ -471,6 +471,36 @@ export function OrderForm({
         </Section>
       )}
 
+      <Section id="sec-production" title="Производство">
+        <Field label="Фабрика">
+          <select value={common.factoryId} onChange={(e) => setCommon({ ...common, factoryId: e.target.value })} className={inputCls}>
+            <option value="">— как в фасоне —</option>
+            {factories.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Ответственный *">
+          <select value={common.ownerId} onChange={(e) => setCommon({ ...common, ownerId: e.target.value })} className={inputCls}>
+            {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Способ доставки" full>
+          <select value={common.deliveryMethod} onChange={(e) => setCommon({ ...common, deliveryMethod: e.target.value })} className={inputCls}>
+            {Object.entries(DELIVERY_METHOD_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </Field>
+      </Section>
+
+      {model && totalQty > 0 && (
+        <div id="sec-timeline" className="scroll-mt-24">
+          <OrderTimeline
+            launchMonth={common.launchMonth}
+            onChange={setTimeline}
+            initial={timeline}
+            deliveryMethod={(common.deliveryMethod || null) as DeliveryMethod | null}
+          />
+        </div>
+      )}
+
       {model && (
         <Section id="sec-cost" title="Стоимость и сумма заказа">
           <Field label="Стоимость единицы, ₽ *">
@@ -649,36 +679,6 @@ export function OrderForm({
           </p>
         </Field>
       </Section>
-
-      <Section id="sec-production" title="Производство">
-        <Field label="Фабрика">
-          <select value={common.factoryId} onChange={(e) => setCommon({ ...common, factoryId: e.target.value })} className={inputCls}>
-            <option value="">— как в фасоне —</option>
-            {factories.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Ответственный *">
-          <select value={common.ownerId} onChange={(e) => setCommon({ ...common, ownerId: e.target.value })} className={inputCls}>
-            {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Способ доставки" full>
-          <select value={common.deliveryMethod} onChange={(e) => setCommon({ ...common, deliveryMethod: e.target.value })} className={inputCls}>
-            {Object.entries(DELIVERY_METHOD_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
-        </Field>
-      </Section>
-
-      {model && totalQty > 0 && (
-        <div id="sec-timeline" className="scroll-mt-24">
-          <OrderTimeline
-            launchMonth={common.launchMonth}
-            onChange={setTimeline}
-            initial={timeline}
-            deliveryMethod={(common.deliveryMethod || null) as DeliveryMethod | null}
-          />
-        </div>
-      )}
 
       {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
       <FormErrorBanner error={apiErr} />
