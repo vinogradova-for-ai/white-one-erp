@@ -12,9 +12,14 @@ export function CardBody({ el }: { el: El }) {
   const photos = c.photos?.length ? c.photos : c.photo ? [c.photo] : [];
   const [idx, setIdx] = useState(0);
   const cur = photos.length ? idx % photos.length : 0;
+  // §4 UX-аудита: white_one_love — бренд по умолчанию, его ник на каждой
+  // карточке — шум. Шапку с ником оставляем только «не-дефолтным» брендам
+  // (например «Сердцебиению»), чтобы отличать их с одного взгляда.
+  const showBrandHeader = handle !== "white_one_love";
   return (
     <div className="flex h-full w-full cursor-grab flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm active:cursor-grabbing">
       {/* Шапка: аватар + ник + галочка (тонкая) */}
+      {showBrandHeader && (
       <div className="flex items-center gap-1.5 px-2" style={{ height: CARD_HEADER }}>
         <span className="shrink-0 rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 p-[1.5px]">
           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-[9px] font-bold uppercase text-slate-700">
@@ -27,6 +32,7 @@ export function CardBody({ el }: { el: El }) {
         </div>
         <span className="ml-auto text-[13px] leading-none text-slate-500">⋯</span>
       </div>
+      )}
 
       {/* Фото — карусель, если их несколько (как в Instagram) */}
       <div className="group/ph relative min-h-0 w-full flex-1 overflow-hidden bg-slate-100">

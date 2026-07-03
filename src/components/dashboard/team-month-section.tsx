@@ -170,22 +170,42 @@ export function TeamMonthSection({
             ))}
           </div>
 
-          {/* Карточки людей */}
+          {/* Карточки людей. §4: людей без движений не размазываем повторами
+              «движений не было» по карточкам — одна строка со списком имён. */}
           {stats.owners.length === 0 ? (
             <p className="text-sm text-slate-500">В этом месяце активности по команде нет.</p>
           ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {stats.owners.map((o) => (
-                <PersonCard
-                  key={o.ownerId}
-                  owner={o}
-                  active={o.ownerId === selectedOwnerId}
-                  yearMonth={stats.yearMonth}
-                  basePath={basePath}
-                  projects={projects?.[o.ownerId]}
-                />
-              ))}
-            </div>
+            (() => {
+              const isIdle = (o: (typeof stats.owners)[number]) =>
+                STAGES.every((s) => o[s.key].models === 0 && o[s.key].units === 0) &&
+                o.activeLoad.models === 0 &&
+                o.activeLoad.units === 0 &&
+                o.devModels === 0 &&
+                !o.plan;
+              const activeOwners = stats.owners.filter((o) => !isIdle(o));
+              const idleOwners = stats.owners.filter(isIdle);
+              return (
+                <>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {activeOwners.map((o) => (
+                      <PersonCard
+                        key={o.ownerId}
+                        owner={o}
+                        active={o.ownerId === selectedOwnerId}
+                        yearMonth={stats.yearMonth}
+                        basePath={basePath}
+                        projects={projects?.[o.ownerId]}
+                      />
+                    ))}
+                  </div>
+                  {idleOwners.length > 0 && (
+                    <p className="text-xs text-slate-400">
+                      Движений в этом месяце не было: {idleOwners.map((o) => o.ownerName).join(", ")}
+                    </p>
+                  )}
+                </>
+              );
+            })()
           )}
         </div>
       )}

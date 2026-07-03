@@ -82,6 +82,8 @@ export function BoardClient({
   // П4 UX-аудита: «Завершено» (23 карточки) свёрнуто по умолчанию — экономит
   // экран под живую работу. Клик по узкой колонке раскрывает, выбор запоминается.
   const [doneCollapsed, setDoneCollapsed] = usePersistedState<boolean>("kanban:done-collapsed:v1", true);
+  // §4: тумблер «компактно» — мини-карточки, выбор запоминается.
+  const [compact, setCompact] = usePersistedState<boolean>("kanban:compact:v1", false);
 
   function fmtDM(iso: string) {
     const [, m, d] = iso.split("-");
@@ -131,6 +133,19 @@ export function BoardClient({
           {error}
         </div>
       )}
+
+      {/* Тумблер «компактно» — только десктоп (на мобиле и так одна колонка) */}
+      <div className="mb-2 hidden justify-end md:flex">
+        <button
+          type="button"
+          onClick={() => setCompact((v) => !v)}
+          className={`rounded-full px-3 py-1 text-xs font-medium ${
+            compact ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+          }`}
+        >
+          {compact ? "✓ компактно" : "компактно"}
+        </button>
+      </div>
 
       {/* Мобильные pill-табы по колонкам — sticky сверху. */}
       <div className="-mx-4 mb-3 overflow-x-auto px-4 md:hidden">
@@ -277,6 +292,7 @@ export function BoardClient({
                     onDragEndCard={() => { setDragging(null); setDropZone(null); }}
                     onOpenComments={() => setOpenComments({ id: c.modelId, name: c.modelName })}
                     fmtDM={fmtDM}
+                    compact={compact}
                   />
                 ))}
               </div>
@@ -318,6 +334,7 @@ function KanbanCardView({
   onDragEndCard,
   onOpenComments,
   fmtDM,
+  compact = false,
 }: {
   c: KanbanCard;
   dragging: string | null;
@@ -325,6 +342,7 @@ function KanbanCardView({
   onDragEndCard: () => void;
   onOpenComments: () => void;
   fmtDM: (iso: string) => string;
+  compact?: boolean;
 }) {
   const isPackaging = c.kind === "packaging-order";
   const dragEnabled = !isPackaging && !c.orderNumber;
@@ -343,12 +361,46 @@ function KanbanCardView({
   const commentCount = c.commentCount ?? 0;
   const lastComments = c.lastComments ?? [];
 
+  // §4: компактный режим — мини-фото строкой вместо большой карточки,
+  // колонки по 16-21 карточке перестают быть километрами скролла.
+  if (compact) {
+    return (
+      <div
+        draggable={dragEnabled}
+        onDragStart={(e) => { if (!dragEnabled) return; onDragStartCard(); e.dataTransfer.effectAllowed = "move"; }}
+        onDragEnd={onDragEndCard}
+        className={`overflow-hidden rounded-xl border border-slate-200 bg-white transition-all hover:shadow-md ${
+          dragEnabled ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
+        } ${dragging === c.modelId ? "rotate-1 opacity-40" : ""}`}
+      >
+        <Link href={href} className="flex items-center gap-2 p-1.5" onClick={(e) => { if (dragging) e.preventDefault(); }}>
+          {photos.length > 0 ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={photos[0]} alt="" draggable={false} className={`h-9 w-9 shrink-0 rounded-lg object-cover ${isDone ? "opacity-80 grayscale" : ""}`} />
+          ) : (
+            <span className="h-9 w-9 shrink-0 rounded-lg" style={{ background: `linear-gradient(135deg, ${c.palette[0]}, ${c.palette[1]})` }} />
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="line-clamp-1 text-[11px] font-medium leading-tight text-slate-900">{c.modelName}</span>
+            <span className="flex items-center gap-1 text-[10px] text-slate-500">
+              {c.orderNumber && <span className="font-mono">{c.orderNumber}</span>}
+              {commentCount > 0 && <span>💬{commentCount}</span>}
+            </span>
+          </span>
+          {c.deadline && (
+            <span className={`shrink-0 rounded px-1 py-0.5 text-[9px] ${dlClass}`}>{dlPrefix} {fmtDM(c.deadline.iso)}</span>
+          )}
+        </Link>
+      </div>
+    );
+  }
+
   const wrapper = (
     <div
       draggable={dragEnabled}
       onDragStart={(e) => { if (!dragEnabled) return; onDragStartCard(); e.dataTransfer.effectAllowed = "move"; }}
       onDragEnd={onDragEndCard}
-      className={`block overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all hover:shadow-md ${
+      className={`group/card block overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all hover:shadow-md ${
         dragEnabled ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
       } ${dragging === c.modelId ? "rotate-1 opacity-40" : ""}`}
     >
@@ -413,7 +465,10 @@ function KanbanCardView({
               )}
             </span>
           ) : (
-            <span className="flex items-center gap-1 text-[11px] text-slate-400"><MiniComment /> Оставить комментарий</span>
+            // §4: пустой плейсхолдер не мозолит глаза — появляется по наведению на карточку
+            <span className="flex items-center gap-1 text-[11px] text-slate-400 opacity-0 transition group-hover/card:opacity-100">
+              <MiniComment /> Оставить комментарий
+            </span>
           )}
         </button>
       )}
