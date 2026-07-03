@@ -4,8 +4,26 @@ import { PACKAGING_TYPE_LABELS, PACKAGING_TYPE_ICONS } from "@/lib/constants";
 import { PACKAGING_STATUS_LABELS, PACKAGING_STATUS_COLORS } from "@/lib/status-machine/packaging-statuses";
 import { PhotoThumb } from "@/components/common/photo-thumb";
 import { ClickableRow } from "@/components/common/clickable-row";
+import { ConsumeShippedButton } from "@/components/packaging/consume-shipped-button";
 
 export default async function PackagingListPage() {
+  // «Неучтённый расход» (правка №4): заказы отгружены, а упаковка не списана —
+  // склад на бумаге больше, чем в реальности. Списывается кнопкой ниже.
+  const unconsumedShipped = await prisma.orderPackaging.findMany({
+    where: {
+      consumedQty: null,
+      order: { deletedAt: null, status: { in: ["SHIPPED_WB", "ON_SALE"] } },
+    },
+    select: {
+      quantityPerUnit: true,
+      order: { select: { lines: { select: { quantity: true } } } },
+    },
+  });
+  const unconsumedQty = unconsumedShipped.reduce((s, u) => {
+    const orderQty = u.order.lines.reduce((a, l) => a + l.quantity, 0);
+    return s + Math.max(0, Math.ceil(orderQty * Number(u.quantityPerUnit)));
+  }, 0);
+
   const items = await prisma.packagingItem.findMany({
     orderBy: [{ isActive: "desc" }, { name: "asc" }],
     include: {
@@ -66,6 +84,20 @@ export default async function PackagingListPage() {
           + Добавить
         </Link>
       </div>
+
+      {unconsumedQty > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-400/20 dark:bg-amber-400/10">
+          <div className="text-sm text-amber-900 dark:text-amber-300">
+            <span className="font-medium">
+              Не списано по отгруженным заказам: {unconsumedQty.toLocaleString("ru-RU")} шт
+            </span>{" "}
+            <span className="text-xs opacity-80">
+              ({unconsumedShipped.length} строк) — остатки на складе показаны с этим излишком
+            </span>
+          </div>
+          <ConsumeShippedButton totalQty={unconsumedQty} rows={unconsumedShipped.length} />
+        </div>
+      )}
 
       {shortageRows.length > 0 && (
         <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-400/20 dark:bg-amber-400/10">
