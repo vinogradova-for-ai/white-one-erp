@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { ORDER_STATUS_LABELS } from "@/lib/constants";
+import { checkTermsMismatch } from "@/lib/payments/terms-mismatch";
 import type { OrderStatus } from "@prisma/client";
 
 // «Дыры в данных» — всё незаполненное, из-за чего цифры в кабинете врут:
@@ -60,8 +61,10 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
         id: true,
         orderNumber: true,
         status: true,
+        paymentTerms: true,
         productModel: { select: { name: true } },
         lines: { select: { batchCost: true } },
+        payments: { where: { type: "ORDER" }, select: { amount: true }, orderBy: { plannedDate: "asc" } },
       },
       orderBy: { createdAt: "desc" },
     }),
@@ -143,6 +146,25 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
       id: o.id,
       title: `${o.orderNumber} · ${o.productModel.name}`,
       subtitle: ORDER_STATUS_LABELS[o.status],
+      href: `/orders/${o.id}`,
+    })),
+  });
+
+  // 1б. График платежей не совпадает с условиями оплаты (баг «30/70 в шапке, 50/50 в графике»)
+  const termsMismatchOrders = ordersWithLines
+    .map((o) => ({
+      order: o,
+      check: checkTermsMismatch(o.paymentTerms, o.payments.map((p) => Number(p.amount))),
+    }))
+    .filter((x) => x.check && !x.check.match);
+  sections.push({
+    key: "payments-terms-mismatch",
+    title: "График платежей не совпадает с условиями оплаты",
+    why: "В шапке заказа одни условия, а платежи разбиты иначе — даты и суммы долга фабрике врут. Открой заказ и нажми «Пересчитать по условиям».",
+    rows: termsMismatchOrders.map(({ order: o, check }) => ({
+      id: o.id,
+      title: `${o.orderNumber} · ${o.productModel.name}`,
+      subtitle: `условия ${check!.expectedLabel}, в графике ${check!.actualLabel}`,
       href: `/orders/${o.id}`,
     })),
   });

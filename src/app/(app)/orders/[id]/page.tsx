@@ -24,6 +24,8 @@ import { syncOrderStatusForward } from "@/server/sync-order-status";
 import { orderLateDays } from "@/lib/order-auto-status";
 import { resolveModelCost } from "@/lib/calculations/resolve-model-cost";
 import { getPaymentFactInfo } from "@/lib/payments/payout-queries";
+import { checkTermsMismatch } from "@/lib/payments/terms-mismatch";
+import { PaymentsTermsWarning } from "@/components/orders/payments-terms-warning";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -35,6 +37,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   // бэкенд-роут /api/orders/[id]/status всё равно перепроверяет право.
   const canChangeStatus = sessionUser?.role
     ? can(sessionUser.role as Role, "order.updateStatus")
+    : false;
+  // Пересчёт графика платежей — то же право, что редактирование заказа.
+  const canEditOrder = sessionUser?.role
+    ? can(sessionUser.role as Role, "order.update")
     : false;
   // Авто-синк упаковки фасона. Если у фасона есть привязанная упаковка,
   // которая по какой-то причине не «протекла» в этот заказ — она
@@ -122,6 +128,11 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
 
   // Статус плановых платежей по ФАКТУ (разнесённые оплаты фабрикам).
   const paymentFact = await getPaymentFactInfo(order.payments.map((p) => p.id));
+  // Сверка графика с условиями оплаты («30/70» в шапке vs фактические доли).
+  const termsCheck = checkTermsMismatch(
+    order.paymentTerms,
+    order.payments.map((p) => Number(p.amount)),
+  );
   const planKopecks = order.payments.reduce((a, p) => a + Math.round(Number(p.amount) * 100), 0);
   const paidKopecks = order.payments.reduce((a, p) => a + (paymentFact.get(p.id)?.allocatedKopecks ?? 0), 0);
   const remainderKopecks = Math.max(0, planKopecks - paidKopecks);
@@ -321,6 +332,15 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             </div>
           ) : (
             <div className="space-y-1.5">
+              {termsCheck && !termsCheck.match && (
+                <PaymentsTermsWarning
+                  orderId={order.id}
+                  expectedLabel={termsCheck.expectedLabel}
+                  actualLabel={termsCheck.actualLabel}
+                  canRegenerate={canEditOrder}
+                  hasPaid={order.payments.some((p) => p.status === "PAID")}
+                />
+              )}
               {order.payments.map((pp) => {
                 const fact = paymentFact.get(pp.id);
                 const st = fact?.status ?? (pp.status === "PAID" ? "legacy-paid" : "unpaid");
