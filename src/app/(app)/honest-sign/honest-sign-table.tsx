@@ -39,10 +39,17 @@ function rowValue(row: HonestSignRow, key: keyof HonestSignRow): string {
   return String(row[key] ?? "");
 }
 
+// Дыра для ЧЗ: не заполнено хоть одно критичное поле (цвет/состав/ТНВЭД).
+function isHoleRow(r: HonestSignRow): boolean {
+  return COMMON_FIELDS.some((f) => f.hole && !String(r[f.key] ?? "").trim());
+}
+
 export function HonestSignTable({ rows }: { rows: HonestSignRow[] }) {
   const [catFilter, setCatFilter] = usePersistedState<string[]>("hs:cat:v1", []);
   const [modelFilter, setModelFilter] = usePersistedState<string[]>("hs:model:v1", []);
   const [colorFilter, setColorFilter] = usePersistedState<string[]>("hs:color:v1", []);
+  // Топ-14: работать надо с дырявыми — фильтр «только незаполненные» запоминается.
+  const [holesOnly, setHolesOnly] = usePersistedState<boolean>("hs:holes-only:v1", false);
 
   // Опции фильтров — из всех строк (не из отфильтрованных), чтобы список не «схлопывался».
   const catOptions = useMemo(() => uniqueOptions(rows.map((r) => r.category)), [rows]);
@@ -55,10 +62,14 @@ export function HonestSignTable({ rows }: { rows: HonestSignRow[] }) {
         (r) =>
           (catFilter.length === 0 || catFilter.includes(r.category)) &&
           (modelFilter.length === 0 || modelFilter.includes(r.modelName)) &&
-          (colorFilter.length === 0 || colorFilter.includes(r.colorName)),
+          (colorFilter.length === 0 || colorFilter.includes(r.colorName)) &&
+          (!holesOnly || isHoleRow(r)),
       ),
-    [rows, catFilter, modelFilter, colorFilter],
+    [rows, catFilter, modelFilter, colorFilter, holesOnly],
   );
+
+  // Счётчик дыр — по ВСЕМ строкам (не по фильтру), чтобы цифра была честной.
+  const holeCount = useMemo(() => rows.filter(isHoleRow).length, [rows]);
 
   // Группируем строки по цветомодели: одна карточка = фасон+цвет, внутри размеры.
   const groups = useMemo(() => {
@@ -99,6 +110,20 @@ export function HonestSignTable({ rows }: { rows: HonestSignRow[] }) {
         <FilterDropdown label="Категория" options={catOptions} value={catFilter} onChange={setCatFilter} />
         <FilterDropdown label="Фасон" options={modelOptions} value={modelFilter} onChange={setModelFilter} widthClass="w-72" />
         <FilterDropdown label="Цветомодель" options={colorOptions} value={colorFilter} onChange={setColorFilter} />
+        <button
+          type="button"
+          onClick={() => setHolesOnly((v) => !v)}
+          className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-full px-3 text-xs font-medium ${
+            holesOnly
+              ? "bg-red-600 text-white"
+              : holeCount > 0
+                ? "bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-400/10 dark:text-red-300 dark:hover:bg-red-400/20"
+                : "bg-slate-100 text-slate-500"
+          }`}
+        >
+          дыр по ЧЗ: {holeCount}
+          <span className="opacity-80">{holesOnly ? "· показаны только они ✕" : "· показать только их"}</span>
+        </button>
         <span className="ml-auto text-xs text-slate-500">
           Цветомоделей: {groups.length} · строк: {filtered.length}
           {filtered.length !== rows.length ? ` из ${rows.length}` : ""}
