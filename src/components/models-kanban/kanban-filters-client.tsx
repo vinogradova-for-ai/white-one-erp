@@ -111,7 +111,28 @@ export function KanbanFiltersClient({
         🔥 дедлайн просрочен · ⚠️ ближайшие 7 дней · 📅 дальше недели · 📦 партия прибыла
       </p>
 
-      <BoardClient columns={columns} buckets={filteredBuckets.buckets} currentUserId={currentUserId} isAdmin={isAdmin} />
+      {/* «Пустой канбан» 03.07: фильтры прятали все карточки, а доска молчала.
+          Если скрыто ВСЁ — большой честный баннер вместо тихих колонок «пусто». */}
+      {hasActiveFilters && filteredBuckets.visibleCount === 0 && total > 0 ? (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 px-6 py-12 text-center dark:border-amber-400/30 dark:bg-amber-400/10">
+          <div className="mb-2 text-3xl" aria-hidden>🙈</div>
+          <div className="text-base font-semibold text-amber-900 dark:text-amber-300">
+            Все {total} фасонов скрыты фильтрами
+          </div>
+          <p className="mt-1 text-sm text-amber-800/80 dark:text-amber-300/80">
+            Данные целы — просто ни одна карточка не проходит выбранные фильтры.
+          </p>
+          <button
+            type="button"
+            onClick={() => setFilters({ category: [], ownerId: [], status: [] })}
+            className="mt-4 inline-flex min-h-[44px] items-center rounded-lg bg-slate-900 px-5 text-sm font-medium text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
+          >
+            Показать все фасоны
+          </button>
+        </div>
+      ) : (
+        <BoardClient columns={columns} buckets={filteredBuckets.buckets} currentUserId={currentUserId} isAdmin={isAdmin} />
+      )}
     </div>
   );
 }
