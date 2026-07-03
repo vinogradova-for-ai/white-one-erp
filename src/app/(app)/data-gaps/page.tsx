@@ -26,57 +26,56 @@ export default async function DataGapsPage() {
           Дыр нет — все данные заполнены 🎉
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {sections.map((s) => (
-            <section
-              key={s.key}
-              className={`rounded-2xl border bg-white p-4 ${
-                s.rows.length > 0
-                  ? "border-slate-200"
-                  : "border-emerald-200 dark:border-emerald-400/20"
-              }`}
-            >
-              <div className="flex items-baseline justify-between gap-2">
-                <h2 className="text-sm font-semibold text-slate-900">
-                  {s.title}
-                </h2>
-                <span
-                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums ${
-                    s.rows.length > 0
-                      ? "bg-red-50 text-red-700 dark:bg-red-400/10 dark:text-red-300"
-                      : "bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300"
-                  }`}
-                >
-                  {s.rows.length > 0
-                    ? `${s.rows.length}${s.extra ? ` · ${s.extra}` : ""}`
-                    : "✓"}
+        <div className="space-y-3">
+          {/* §4: секции свёрнуты до заголовков со счётчиками — обзор в один экран.
+              В строках колонка «чья дыра» — чтобы раздавать, а не чинить самой. */}
+          {sections.map((s) =>
+            s.rows.length === 0 ? (
+              <section
+                key={s.key}
+                className="flex items-baseline justify-between gap-2 rounded-2xl border border-emerald-200 bg-white px-4 py-3 dark:border-emerald-400/20"
+              >
+                <h2 className="text-sm font-semibold text-slate-900">{s.title}</h2>
+                <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300">
+                  ✓
                 </span>
-              </div>
-              <p className="mt-1 text-xs text-slate-500">{s.why}</p>
-
-              {s.rows.length > 0 && (
-                <ul className="mt-3 max-h-72 space-y-0.5 overflow-y-auto">
-                  {s.rows.map((r) => (
-                    <li key={r.id}>
-                      <Link
-                        href={r.href}
-                        className="flex items-baseline justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50"
-                      >
-                        <span className="min-w-0 truncate text-slate-900">
-                          {r.title}
-                        </span>
-                        {r.subtitle && (
-                          <span className="shrink-0 text-xs text-slate-400">
-                            {r.subtitle}
+              </section>
+            ) : (
+              <details key={s.key} className="group rounded-2xl border border-slate-200 bg-white">
+                <summary className="flex cursor-pointer list-none items-baseline gap-2 px-4 py-3 [&::-webkit-details-marker]:hidden">
+                  <span className="text-slate-400 transition group-open:rotate-90">▸</span>
+                  <h2 className="min-w-0 flex-1 text-sm font-semibold text-slate-900">{s.title}</h2>
+                  <span className="shrink-0 rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold tabular-nums text-red-700 dark:bg-red-400/10 dark:text-red-300">
+                    {s.rows.length}
+                    {s.extra ? ` · ${s.extra}` : ""}
+                  </span>
+                </summary>
+                <div className="border-t border-slate-100 px-4 pb-3">
+                  <p className="mt-2 text-xs text-slate-500">{s.why}</p>
+                  <ul className="mt-2 max-h-96 space-y-0.5 overflow-y-auto">
+                    {s.rows.map((r) => (
+                      <li key={r.id}>
+                        <Link
+                          href={r.href}
+                          className="flex items-baseline justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50"
+                        >
+                          <span className="min-w-0 truncate text-slate-900">{r.title}</span>
+                          <span className="flex shrink-0 items-baseline gap-2">
+                            {r.subtitle && <span className="text-xs text-slate-400">{r.subtitle}</span>}
+                            {r.owner && (
+                              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600">
+                                {r.owner}
+                              </span>
+                            )}
                           </span>
-                        )}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          ))}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </details>
+            ),
+          )}
         </div>
       )}
     </div>

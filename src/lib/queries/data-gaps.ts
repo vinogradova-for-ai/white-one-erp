@@ -15,6 +15,8 @@ export type GapRow = {
   title: string;
   subtitle?: string;
   href: string;
+  /** Чья дыра — ответственный, чтобы раздавать, а не чинить самой (§4). */
+  owner?: string;
 };
 
 export type GapSection = {
@@ -63,6 +65,7 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
         orderNumber: true,
         status: true,
         paymentTerms: true,
+        owner: { select: { name: true } },
         productModel: { select: { name: true } },
         lines: { select: { batchCost: true } },
         payments: { where: { type: "ORDER" }, select: { amount: true }, orderBy: { plannedDate: "asc" } },
@@ -75,7 +78,7 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
         packagingItems: { none: {} },
         orders: { some: { deletedAt: null, status: { in: IN_WORK_STATUSES } } },
       },
-      select: { id: true, name: true, category: true },
+      select: { id: true, name: true, category: true, owner: { select: { name: true } } },
       orderBy: { name: "asc" },
     }),
     prisma.productVariant.findMany({
@@ -90,7 +93,7 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
         sku: true,
         colorName: true,
         productModelId: true,
-        productModel: { select: { name: true } },
+        productModel: { select: { name: true, owner: { select: { name: true } } } },
       },
       orderBy: { sku: "asc" },
     }),
@@ -105,7 +108,7 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
           { tnvedCode: "" },
         ],
       },
-      select: { id: true, name: true, fabricComposition: true, tnvedCode: true },
+      select: { id: true, name: true, fabricComposition: true, tnvedCode: true, owner: { select: { name: true } } },
       orderBy: { name: "asc" },
     }),
     prisma.payment.findMany({
@@ -118,7 +121,8 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
         currency: true,
         plannedDate: true,
         supplierName: true,
-        order: { select: { orderNumber: true, productModel: { select: { name: true } } } },
+        createdBy: { select: { name: true } },
+        order: { select: { orderNumber: true, owner: { select: { name: true } }, productModel: { select: { name: true } } } },
         packagingItem: { select: { name: true } },
         packagingOrder: {
           select: {
@@ -157,6 +161,7 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
       title: `${o.orderNumber} · ${o.productModel.name}`,
       subtitle: ORDER_STATUS_LABELS[o.status],
       href: `/orders/${o.id}`,
+      owner: o.owner.name,
     })),
   });
 
@@ -176,6 +181,7 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
       title: `${o.orderNumber} · ${o.productModel.name}`,
       subtitle: `условия ${check!.expectedLabel}, в графике ${check!.actualLabel}`,
       href: `/orders/${o.id}`,
+      owner: o.owner.name,
     })),
   });
 
@@ -189,6 +195,7 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
       title: m.name,
       subtitle: m.category,
       href: `/models/${m.id}`,
+      owner: m.owner.name,
     })),
   });
 
@@ -202,6 +209,7 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
       title: `${v.productModel.name} · ${v.colorName}`,
       subtitle: v.sku,
       href: `/models/${v.productModelId}`,
+      owner: v.productModel.owner.name,
     })),
   });
 
@@ -220,6 +228,7 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
         title: m.name,
         subtitle: `не заполнено: ${missing.join(" + ")}`,
         href: `/models/${m.id}`,
+        owner: m.owner.name,
       };
     }),
   });
@@ -246,6 +255,7 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
         title: `${p.label} · ${Math.round(Number(p.amount)).toLocaleString("ru-RU")} ${p.currency === "CNY" ? "¥" : "₽"}`,
         subtitle: `${target} · просрочено ${days} дн`,
         href: "/payments",
+        owner: p.order?.owner.name ?? p.createdBy?.name,
       };
     }),
   });
