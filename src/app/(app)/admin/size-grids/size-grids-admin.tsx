@@ -106,7 +106,7 @@ export function SizeGridsAdmin({ initial }: { initial: SizeGridRow[] }) {
                         value={draft.sizesRaw}
                         onChange={(e) => setDraft({ ...draft, sizesRaw: e.target.value })}
                         className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm font-mono"
-                        placeholder="42, 44, 46, 48"
+                        placeholder="42, 44, 46, 48 · ростовка: 52/170"
                       />
                     ) : (
                       <span className="font-mono text-xs">{g.sizes.join(", ")}</span>
