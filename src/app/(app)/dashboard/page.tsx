@@ -14,7 +14,7 @@ import { isCheckable } from "./checkable-kinds";
 import { MoneyTaskRow } from "@/components/dashboard/money-task-row";
 import { can } from "@/lib/rbac";
 import type { Role } from "@prisma/client";
-import { getDataGaps, countGaps } from "@/lib/queries/data-gaps";
+import { getDataGaps, countGapsSplit } from "@/lib/queries/data-gaps";
 import { getOverdueDebt, formatOverdueDebt } from "@/lib/queries/overdue-debt";
 import { getRecentEvents, type DailyEvent } from "@/lib/queries/daily-events";
 
@@ -76,7 +76,8 @@ export default async function DashboardPage({
     getRecentEvents(),
     getOverdueDebt(), // та же цифра, что в красном блоке на /payments (П1)
   ]);
-  const gapsCount = countGaps(gaps);
+  // §4 UX-аудита: дыры, которые врут деньги, — отдельным красным бейджем.
+  const gapsSplit = countGapsSplit(gaps);
 
   // Кабинет общий — разбивку задач по сотрудникам видят ВСЕ (прозрачность), не только админ.
   // По умолчанию открыта своя подвкладка; если своих задач нет — самая загруженная.
@@ -122,12 +123,20 @@ export default async function DashboardPage({
               Долг фабрикам: {formatOverdueDebt(overdueDebt)} →
             </Link>
           )}
-          {gapsCount > 0 && (
+          {gapsSplit.money > 0 && (
             <Link
               href="/data-gaps"
               className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700 hover:bg-red-100 dark:bg-red-400/10 dark:text-red-300 dark:hover:bg-red-400/20"
             >
-              ⚠ Дыры в данных: {gapsCount} · исправить →
+              🔴 Врут деньги: {gapsSplit.money} · исправить →
+            </Link>
+          )}
+          {gapsSplit.other > 0 && (
+            <Link
+              href="/data-gaps"
+              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-300 dark:hover:bg-slate-700"
+            >
+              Прочие дыры: {gapsSplit.other} →
             </Link>
           )}
         </div>

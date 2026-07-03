@@ -6,8 +6,10 @@ import { getDataGaps, countGaps } from "@/lib/queries/data-gaps";
 export const dynamic = "force-dynamic";
 
 export default async function DataGapsPage() {
-  const sections = await getDataGaps();
-  const total = countGaps(sections);
+  const allSections = await getDataGaps();
+  const total = countGaps(allSections);
+  // §4 UX-аудита: «врут деньги» — первыми (согласовано с красным бейджем на главной).
+  const sections = [...allSections].sort((a, b) => Number(!!b.money) - Number(!!a.money));
 
   return (
     <div className="space-y-6">
@@ -44,7 +46,10 @@ export default async function DataGapsPage() {
               <details key={s.key} className="group rounded-2xl border border-slate-200 bg-white">
                 <summary className="flex cursor-pointer list-none items-baseline gap-2 px-4 py-3 [&::-webkit-details-marker]:hidden">
                   <span className="text-slate-400 transition group-open:rotate-90">▸</span>
-                  <h2 className="min-w-0 flex-1 text-sm font-semibold text-slate-900">{s.title}</h2>
+                  <h2 className="min-w-0 flex-1 text-sm font-semibold text-slate-900">
+                    {s.money && <span title="Эта дыра врёт деньги" aria-label="врут деньги">🔴 </span>}
+                    {s.title}
+                  </h2>
                   <span className="shrink-0 rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold tabular-nums text-red-700 dark:bg-red-400/10 dark:text-red-300">
                     {s.rows.length}
                     {s.extra ? ` · ${s.extra}` : ""}

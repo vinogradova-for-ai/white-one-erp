@@ -27,6 +27,9 @@ export type GapSection = {
   rows: GapRow[];
   // Дополнительная строка в шапке секции (например, общая сумма).
   extra?: string;
+  // §4 UX-аудита: дыра «врёт деньги» (суммы заказов, долги фабрикам) —
+  // на дашборде такие идут отдельным красным бейджем, остальные — серым.
+  money?: boolean;
 };
 
 // Заказ считается «в работе» с пошива и дальше — к прибытию упаковка уже нужна.
@@ -154,6 +157,7 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
   });
   sections.push({
     key: "orders-no-price",
+    money: true,
     title: "Заказы без цены",
     why: "Сумма заказа = 0 ₽ — врут список заказов, платежи и «деньги продукта» в статистике.",
     rows: noPriceOrders.map((o) => ({
@@ -174,6 +178,7 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
     .filter((x) => x.check && !x.check.match);
   sections.push({
     key: "payments-terms-mismatch",
+    money: true,
     title: "График платежей не совпадает с условиями оплаты",
     why: "В шапке заказа одни условия, а платежи разбиты иначе — даты и суммы долга фабрике врут. Открой заказ и нажми «Пересчитать по условиям».",
     rows: termsMismatchOrders.map(({ order: o, check }) => ({
@@ -239,6 +244,7 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
     .reduce((a, p) => a + Number(p.amount), 0);
   sections.push({
     key: "payments-overdue",
+    money: true,
     title: "Оплаты просрочены или не отмечены",
     why: "Плановая дата прошла, а оплата не отмечена — вкладка «Платежи» врёт про долги фабрикам.",
     extra:
@@ -283,4 +289,15 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
 
 export function countGaps(sections: GapSection[]): number {
   return sections.reduce((a, s) => a + s.rows.length, 0);
+}
+
+// Разбивка для дашборда: красный бейдж = дыры, которые врут деньги; серый — остальные.
+export function countGapsSplit(sections: GapSection[]): { money: number; other: number } {
+  let money = 0;
+  let other = 0;
+  for (const s of sections) {
+    if (s.money) money += s.rows.length;
+    else other += s.rows.length;
+  }
+  return { money, other };
 }
