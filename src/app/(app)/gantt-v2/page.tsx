@@ -263,13 +263,15 @@ export default async function GanttV2Page() {
       .slice(0, 3);
     const factoryOwner = po.factory?.name ?? po.supplierName ?? po.owner?.name;
 
-    const developmentDone = po.status !== "ORDERED";
+    // Сверка с канбаном (Алёна 04.07): в канбане ORDERED → колонка «Производство»,
+    // а тут ORDERED держал активной «Разработку» — экраны расходились.
+    // ORDERED = заказ уже размещён, разработка позади: активная фаза — «Производство».
+    const developmentDone = true;
     const productionDone = ["IN_TRANSIT", "ARRIVED"].includes(po.status);
     const deliveryDone = po.status === "ARRIVED";
 
     let activeIdx = -1;
-    if (!developmentDone) activeIdx = 0;
-    else if (!productionDone) activeIdx = 1;
+    if (!productionDone) activeIdx = 1;
     else if (!deliveryDone) activeIdx = 2;
 
     const phases: Array<{

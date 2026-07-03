@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CommentsDrawer } from "./comments-drawer";
 import { usePersistedState } from "@/lib/use-persisted-state";
+import { isLightColor } from "@/lib/color-map";
 
 // Колонки разработки — бросок фасона сюда меняет стадию фасона (PATCH kanban-stage).
 const DEV_TARGETS = new Set(["idea", "sample", "ideal_sample", "sizing_done"]);
@@ -423,7 +424,19 @@ function KanbanCardView({
               )}
             </>
           ) : (
-            <div className="flex aspect-square w-full items-center justify-center px-2 text-center text-[11px] text-slate-500/60" style={{ background: `linear-gradient(135deg, ${c.palette[0]}, ${c.palette[1]})` }}>{c.modelName}</div>
+            // Заглушка без фото: текст контрастен фону-градиенту (белое пятно
+            // «Костюм с брюками» в тёмной теме). Цвет — ИНЛАЙНОМ: глобальный
+            // dark-слой перекрашивает text-slate-* в светлое, а градиент
+            // остаётся светлым — класс тут даёт светлое-на-светлом.
+            <div
+              className="flex aspect-square w-full items-center justify-center px-2 text-center text-[11px] font-medium"
+              style={{
+                background: `linear-gradient(135deg, ${c.palette[0]}, ${c.palette[1]})`,
+                color: isLightColor(c.palette[0]) ? "#334155" : "rgba(255,255,255,0.92)",
+              }}
+            >
+              {c.modelName}
+            </div>
           )}
         </div>
 

@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
+import { bestMatch } from "./sidebar-nav";
 
 // Нижний таб-бар: 4 ключевых направления + кнопка «Ещё».
-// «Цели» вынесена в таб (Алёна 27.05.2026): это экран руководителя, открывается
-// каждый день. «Упаковка» переехала в «Ещё» — операционная задача, открывается
-// через дашборд при необходимости.
+// «Цели» и «План/Факт» убраны (Алёна 04.07: «ненужные, ориентируемся на
+// Статистику») — в табе теперь «Статистика». Страницы живы по URL.
 const TABS = [
   { href: "/dashboard", label: "Главный", icon: "✦" },
-  { href: "/seasons", label: "Цели", icon: "◈" },
+  { href: "/stats", label: "Статистика", icon: "▤" },
   { href: "/orders", label: "Заказы", icon: "⬡" },
   { href: "/models", label: "Каталог", icon: "⬢" },
 ];
@@ -19,8 +20,6 @@ const MORE_LINKS = [
   { href: "/variants", label: "Цветомодели", icon: "◎" },
   { href: "/packaging-orders", label: "Заказы упаковки", icon: "▥" },
   { href: "/gantt-v2", label: "График Ганта", icon: "▦" },
-  { href: "/plan-vs-fact", label: "План / Факт", icon: "⎋" },
-  { href: "/stats", label: "Статистика", icon: "▤" },
   { href: "/data-gaps", label: "Дыры в данных", icon: "⚠" },
   { href: "/payments", label: "Платежи", icon: "₽" },
   { href: "/shipments", label: "Поставки", icon: "▣" },
@@ -32,21 +31,32 @@ const MORE_LINKS = [
 
 export function MobileNav() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  // Подсветка активного таба по самому длинному совпавшему префиксу
+  // (включая «Ещё»-ссылки: провал в /payments не должен подсвечивать таб).
+  const active = bestMatch(pathname, [...TABS, ...MORE_LINKS].map((t) => t.href));
 
   return (
     <>
       <nav className="pb-safe fixed right-0 bottom-0 left-0 z-50 border-t border-slate-200 bg-white md:hidden">
         <div className="grid grid-cols-5 gap-0.5">
-          {TABS.map((tab) => (
+          {TABS.map((tab) => {
+            const isActive = tab.href === active;
+            return (
             <Link
               key={tab.href}
               href={tab.href}
-              className="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-2 text-center text-xs text-slate-700 active:bg-slate-100"
+              aria-current={isActive ? "page" : undefined}
+              className={`flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-2 text-center text-xs active:bg-slate-100 ${
+                isActive ? "font-semibold text-slate-900 dark:text-slate-100" : "text-slate-500"
+              }`}
             >
-              <span className="text-lg leading-none">{tab.icon}</span>
+              <span className={`text-lg leading-none ${isActive ? "" : "opacity-60"}`}>{tab.icon}</span>
               <span className="text-[11px] leading-tight">{tab.label}</span>
+              <span className={`h-0.5 w-6 rounded-full ${isActive ? "bg-slate-900 dark:bg-slate-100" : "bg-transparent"}`} />
             </Link>
-          ))}
+            );
+          })}
           <button
             type="button"
             onClick={() => setOpen(true)}
