@@ -32,6 +32,11 @@ export function RoleCell({
   }
 
   async function change(next: string) {
+    // §4 UX-аудита: роль = доступы, мгновенная смена по мисклику опасна — подтверждаем.
+    if (!confirm(`Сменить роль на «${ROLE_LABELS[next as Role]}»? Права доступа изменятся сразу.`)) {
+      router.refresh(); // вернуть селект к прежнему значению
+      return;
+    }
     setBusy(true);
     setErr(null);
     try {

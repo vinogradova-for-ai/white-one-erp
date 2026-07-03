@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, pluralRu } from "@/lib/format";
 import {
   CATEGORIES,
   BRAND_LABELS,
   PRODUCT_MODEL_STATUS_LABELS,
   PRODUCT_MODEL_STATUS_COLORS,
+  PRODUCT_MODEL_STATUS_ORDER,
 } from "@/lib/constants";
 import { PhotoThumb } from "@/components/common/photo-thumb";
 import { Brand } from "@prisma/client";
@@ -52,7 +53,9 @@ export default async function ModelsPage({
     prisma.productModel.count({ where }),
     prisma.productModel.findMany({
       where,
-      orderBy: { updatedAt: "desc" },
+      // Черновой порядок из БД; финальная сортировка «по этапу, внутри дольше
+      // без движения сверху» — ниже, после загрузки (§4 UX-аудита).
+      orderBy: { updatedAt: "asc" },
       take: MODELS_CAP,
       include: {
         owner: { select: { name: true } },
@@ -138,7 +141,14 @@ export default async function ModelsPage({
       <ListCapNotice shown={models.length} cap={MODELS_CAP} unit="фасонов" />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {models.map((m) => (
+        {/* Сортировка: по этапу разработки, внутри этапа — «дольше без движения» сверху */}
+        {[...models]
+          .sort(
+            (a, b) =>
+              PRODUCT_MODEL_STATUS_ORDER.indexOf(a.status) - PRODUCT_MODEL_STATUS_ORDER.indexOf(b.status) ||
+              a.updatedAt.getTime() - b.updatedAt.getTime(),
+          )
+          .map((m) => (
           <Link
             key={m.id}
             href={`/models/${m.id}`}
@@ -173,12 +183,17 @@ export default async function ModelsPage({
               </div>
             </div>
             <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
-              <span>{formatNumber(m._count.variants)} цветов</span>
+              {/* 0 цветов не дублируем — бейдж «без цветов» выше уже говорит об этом */}
+              <span>
+                {m._count.variants > 0
+                  ? `${formatNumber(m._count.variants)} ${pluralRu(m._count.variants, ["цвет", "цвета", "цветов"])}`
+                  : ""}
+              </span>
               <span>{m.preferredFactory?.name ?? m.countryOfOrigin}</span>
               <span>{m.owner.name}</span>
             </div>
           </Link>
-        ))}
+          ))}
       </div>
 
       {models.length === 0 && (

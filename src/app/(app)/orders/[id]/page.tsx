@@ -26,6 +26,8 @@ import { resolveModelCost } from "@/lib/calculations/resolve-model-cost";
 import { getPaymentFactInfo } from "@/lib/payments/payout-queries";
 import { checkTermsMismatch } from "@/lib/payments/terms-mismatch";
 import { PaymentsTermsWarning } from "@/components/orders/payments-terms-warning";
+import { MarkPaidButton } from "@/components/payments/mark-paid-button";
+import { moscowTodayStart } from "@/lib/dates";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -41,6 +43,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   // Пересчёт графика платежей — то же право, что редактирование заказа.
   const canEditOrder = sessionUser?.role
     ? can(sessionUser.role as Role, "order.update")
+    : false;
+  // Кнопка «Оплачен» у просроченного платежа — права как на /payments.
+  const canMarkPaid = sessionUser?.role
+    ? can(sessionUser.role as Role, "payment.markPaid")
     : false;
   // Авто-синк упаковки фасона. Если у фасона есть привязанная упаковка,
   // которая по какой-то причине не «протекла» в этот заказ — она
@@ -344,9 +350,14 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               {order.payments.map((pp) => {
                 const fact = paymentFact.get(pp.id);
                 const st = fact?.status ?? (pp.status === "PAID" ? "legacy-paid" : "unpaid");
-                // Точка-индикатор: оплачен (в т.ч. legacy) — зелёный, частично — синий, нет — янтарный.
+                // §4: просроченный неоплаченный платёж — красным + «просрочен N дн» + кнопка «Оплачен».
+                const overdueDays =
+                  st === "unpaid" && pp.plannedDate < moscowTodayStart()
+                    ? Math.floor((moscowTodayStart().getTime() - pp.plannedDate.getTime()) / 86_400_000)
+                    : 0;
+                // Точка-индикатор: оплачен (в т.ч. legacy) — зелёный, частично — синий, нет — янтарный/красный.
                 const dot =
-                  st === "paid" || st === "legacy-paid" ? "bg-emerald-500" : st === "partial" ? "bg-blue-500" : "bg-amber-400";
+                  st === "paid" || st === "legacy-paid" ? "bg-emerald-500" : st === "partial" ? "bg-blue-500" : overdueDays > 0 ? "bg-red-500" : "bg-amber-400";
                 const firstPayout = fact?.payouts[0];
                 let statusText: string;
                 if (st === "paid" && firstPayout) {
@@ -362,14 +373,28 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
                   statusText = "не оплачен";
                 }
                 return (
-                  <div key={pp.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm">
+                  <div
+                    key={pp.id}
+                    className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-1.5 text-sm ${
+                      overdueDays > 0
+                        ? "border-red-200 bg-red-50/50 dark:border-red-400/20 dark:bg-red-400/10"
+                        : "border-slate-200 bg-slate-50"
+                    }`}
+                  >
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${dot}`} />
                       <span className="text-slate-900">{pp.label}</span>
                       <span className="text-xs text-slate-500">· {formatDate(pp.plannedDate)}</span>
-                      <span className="text-xs text-slate-500">· {statusText}</span>
+                      {overdueDays > 0 ? (
+                        <span className="text-xs font-semibold text-red-600 dark:text-red-300">· просрочен {overdueDays} дн</span>
+                      ) : (
+                        <span className="text-xs text-slate-500">· {statusText}</span>
+                      )}
                     </div>
-                    <div className="text-sm font-medium text-slate-900">{formatCurrency(Number(pp.amount))}</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-medium text-slate-900">{formatCurrency(Number(pp.amount))}</div>
+                      {overdueDays > 0 && canMarkPaid && <MarkPaidButton id={pp.id} />}
+                    </div>
                   </div>
                 );
               })}

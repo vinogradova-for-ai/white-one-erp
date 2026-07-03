@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { formatNumber, formatDate } from "@/lib/format";
+import { formatNumber, formatDate, pluralRu } from "@/lib/format";
 import {
   PRODUCT_VARIANT_STATUS_LABELS,
   PRODUCT_VARIANT_STATUS_COLORS,
@@ -112,7 +112,7 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
               hasActiveOrder={model.orders.length > 0}
             />
             <span>·</span>
-            <span>{model.variants.length} цветов</span>
+            <span>{model.variants.length} {pluralRu(model.variants.length, ["цвет", "цвета", "цветов"])}</span>
             <span>·</span>
             <span>{model.owner.name}</span>
             {model.isRepeat && (
@@ -145,12 +145,23 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
         </div>
 
         <div className="space-y-3">
-          {/* Себестоимость — одна плитка, во всю ширину */}
-          <KpiCard
-            label="Себестоимость"
-            value={cost != null ? `${cost.cur}${formatNumber(cost.value.toString())}` : "—"}
-            accent
-          />
+          {/* Себестоимость — одна плитка, во всю ширину. Пустая — кликабельный
+              призыв «задать цену» вместо немого прочерка (§4 UX-аудита). */}
+          {cost != null ? (
+            <KpiCard
+              label="Себестоимость"
+              value={`${cost.cur}${formatNumber(cost.value.toString())}`}
+              accent
+            />
+          ) : (
+            <Link
+              href={`/models/${model.id}/edit#economy`}
+              className="block rounded-2xl border-2 border-dashed border-slate-300 px-4 py-3 hover:border-slate-400 hover:bg-slate-50"
+            >
+              <div className="text-[11px] uppercase tracking-wider text-slate-400">Себестоимость</div>
+              <div className="mt-0.5 text-lg font-semibold text-slate-500">не задана — задать цену →</div>
+            </Link>
+          )}
 
           {/* Факты — одной плиткой */}
           <div className="rounded-2xl bg-white p-5">

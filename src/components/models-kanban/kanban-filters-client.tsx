@@ -64,8 +64,14 @@ export function KanbanFiltersClient({
         <div className="no-scrollbar flex items-center gap-x-3 gap-y-2 overflow-x-auto md:flex-wrap">
           <div className="flex shrink-0 items-center gap-2">
             <h1 className="text-sm font-semibold text-slate-900">Канбан фасонов</h1>
-            <span className="text-xs text-slate-500">
-              {filteredBuckets.visibleCount}/{total}
+            {/* П5: числа с подписями — «82/67» никто не расшифрует без тултипа */}
+            <span
+              className="text-xs text-slate-500"
+              title={`Показано карточек: ${filteredBuckets.visibleCount} из ${total} (после фильтров)`}
+            >
+              {hasActiveFilters
+                ? `показано ${filteredBuckets.visibleCount} из ${total}`
+                : `карточек: ${total}`}
             </span>
             {hasActiveFilters && (
               <button
@@ -99,6 +105,11 @@ export function KanbanFiltersClient({
           />
         </div>
       </div>
+
+      {/* П5: легенда эмодзи-маркеров дедлайнов одной строкой */}
+      <p className="px-1 text-[11px] text-slate-400">
+        🔥 дедлайн просрочен · ⚠️ ближайшие 7 дней · 📅 дальше недели · 📦 партия прибыла
+      </p>
 
       <BoardClient columns={columns} buckets={filteredBuckets.buckets} currentUserId={currentUserId} isAdmin={isAdmin} />
     </div>

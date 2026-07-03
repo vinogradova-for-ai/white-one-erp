@@ -104,7 +104,12 @@ export default async function DashboardPage({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           {all.length > 0 ? (
             <p className="text-sm text-slate-600">
+              {/* П5: «у вас 13 из 102» вместо двух несвязанных цифр */}
               Задач на ближайшие дни: <b>{all.length}</b>
+              {(() => {
+                const mine = groups.find((g) => g.ownerId === myId)?.tasks.length ?? 0;
+                return mine > 0 ? <> · у вас <b>{mine}</b></> : null;
+              })()}
             </p>
           ) : (
             <p className="text-sm text-emerald-700 dark:text-emerald-300">Всё под контролем. Срочного нет.</p>
@@ -167,6 +172,7 @@ export default async function DashboardPage({
               <Link
                 key={g.ownerId}
                 href={`/dashboard?owner=${g.ownerId}`}
+                title={`${g.ownerName}: всего задач ${g.tasks.length}${overdue > 0 ? `, из них горит ${overdue}` : ""}`}
                 className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm whitespace-nowrap transition md:h-auto md:px-3 md:py-1.5 ${
                   isActive
                     ? "bg-slate-900 text-white"
