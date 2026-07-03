@@ -11,6 +11,9 @@ import {
 } from "@/lib/queries/main-screen-checklist";
 import { CheckableRow } from "./checkable-row";
 import { isCheckable } from "./checkable-kinds";
+import { MoneyTaskRow } from "@/components/dashboard/money-task-row";
+import { can } from "@/lib/rbac";
+import type { Role } from "@prisma/client";
 import { getDataGaps, countGaps } from "@/lib/queries/data-gaps";
 import { getRecentEvents, type DailyEvent } from "@/lib/queries/daily-events";
 
@@ -58,6 +61,12 @@ export default async function DashboardPage({
   const session = await auth();
   const userName = session?.user?.name ?? "";
   const myId = (session?.user as { id?: string } | undefined)?.id ?? null;
+  // Права инлайн-кнопок в денежных задачах — те же, что на /payments (П3).
+  const role = (session?.user as { role?: string } | undefined)?.role as Role | undefined;
+  const money = {
+    canMarkPaid: role ? can(role, "payment.markPaid") : false,
+    canPostpone: role ? can(role, "payment.update") : false,
+  };
 
   const all = await getMainScreenChecklist();
   const groups = groupByOwner(all);
@@ -178,7 +187,7 @@ export default async function DashboardPage({
       )}
 
       {selected ? (
-        <ChecklistGroup tasks={selected.tasks} />
+        <ChecklistGroup tasks={selected.tasks} money={money} />
       ) : (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
           Срочных задач нет.
@@ -212,7 +221,9 @@ const ZONES: Array<{ key: TaskZone; title: string; muted: boolean }> = [
   { key: "next-week", title: "Следующая неделя", muted: true },
 ];
 
-function ChecklistGroup({ tasks }: { tasks: ChecklistTask[] }) {
+type MoneyRights = { canMarkPaid: boolean; canPostpone: boolean };
+
+function ChecklistGroup({ tasks, money }: { tasks: ChecklistTask[]; money: MoneyRights }) {
   return (
     <div className="space-y-10">
       {ZONES.map((zone) => {
@@ -220,7 +231,7 @@ function ChecklistGroup({ tasks }: { tasks: ChecklistTask[] }) {
         if (zoneTasks.length === 0) return null;
         return (
           <Zone key={zone.key} title={zone.title} count={zoneTasks.length} muted={zone.muted}>
-            <ZoneBody tasks={zoneTasks} showIdle={zone.key === "now"} />
+            <ZoneBody tasks={zoneTasks} showIdle={zone.key === "now"} money={money} />
           </Zone>
         );
       })}
@@ -228,7 +239,7 @@ function ChecklistGroup({ tasks }: { tasks: ChecklistTask[] }) {
   );
 }
 
-function ZoneBody({ tasks, showIdle }: { tasks: ChecklistTask[]; showIdle: boolean }) {
+function ZoneBody({ tasks, showIdle, money }: { tasks: ChecklistTask[]; showIdle: boolean; money: MoneyRights }) {
   const orderTasks = tasks.filter((t) => ORDER_KINDS.includes(t.kind));
   const packagingTasks = tasks.filter((t) => PACKAGING_KINDS.includes(t.kind));
   const moneyTasks = tasks.filter((t) => t.kind === "payment-due");
@@ -248,7 +259,7 @@ function ZoneBody({ tasks, showIdle }: { tasks: ChecklistTask[]; showIdle: boole
     <div className="space-y-6">
       {moneyTasks.length > 0 && (
         <Section title="Деньги" count={moneyTasks.length}>
-          <TaskList tasks={moneyTasks} />
+          <TaskList tasks={moneyTasks} money={money} />
         </Section>
       )}
       {orderTasks.length > 0 && (
@@ -343,11 +354,27 @@ function Section({
   );
 }
 
-function TaskList({ tasks }: { tasks: ChecklistTask[] }) {
+function TaskList({ tasks, money }: { tasks: ChecklistTask[]; money?: MoneyRights }) {
   return (
     <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
       {tasks.map((t) => {
         const ageBorder = ageBorderOf(t.ageInDays);
+        // Денежные задачи — ряд с инлайн-кнопками «Оплачено»/«＋7 дней» (П3).
+        if (t.kind === "payment-due" && t.paymentId && t.paymentPlannedDate) {
+          return (
+            <MoneyTaskRow
+              key={t.id}
+              text={t.text}
+              href={t.href}
+              paymentId={t.paymentId}
+              plannedDate={t.paymentPlannedDate}
+              overdue={t.urgency === "overdue"}
+              canMarkPaid={money?.canMarkPaid ?? false}
+              canPostpone={money?.canPostpone ?? false}
+              dot={<UrgencyDot urgency={t.urgency} />}
+            />
+          );
+        }
         // Задачи с однозначным «галочным» переходом — CheckableRow с чек-боксом
         // и выбором фактической даты. Остальные (требуют создать сущность или
         // ввести доп.данные) — обычная ссылка в карточку.

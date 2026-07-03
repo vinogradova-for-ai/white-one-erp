@@ -55,6 +55,10 @@ export type ChecklistTask = {
   /** Возраст задачи в днях (для разработки — `today - model.updatedAt`).
    *  Используется визуально (старение рамки) и для счётчика «в разработке >30 дн». */
   ageInDays: number | null;
+  /** Только для kind=payment-due: id и плановая дата платежа —
+   *  чтобы кнопки «Оплачено» и «＋7 дней» работали прямо с главной. */
+  paymentId?: string;
+  paymentPlannedDate?: string; // ISO yyyy-mm-dd
   /** Превышен ли SLA для задач разработки. true → попадает в «Сейчас» как красная. */
   slaBreached: boolean;
 };
@@ -303,6 +307,8 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
       kind: "payment-due",
       ageInDays: null,
       slaBreached: days !== null && days < 0,
+      paymentId: p.id,
+      paymentPlannedDate: p.plannedDate.toISOString().slice(0, 10),
     });
   }
 
