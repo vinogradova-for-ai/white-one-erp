@@ -362,10 +362,16 @@ export function PhaseTimeline({
         </div>
       </div>
 
-      <p className="text-xs text-slate-500">
-        Наведи на фазу → потяни за левый или правый край. Соседние фазы поедут за ней с теми же длительностями.
-        Зум — справа сверху; шкала прокручивается, если цикл длинный.
-      </p>
+      {/* §4 UX-аудита: длинная подсказка — за «?», не простынёй под каждым таймлайном */}
+      <details className="text-xs text-slate-500">
+        <summary className="w-fit cursor-pointer select-none rounded-full bg-slate-100 px-2 py-0.5 text-slate-500 hover:bg-slate-200 [&::-webkit-details-marker]:hidden">
+          ? как двигать даты
+        </summary>
+        <p className="mt-1.5">
+          Наведи на фазу → потяни за левый или правый край. Соседние фазы поедут за ней с теми же длительностями.
+          Зум — справа сверху; шкала прокручивается, если цикл длинный.
+        </p>
+      </details>
     </fieldset>
   );
 }

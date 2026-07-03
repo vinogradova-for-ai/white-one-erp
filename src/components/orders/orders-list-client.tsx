@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_TYPE_LABELS, ORDER_STATUS_ORDER } from "@/lib/constants";
@@ -58,11 +58,14 @@ export function OrdersListClient({
   // П4 UX-аудита: завершённое — за свёрткой. Дефолт «В работе» (до склада МСК),
   // прибывшие показываются только в режиме «Все».
   const [mode, setMode] = usePersistedState<"active" | "all">("orders:mode:v1", "active");
+  // §4: быстрый чип «⚠ опаздывают» — показать только заказы с просроченным прибытием.
+  const [lateOnly, setLateOnly] = useState(false);
   const warehouseIdx = ORDER_STATUS_ORDER.indexOf("WAREHOUSE_MSK");
 
   const filtered = useMemo(() => {
     const base = orders.filter((o) => {
       if (mode === "active" && ORDER_STATUS_ORDER.indexOf(o.status) >= warehouseIdx) return false;
+      if (lateOnly && o.lateDays <= 0) return false;
       if (filters.category.length && !filters.category.includes(o.productModel.category)) return false;
       if (filters.ownerId.length && !filters.ownerId.includes(o.owner.id)) return false;
       if (filters.status.length && !filters.status.includes(o.status)) return false;
@@ -76,7 +79,7 @@ export function OrdersListClient({
       if (!b.arrivalPlannedDate) return -1;
       return a.arrivalPlannedDate.localeCompare(b.arrivalPlannedDate);
     });
-  }, [orders, filters, mode, warehouseIdx]);
+  }, [orders, filters, mode, lateOnly, warehouseIdx]);
 
   const arrivedCount = useMemo(
     () => orders.filter((o) => ORDER_STATUS_ORDER.indexOf(o.status) >= warehouseIdx).length,
@@ -137,6 +140,24 @@ export function OrdersListClient({
               Все{arrivedCount > 0 ? ` (+${arrivedCount} прибыло)` : ""}
             </button>
           </div>
+          {(() => {
+            const lateCount = orders.filter(
+              (o) => o.lateDays > 0 && (mode === "all" || ORDER_STATUS_ORDER.indexOf(o.status) < warehouseIdx),
+            ).length;
+            return lateCount > 0 ? (
+              <button
+                type="button"
+                onClick={() => setLateOnly((v) => !v)}
+                className={`inline-flex min-h-[36px] shrink-0 items-center gap-1 rounded-full px-3 text-xs font-medium ${
+                  lateOnly
+                    ? "bg-amber-500 text-white"
+                    : "bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-400/10 dark:text-amber-300"
+                }`}
+              >
+                ⚠ опаздывают: {lateCount}
+              </button>
+            ) : null;
+          })()}
           <span className="hidden text-xs uppercase tracking-wide text-slate-400 md:inline">Фильтры:</span>
           <FilterDropdown
             label="Категория"
@@ -306,10 +327,14 @@ export function OrdersListClient({
                       <span className="ml-1 font-semibold text-amber-600 dark:text-amber-400">· опаздывает {o.lateDays} дн</span>
                     )}
                   </td>
-                  <td className="max-w-[180px] px-3 py-2 text-xs text-slate-600">
+                  {/* §4: вместо простыни названий — «N поз.», список в тултипе */}
+                  <td className="px-3 py-2 text-xs text-slate-600">
                     {o.packagingNames.length > 0 ? (
-                      <span className="line-clamp-2" title={o.packagingNames.join(", ")}>
-                        {o.packagingNames.join(", ")}
+                      <span
+                        className="cursor-help rounded bg-slate-100 px-1.5 py-0.5"
+                        title={o.packagingNames.join(", ")}
+                      >
+                        {o.packagingNames.length} поз.
                       </span>
                     ) : (
                       "—"

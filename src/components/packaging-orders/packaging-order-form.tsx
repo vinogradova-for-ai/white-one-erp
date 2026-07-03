@@ -213,6 +213,11 @@ export function PackagingOrderForm({
         setError("Во всех позициях выберите упаковку");
         return;
       }
+      // §4 UX-аудита: без поставщика платежи по упаковке остаются безымянными.
+      if (!form.factoryId && !form.supplierName.trim()) {
+        setError("Укажите поставщика: выберите фабрику или впишите имя поставщика");
+        return;
+      }
       const payload: Record<string, unknown> = {
         factoryId: form.factoryId || null,
         supplierName: form.supplierName.trim() || null,

@@ -480,13 +480,34 @@ export function OrderForm({
             })}
 
             {availableVariants.length > 0 && (
-              <button
-                type="button"
-                onClick={addLine}
-                className="w-full rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 py-3 text-sm text-slate-600 hover:border-slate-400"
-              >
-                + Добавить цвет
-              </button>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={addLine}
+                  className="flex-1 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 py-3 text-sm text-slate-600 hover:border-slate-400"
+                >
+                  + Добавить цвет
+                </button>
+                {/* §4: заказ обычно на весь фасон — все цвета одной кнопкой */}
+                {availableVariants.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!model) return;
+                      const used = new Set(lines.map((l) => l.variantId));
+                      setLines([
+                        ...lines,
+                        ...model.variants
+                          .filter((v) => !used.has(v.id))
+                          .map((v) => ({ variantId: v.id, sizeDistribution: emptyDistribution(model.sizes) })),
+                      ]);
+                    }}
+                    className="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600 hover:border-slate-400"
+                  >
+                    + все цвета ({availableVariants.length})
+                  </button>
+                )}
+              </div>
             )}
             {model.variants.length === 0 && (
               <p className="text-sm text-slate-500">У фасона нет цветовых вариантов в статусе «Готов к заказу».</p>
@@ -520,6 +541,24 @@ export function OrderForm({
           <select value={common.ownerId} onChange={(e) => setCommon({ ...common, ownerId: e.target.value })} className={inputCls}>
             {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
+        </Field>
+        {/* §4: условия оплаты и ожидаемая готовность — прямо в форме,
+            а не только через график/таймлайн ниже. */}
+        <Field label="Условия оплаты">
+          <input
+            value={common.paymentTerms}
+            onChange={(e) => setCommon({ ...common, paymentTerms: e.target.value })}
+            placeholder="30/70"
+            className={inputCls}
+          />
+        </Field>
+        <Field label="Ожидаемая готовность на фабрике">
+          <input
+            type="date"
+            value={timeline.readyAtFactoryDate}
+            onChange={(e) => setTimeline({ ...timeline, readyAtFactoryDate: e.target.value })}
+            className={inputCls}
+          />
         </Field>
         <Field label="Способ доставки" full>
           <select value={common.deliveryMethod} onChange={(e) => setCommon({ ...common, deliveryMethod: e.target.value })} className={inputCls}>
