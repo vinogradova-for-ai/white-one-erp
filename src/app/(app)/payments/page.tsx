@@ -10,6 +10,7 @@ import { can } from "@/lib/rbac";
 import { toKopecks } from "@/lib/payments/allocate-payout";
 import { getOverdueDebt, formatOverdueDebt } from "@/lib/queries/overdue-debt";
 import { paymentTargetLabel } from "@/lib/payments/display-name";
+import { ListGroupTabs } from "@/components/payments/list-group-tabs";
 
 type View = "calendar" | "list" | "archive" | "payouts";
 
@@ -43,11 +44,13 @@ type PaymentWithRelations = Prisma.PaymentGetPayload<{ include: typeof PAYMENT_I
 export default async function PaymentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; month?: string; type?: string; q?: string }>;
+  searchParams: Promise<{ view?: string; month?: string; type?: string; q?: string; group?: string }>;
 }) {
   const sp = await searchParams;
   const view: View =
     sp.view === "list" || sp.view === "archive" || sp.view === "payouts" ? sp.view : "calendar";
+  // «Предстоящие»: по датам (дефолт) или по фабрикам (топ-12).
+  const listGroup: "date" | "factory" = sp.group === "factory" ? "factory" : "date";
 
   // «Сегодня» по Москве (UTC+3), а не по локальной зоне сервера — иначе на
   // Vercel (UTC) ночью 00:00–03:00 МСК месяц по умолчанию и просрочка съезжали.
@@ -110,7 +113,12 @@ export default async function PaymentsPage({
         <CalendarView month={month} typeFilter={typeFilter} sp={sp} />
       )}
       {view === "list" && (
-        <ListView typeFilter={typeFilter} todayStart={today} />
+        <ListView
+          typeFilter={typeFilter}
+          todayStart={today}
+          group={listGroup}
+          hasExplicitGroupParam={sp.group === "factory" || sp.group === "date"}
+        />
       )}
       {view === "archive" && (
         <ArchiveView typeFilter={typeFilter} q={q} sp={sp} />
@@ -479,9 +487,13 @@ function CalendarChip({ p, isPast }: { p: PaymentWithRelations; isPast: boolean 
 async function ListView({
   typeFilter,
   todayStart,
+  group,
+  hasExplicitGroupParam,
 }: {
   typeFilter: PaymentType | null;
   todayStart: Date;
+  group: "date" | "factory";
+  hasExplicitGroupParam: boolean;
 }) {
   const where: Prisma.PaymentWhereInput = {
     status: "PENDING",
@@ -521,18 +533,67 @@ async function ListView({
         </Link>
       )}
 
+      <ListGroupTabs current={group} typeParam={typeFilter} hasExplicitParam={hasExplicitGroupParam} />
+
       {payments.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">
           Предстоящих платежей нет.
         </div>
-      ) : (
+      ) : group === "date" ? (
         <div className="space-y-2">
           {payments.map((p) => (
             <BigCard key={p.id} p={p} todayStart={todayStart} />
           ))}
         </div>
+      ) : (
+        <FactoryGroups payments={payments} todayStart={todayStart} />
       )}
     </>
+  );
+}
+
+// «Предстоящие» по фабрикам: итог по каждой («Сердцебиение: 9,8 млн»),
+// внутри — те же карточки от ближайшей даты (топ-12).
+function FactoryGroups({
+  payments,
+  todayStart,
+}: {
+  payments: PaymentWithRelations[];
+  todayStart: Date;
+}) {
+  const groups = new Map<string, { name: string; items: PaymentWithRelations[] }>();
+  for (const p of payments) {
+    const name =
+      p.type === "ORDER"
+        ? (p.factory?.name ?? "Фабрика не указана")
+        : (p.supplierName ?? p.packagingOrder?.supplierName ?? "Упаковка · поставщик не указан");
+    const g = groups.get(name) ?? { name, items: [] };
+    g.items.push(p);
+    groups.set(name, g);
+  }
+  const sorted = [...groups.values()].sort((a, b) => sum(b.items) - sum(a.items));
+
+  function sum(items: PaymentWithRelations[]): number {
+    return items.reduce((a, p) => a + Number(p.amount), 0);
+  }
+
+  return (
+    <div className="space-y-5">
+      {sorted.map((g) => (
+        <section key={g.name}>
+          <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1">
+            <h3 className="text-sm font-semibold text-slate-900">{g.name}</h3>
+            <span className="text-sm font-semibold text-slate-700">{formatCurrency(sum(g.items))}</span>
+            <span className="text-xs text-slate-500">{g.items.length} шт</span>
+          </div>
+          <div className="space-y-2">
+            {g.items.map((p) => (
+              <BigCard key={p.id} p={p} todayStart={todayStart} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
   );
 }
 
@@ -762,7 +823,7 @@ function Summary({
 }
 
 function hrefWith(
-  sp: { view?: string; type?: string; month?: string; q?: string },
+  sp: { view?: string; type?: string; month?: string; q?: string; group?: string },
   patch: { view?: string; type?: string | null; month?: string },
 ): string {
   const merged: Record<string, string> = {};
@@ -770,6 +831,7 @@ function hrefWith(
   if (sp.month) merged.month = sp.month;
   if (sp.type) merged.type = sp.type;
   if (sp.q) merged.q = sp.q;
+  if (sp.group) merged.group = sp.group;
   for (const [k, v] of Object.entries(patch)) {
     if (v === null) delete merged[k];
     else if (v !== undefined) merged[k] = v;
