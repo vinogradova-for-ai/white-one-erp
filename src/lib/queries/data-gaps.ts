@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ORDER_STATUS_LABELS } from "@/lib/constants";
 import { checkTermsMismatch } from "@/lib/payments/terms-mismatch";
+import { paymentTargetLabel } from "@/lib/payments/display-name";
 import type { OrderStatus } from "@prisma/client";
 
 // «Дыры в данных» — всё незаполненное, из-за чего цифры в кабинете врут:
@@ -111,12 +112,21 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
       where: { status: "PENDING", plannedDate: { lt: now } },
       select: {
         id: true,
+        type: true,
         label: true,
         amount: true,
         currency: true,
         plannedDate: true,
+        supplierName: true,
         order: { select: { orderNumber: true, productModel: { select: { name: true } } } },
         packagingItem: { select: { name: true } },
+        packagingOrder: {
+          select: {
+            orderNumber: true,
+            supplierName: true,
+            lines: { select: { packagingItem: { select: { name: true } } } },
+          },
+        },
       },
       orderBy: { plannedDate: "asc" },
     }),
@@ -227,9 +237,7 @@ export async function getDataGaps(now: Date = new Date()): Promise<GapSection[]>
         ? `на ${Math.round(overdueSum).toLocaleString("ru-RU")} ₽`
         : undefined,
     rows: overduePayments.map((p) => {
-      const target = p.order
-        ? `${p.order.orderNumber} · ${p.order.productModel.name}`
-        : (p.packagingItem?.name ?? "без привязки");
+      const target = paymentTargetLabel(p);
       const days = Math.floor(
         (now.getTime() - p.plannedDate.getTime()) / 86_400_000,
       );

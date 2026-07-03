@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { ORDER_STATUS_LABELS } from "@/lib/constants";
+import { paymentTargetLabel } from "@/lib/payments/display-name";
 
 // Лента «Что изменилось со вчера» для главного экрана: утром одним взглядом
 // видно, что произошло за вчера и сегодня — статусы заказов, оплаты,
@@ -50,6 +51,13 @@ export async function getRecentEvents(now: Date = new Date()): Promise<DailyEven
       include: {
         order: { select: { id: true, orderNumber: true, productModel: { select: { name: true } } } },
         packagingItem: { select: { name: true } },
+        packagingOrder: {
+          select: {
+            orderNumber: true,
+            supplierName: true,
+            lines: { select: { packagingItem: { select: { name: true } } } },
+          },
+        },
         paidBy: { select: { name: true } },
       },
       orderBy: { paidAt: "desc" },
@@ -89,9 +97,7 @@ export async function getRecentEvents(now: Date = new Date()): Promise<DailyEven
   }
 
   for (const p of paidPayments) {
-    const target = p.order
-      ? `${p.order.orderNumber} · ${p.order.productModel.name}`
-      : (p.packagingItem?.name ?? p.label);
+    const target = paymentTargetLabel(p);
     const amount = `${Math.round(Number(p.amount)).toLocaleString("ru-RU")} ${p.currency === "CNY" ? "¥" : "₽"}`;
     events.push({
       id: `paid:${p.id}`,

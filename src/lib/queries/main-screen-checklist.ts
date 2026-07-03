@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { moscowTodayStart } from "@/lib/dates";
+import { paymentTargetLabel } from "@/lib/payments/display-name";
 
 /**
  * Чек-лист «Главного» экрана. Семь типов задач, привязанных к фасонам и заказам.
@@ -195,6 +196,13 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
           },
         },
         packagingItem: { select: { name: true } },
+        packagingOrder: {
+          select: {
+            orderNumber: true,
+            supplierName: true,
+            lines: { select: { packagingItem: { select: { name: true } } } },
+          },
+        },
         createdBy: { select: { id: true, name: true } },
       },
     }),
@@ -286,9 +294,7 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
   for (const p of duePayments) {
     const owner = p.order?.owner ?? p.createdBy;
     if (!owner) continue;
-    const target = p.order
-      ? `${p.order.orderNumber} · ${p.order.productModel.name}`
-      : (p.packagingItem?.name ?? "упаковка");
+    const target = paymentTargetLabel(p);
     const amount = `${Math.round(Number(p.amount)).toLocaleString("ru-RU")} ${p.currency === "CNY" ? "¥" : "₽"}`;
     const days = daysFromToday(p.plannedDate, today);
     const text =

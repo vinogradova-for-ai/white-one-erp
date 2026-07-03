@@ -9,6 +9,7 @@ import { auth } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { toKopecks } from "@/lib/payments/allocate-payout";
 import { getOverdueDebt, formatOverdueDebt } from "@/lib/queries/overdue-debt";
+import { paymentTargetLabel } from "@/lib/payments/display-name";
 
 type View = "calendar" | "list" | "archive" | "payouts";
 
@@ -27,7 +28,14 @@ const PAYMENT_INCLUDE = {
   },
   factory: { select: { name: true } },
   packagingItem: { select: { name: true } },
-  packagingOrder: { select: { id: true, orderNumber: true } },
+  packagingOrder: {
+    select: {
+      id: true,
+      orderNumber: true,
+      supplierName: true,
+      lines: { select: { packagingItem: { select: { name: true } } } },
+    },
+  },
 } satisfies Prisma.PaymentInclude;
 
 type PaymentWithRelations = Prisma.PaymentGetPayload<{ include: typeof PAYMENT_INCLUDE }>;
@@ -411,8 +419,8 @@ function MobilePaymentRow({ p, isPast }: { p: PaymentWithRelations; isPast: bool
   const statusLabel = isPaid ? "Оплачено" : isOverdue ? "Просрочено" : "К оплате";
   const subject = p.type === "ORDER"
     ? (p.order?.productModel.name ?? p.factory?.name ?? p.label)
-    : (p.packagingItem?.name ?? p.supplierName ?? p.label);
-  const counterparty = p.type === "ORDER" ? p.factory?.name : p.supplierName;
+    : paymentTargetLabel(p);
+  const counterparty = p.type === "ORDER" ? p.factory?.name : (p.supplierName ?? p.packagingOrder?.supplierName);
   return (
     <Link href={paymentTargetHref(p)} className="block px-3 py-2.5 active:bg-slate-50">
       <div className="flex items-baseline justify-between gap-2">
@@ -448,11 +456,11 @@ function CalendarChip({ p, isPast }: { p: PaymentWithRelations; isPast: boolean 
     : p.type === "ORDER"
     ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-400/10 dark:text-blue-300 dark:border-blue-400/20"
     : "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-400/10 dark:text-amber-300 dark:border-amber-400/20";
-  // ЗА ЧТО плачу: для заказа — имя фасона, для упаковки — имя упаковки
+  // ЗА ЧТО плачу: для заказа — имя фасона, для упаковки — PKG-номер · позиция · поставщик (П2)
   const subject = p.type === "ORDER"
     ? (p.order?.productModel.name ?? p.factory?.name ?? p.label)
-    : (p.packagingItem?.name ?? p.supplierName ?? p.label);
-  const counterparty = p.type === "ORDER" ? p.factory?.name : p.supplierName;
+    : paymentTargetLabel(p);
+  const counterparty = p.type === "ORDER" ? p.factory?.name : (p.supplierName ?? p.packagingOrder?.supplierName);
   return (
     <Link
       href={paymentTargetHref(p)}
@@ -635,12 +643,14 @@ function BigCard({
               </span>
             )}
           </Link>
-        ) : p.type === "PACKAGING" && p.packagingItem ? (
+        ) : p.type === "PACKAGING" ? (
           <Link
             href={p.packagingOrder ? `/packaging-orders/${p.packagingOrder.id}` : `/payments/${p.id}/edit`}
             className="block text-base font-semibold text-slate-900 hover:underline"
           >
-            {p.packagingItem.name}
+            {/* П2: даже без привязки к позиции платёж подписан — PKG-номер · позиции · поставщик */}
+            {p.packagingItem?.name ??
+              (p.packagingOrder?.lines?.map((l) => l.packagingItem.name).join(", ") || paymentTargetLabel(p))}
           </Link>
         ) : (
           <div className="text-base font-semibold text-slate-700">{counterparty ?? "—"}</div>
