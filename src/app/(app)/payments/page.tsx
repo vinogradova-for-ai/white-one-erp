@@ -487,12 +487,18 @@ async function ListView({
     status: "PENDING",
     ...(typeFilter ? { type: typeFilter } : {}),
   };
-  const payments = await prisma.payment.findMany({
+  const allPayments = await prisma.payment.findMany({
     where,
     orderBy: { plannedDate: "asc" },
     take: 500,
     include: PAYMENT_INCLUDE,
   });
+
+  // Топ-7 UX-аудита (подтверждено Алёной): «просрочен 0 ₽» — это авто-платежи
+  // заказов без цены, они мусорят список. Скрываем, вместо них одна строка
+  // со ссылкой на «Дыры в данных», где цены и заполняются.
+  const zeroCount = allPayments.filter((p) => Number(p.amount) === 0).length;
+  const payments = allPayments.filter((p) => Number(p.amount) > 0);
 
   const total = payments.reduce((a, p) => a + Number(p.amount), 0);
   const overdue = payments.filter((p) => p.plannedDate < todayStart).reduce((a, p) => a + Number(p.amount), 0);
@@ -504,6 +510,16 @@ async function ListView({
         <Summary title="Просрочено" value={formatCurrency(overdue)} danger={overdue > 0} />
         <Summary title="Платежей" value={String(payments.length)} muted />
       </div>
+
+      {zeroCount > 0 && (
+        <Link
+          href="/data-gaps"
+          className="flex flex-wrap items-baseline gap-x-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 hover:bg-amber-100 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300 dark:hover:bg-amber-400/20"
+        >
+          <span className="font-medium">{zeroCount} {pluralPayments(zeroCount)} без суммы — заполните цены заказов</span>
+          <span className="text-xs opacity-80">скрыты из списка · открыть «Дыры в данных» →</span>
+        </Link>
+      )}
 
       {payments.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">
@@ -685,6 +701,15 @@ function BigCard({
 // ──────────────────────────────────────────────────────────────────────────────
 // Хэлперы
 // ──────────────────────────────────────────────────────────────────────────────
+function pluralPayments(n: number): string {
+  const m100 = n % 100;
+  const m10 = n % 10;
+  if (m100 >= 11 && m100 <= 14) return "платежей";
+  if (m10 === 1) return "платёж";
+  if (m10 >= 2 && m10 <= 4) return "платежа";
+  return "платежей";
+}
+
 function Tab({ href, active, label }: { href: string; active: boolean; label: string }) {
   return (
     <Link
