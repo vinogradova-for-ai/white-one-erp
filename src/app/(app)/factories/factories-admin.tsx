@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 export type FactoryRow = {
   id: string;
   name: string;
+  kind: "SEWING" | "PACKAGING";
   country: string;
   city: string | null;
   contactName: string | null;
@@ -19,6 +20,7 @@ export type FactoryRow = {
 
 type FormState = {
   name: string;
+  kind: "SEWING" | "PACKAGING";
   country: string;
   city: string;
   contactName: string;
@@ -30,6 +32,7 @@ type FormState = {
 
 const EMPTY_FORM: FormState = {
   name: "",
+  kind: "SEWING",
   country: "",
   city: "",
   contactName: "",
@@ -60,6 +63,7 @@ export function FactoriesAdmin({ initialFactories }: { initialFactories: Factory
     setEditingId(f.id);
     setForm({
       name: f.name,
+      kind: f.kind,
       country: f.country,
       city: f.city ?? "",
       contactName: f.contactName ?? "",
@@ -87,6 +91,7 @@ export function FactoriesAdmin({ initialFactories }: { initialFactories: Factory
     const capacity = form.capacityPerMonth.trim();
     const payload = {
       name: form.name.trim(),
+      kind: form.kind,
       country: form.country.trim(),
       city: form.city.trim() || null,
       contactName: form.contactName.trim() || null,
@@ -171,6 +176,21 @@ export function FactoriesAdmin({ initialFactories }: { initialFactories: Factory
                 className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
                 placeholder="Фабрика Гуанчжоу №1"
               />
+            </label>
+
+            <label className="block">
+              <span className="mb-1 block text-sm text-slate-700">Тип *</span>
+              <select
+                value={form.kind}
+                onChange={(e) => setForm({ ...form, kind: e.target.value as FormState["kind"] })}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+              >
+                <option value="SEWING">Швейная</option>
+                <option value="PACKAGING">Упаковка</option>
+              </select>
+              <span className="mt-1 block text-xs text-slate-500">
+                Упаковочные не показываются в формах фасона и заказа на пошив.
+              </span>
             </label>
 
             <label className="block">
@@ -296,7 +316,18 @@ export function FactoriesAdmin({ initialFactories }: { initialFactories: Factory
               const canDelete = usedCount === 0;
               return (
                 <tr key={f.id} className={f.isActive ? "" : "bg-slate-50 text-slate-500"}>
-                  <td className="px-3 py-2 font-medium">{f.name}</td>
+                  <td className="px-3 py-2 font-medium">
+                    {f.name}
+                    <span
+                      className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                        f.kind === "PACKAGING"
+                          ? "bg-amber-100 text-amber-800 dark:bg-amber-400/10 dark:text-amber-300"
+                          : "bg-blue-50 text-blue-700 dark:bg-blue-400/10 dark:text-blue-300"
+                      }`}
+                    >
+                      {f.kind === "PACKAGING" ? "упаковка" : "швейная"}
+                    </span>
+                  </td>
                   <td className="px-3 py-2 text-xs">
                     {f.country}
                     {f.city ? `, ${f.city}` : ""}

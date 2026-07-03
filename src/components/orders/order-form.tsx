@@ -36,6 +36,7 @@ type ModelOption = {
   id: string;
   name: string;
   photoUrl: string | null;
+  countryOfOrigin: string | null;
   preferredFactoryId: string | null;
   customerPrice: string | null;
   fullCost: string | null;
@@ -51,7 +52,7 @@ type ModelOption = {
   packaging: PackagingItem[];
 };
 
-type Option = { id: string; name: string };
+type Option = { id: string; name: string; country?: string };
 
 type LineInput = {
   variantId: string;
@@ -498,8 +499,22 @@ export function OrderForm({
         <Field label="Фабрика">
           <select value={common.factoryId} onChange={(e) => setCommon({ ...common, factoryId: e.target.value })} className={inputCls}>
             <option value="">— как в фасоне —</option>
-            {factories.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            {factories.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}{f.country ? ` · ${f.country}` : ""}
+              </option>
+            ))}
           </select>
+          {(() => {
+            // П6: фабрика не из страны производства фасона — подсветка.
+            const sel = factories.find((f) => f.id === common.factoryId);
+            const modelCountry = model?.countryOfOrigin;
+            return sel?.country && modelCountry && sel.country !== modelCountry ? (
+              <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                ⚠ Фабрика «{sel.name}» из {sel.country}, а страна фасона — {modelCountry}. Проверьте.
+              </p>
+            ) : null;
+          })()}
         </Field>
         <Field label="Ответственный *">
           <select value={common.ownerId} onChange={(e) => setCommon({ ...common, ownerId: e.target.value })} className={inputCls}>

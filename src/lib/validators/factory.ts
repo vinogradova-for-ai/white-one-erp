@@ -2,6 +2,8 @@ import { z } from "zod";
 
 export const factoryCreateSchema = z.object({
   name: z.string().min(1, "Название обязательно").max(200),
+  // Тип: швейная или поставщик упаковки (П6). В формах фасона/заказа — только швейные.
+  kind: z.enum(["SEWING", "PACKAGING"]).optional(),
   country: z.string().min(1, "Страна обязательна").max(100),
   city: z.string().max(100).optional().nullable(),
   contactName: z.string().max(200).optional().nullable(),

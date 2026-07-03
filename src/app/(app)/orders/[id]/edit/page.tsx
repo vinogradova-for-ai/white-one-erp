@@ -25,7 +25,8 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
         },
       },
     }),
-    prisma.factory.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    // П6: в форме заказа на пошив — только швейные фабрики.
+    prisma.factory.findMany({ where: { isActive: true, kind: "SEWING" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.user.findMany({
       where: { isActive: true },
       select: { id: true, name: true },

@@ -181,8 +181,28 @@ export function ModelEditForm({
         <Field label="Фабрика (по умолчанию)">
           <select value={form.preferredFactoryId} onChange={(e) => setForm({ ...form, preferredFactoryId: e.target.value })} className={inputCls}>
             <option value="">—</option>
-            {factories.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            <optgroup label={form.countryOfOrigin}>
+              {factories.filter((f) => f.country === form.countryOfOrigin).map((f) => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </optgroup>
+            {factories.some((f) => f.country !== form.countryOfOrigin) && (
+              <optgroup label="Другие страны">
+                {factories.filter((f) => f.country !== form.countryOfOrigin).map((f) => (
+                  <option key={f.id} value={f.id}>{f.name} · {f.country}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
+          {(() => {
+            // П6: фабрика не из страны производства — подсветка, не тихая подмена.
+            const sel = factories.find((f) => f.id === form.preferredFactoryId);
+            return sel && sel.country && sel.country !== form.countryOfOrigin ? (
+              <span className="mt-1 block text-xs font-medium text-amber-700 dark:text-amber-300">
+                ⚠ Фабрика «{sel.name}» из {sel.country}, а страна производства — {form.countryOfOrigin}. Проверьте.
+              </span>
+            ) : null;
+          })()}
           <span className="mt-1 block text-xs text-slate-500">
             Предлагается при создании заказов, в каждом заказе можно поменять.
           </span>

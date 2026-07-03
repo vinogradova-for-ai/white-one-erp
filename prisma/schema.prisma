@@ -205,9 +205,18 @@ model User {
 // FACTORY
 // ======================================================
 
+// Тип фабрики (П6 UX-аудита): швейная или поставщик упаковки.
+// В формах фасона/заказа показываются только швейные —
+// упаковщики больше не всплывают в списке фабрик пошива.
+enum FactoryKind {
+  SEWING
+  PACKAGING
+}
+
 model Factory {
   id               String   @id @default(cuid())
   name             String   @unique
+  kind             FactoryKind @default(SEWING)
   country          String
   city             String?
   contactName      String?

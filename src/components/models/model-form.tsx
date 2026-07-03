@@ -57,7 +57,7 @@ export function ModelForm({
     subcategory: "",
     artikulStyle: "", // метка для латинского артикула (kimono/halter/atlas); пусто = из названия
     countryOfOrigin: "Китай",
-    preferredFactoryId: factories.find((f) => f.country === "Китай")?.id ?? factories[0]?.id ?? "",
+    preferredFactoryId: factories.find((f) => f.country === "Китай")?.id ?? "",
     sizeGridId: sizeGrids[0]?.id ?? "",
     developmentType: "OWN" as "OWN" | "REPEAT",
     isRepeat: false,
@@ -88,11 +88,18 @@ export function ModelForm({
     setForm((f) => ({ ...f, [key]: value }));
     if (key === "countryOfOrigin") {
       const country = value as string;
-      const firstFactory = factories.find((f) => f.country === country);
-      if (firstFactory) setForm((f) => ({ ...f, preferredFactoryId: firstFactory.id }));
+      // П6 UX-аудита: при смене страны фабрику НЕ подменяем молча —
+      // несоответствие подсвечивается под селектом фабрики.
       setForm((f) => ({ ...f, fabricCurrency: country === "Россия" ? "RUB" : "CNY" }));
     }
   }
+
+  // Фабрика выбрана, но не из страны производства — честная подсветка вместо тихой подмены.
+  const selectedFactory = factories.find((f) => f.id === form.preferredFactoryId);
+  const factoryCountryMismatch =
+    !!selectedFactory && !!selectedFactory.country && selectedFactory.country !== form.countryOfOrigin;
+  const factoriesInCountry = factories.filter((f) => f.country === form.countryOfOrigin);
+  const factoriesElsewhere = factories.filter((f) => f.country !== form.countryOfOrigin);
 
   // Варианты метки артикула из названия+особенностей и текущая выбранная метка.
   const styleVariants = styleCandidates(form.name, form.category, form.subcategory);
@@ -261,8 +268,20 @@ export function ModelForm({
         <Field label="Фабрика (по умолчанию)">
           <select value={form.preferredFactoryId} onChange={(e) => update("preferredFactoryId", e.target.value)} className={inputCls}>
             <option value="">—</option>
-            {factories.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            <optgroup label={form.countryOfOrigin}>
+              {factoriesInCountry.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </optgroup>
+            {factoriesElsewhere.length > 0 && (
+              <optgroup label="Другие страны">
+                {factoriesElsewhere.map((f) => <option key={f.id} value={f.id}>{f.name} · {f.country}</option>)}
+              </optgroup>
+            )}
           </select>
+          {factoryCountryMismatch && (
+            <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+              ⚠ Фабрика «{selectedFactory!.name}» из {selectedFactory!.country}, а страна производства — {form.countryOfOrigin}. Проверьте.
+            </p>
+          )}
         </Field>
         <Field label="Размерная сетка">
           <SizeGridPicker

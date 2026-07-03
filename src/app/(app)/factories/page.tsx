@@ -12,6 +12,7 @@ export default async function FactoriesAdminPage() {
   const rows: FactoryRow[] = factories.map((f) => ({
     id: f.id,
     name: f.name,
+    kind: f.kind,
     country: f.country,
     city: f.city,
     contactName: f.contactName,

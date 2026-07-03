@@ -12,7 +12,8 @@ export default async function NewModelPage() {
       orderBy: { name: "asc" },
     }),
     prisma.factory.findMany({
-      where: { isActive: true },
+      // П6: в форме фасона — только швейные фабрики.
+      where: { isActive: true, kind: "SEWING" },
       select: { id: true, name: true, country: true },
       orderBy: { name: "asc" },
     }),
