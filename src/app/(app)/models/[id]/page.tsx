@@ -9,9 +9,9 @@ import {
   ORDER_STATUS_COLORS,
   BRAND_LABELS,
 } from "@/lib/constants";
-import { PhotoGallery } from "@/components/common/photo-thumb";
-import { VariantVisual } from "@/components/common/variant-visual";
+import { PhotoGallery, PhotoThumb } from "@/components/common/photo-thumb";
 import { ColorChip } from "@/components/common/color-chip";
+import { colorHexFromName, isLightColor } from "@/lib/color-map";
 import { DeleteButton } from "@/components/common/delete-button";
 import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
 import { CommentsThread } from "@/components/comments/comments-thread";
@@ -352,12 +352,21 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
                 href={`/variants/${v.id}`}
                 className="group flex items-center gap-3 rounded-2xl bg-white p-3 transition hover:bg-slate-50"
               >
-                <VariantVisual
-                  variantPhotoUrl={v.photoUrls[0] ?? null}
-                  modelPhotoUrl={model.photoUrls[0] ?? null}
-                  colorName={v.colorName}
-                  size={48}
-                />
+                {/* §4 UX-аудита: без фоллбэка на фото фасона — у цвета без своего
+                    фото серая заглушка с кружком, сразу видно где дыра */}
+                {v.photoUrls[0] ? (
+                  <PhotoThumb url={v.photoUrls[0]} size={48} />
+                ) : (
+                  <div
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-100 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700"
+                    title={`${v.colorName} — фото не загружено`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 rounded-full ${isLightColor(colorHexFromName(v.colorName)) ? "ring-1 ring-slate-300" : ""}`}
+                      style={{ backgroundColor: colorHexFromName(v.colorName) }}
+                    />
+                  </div>
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium text-slate-900">
                     <ColorChip name={v.colorName} />

@@ -6,6 +6,7 @@ import { CATEGORIES, BRAND_LABELS, DEFAULT_CNY_RUB_RATE } from "@/lib/constants"
 import { Brand } from "@prisma/client";
 import { DropzonePhotos } from "@/components/common/dropzone-photos";
 import { SizeGridPicker } from "@/components/common/size-grid-picker";
+import { FormProgressNav } from "@/components/common/form-progress-nav";
 
 type Option = { id: string; name: string; country?: string };
 type SizeGridOption = { id: string; name: string; sizes: string[] };
@@ -141,9 +142,20 @@ export function ModelEditForm({
     }
   }
 
+  // §4 UX-аудита: якоря-прогресс по секциям (закон «длинная форма с прогрессом»).
+  const navSections = [
+    { id: "mesec-main", title: "Основное", filled: form.name.trim().length > 0 },
+    { id: "mesec-production", title: "Производство", filled: !!form.preferredFactoryId && !!form.sizeGridId },
+    { id: "mesec-cost", title: "Себестоимость", filled: !!(form.purchasePriceRub || form.purchasePriceCny) },
+    { id: "mesec-fabric", title: "Ткань", filled: !!(form.fabricName.trim() || form.fabricComposition.trim()) },
+    { id: "mesec-photos", title: "Фото", filled: form.photoUrls.length > 0 },
+    { id: "mesec-docs", title: "Документация", filled: form.patternsUrl.trim().length > 0 },
+  ];
+
   return (
     <form id="model-edit-form" onSubmit={onSubmit} className="space-y-6">
-      <Section title="Основное">
+      <FormProgressNav sections={navSections} />
+      <Section id="mesec-main" title="Основное">
         <Field label="Название *" full>
           <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} />
         </Field>
@@ -170,7 +182,7 @@ export function ModelEditForm({
         </Field>
       </Section>
 
-      <Section title="Производство">
+      <Section id="mesec-production" title="Производство">
         <Field label="Страна *">
           <select value={form.countryOfOrigin} onChange={(e) => setForm({ ...form, countryOfOrigin: e.target.value })} className={inputCls}>
             <option>Россия</option>
@@ -216,7 +228,7 @@ export function ModelEditForm({
         </Field>
       </Section>
 
-      <Section title="Себестоимость">
+      <Section id="mesec-cost" title="Себестоимость">
         <Field label="Цена за единицу" full>
           <div className="flex items-stretch gap-2">
             <input
@@ -296,7 +308,7 @@ export function ModelEditForm({
         ) : null}
       </Section>
 
-      <Section title="Ткань (опционально)">
+      <Section id="mesec-fabric" title="Ткань (опционально)">
         <Field label="Название ткани">
           <input value={form.fabricName} onChange={(e) => setForm({ ...form, fabricName: e.target.value })} className={inputCls} placeholder="Диагональ" />
         </Field>
@@ -329,13 +341,13 @@ export function ModelEditForm({
         </div>
       </details>
 
-      <Section title="Фото фасона">
+      <Section id="mesec-photos" title="Фото фасона">
         <div className="md:col-span-2">
           <DropzonePhotos value={form.photoUrls} onChange={(urls) => setForm({ ...form, photoUrls: urls })} />
         </div>
       </Section>
 
-      <Section title="Документация (Google Drive / Яндекс.Диск)">
+      <Section id="mesec-docs" title="Документация (Google Drive / Яндекс.Диск)">
         <Field label="Ссылка на папку с материалами" full>
           <input
             type="url"
@@ -363,9 +375,9 @@ export function ModelEditForm({
 
 const inputCls = "min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, id }: { title: string; children: React.ReactNode; id?: string }) {
   return (
-    <fieldset className="space-y-3">
+    <fieldset id={id} className="space-y-3 scroll-mt-24">
       <legend className="text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</legend>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{children}</div>
     </fieldset>

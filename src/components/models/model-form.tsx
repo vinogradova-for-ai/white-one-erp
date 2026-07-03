@@ -10,6 +10,7 @@ import { SizeGridPicker } from "@/components/common/size-grid-picker";
 import { PackagingPicker } from "@/components/common/packaging-picker";
 import { parseApiError, type ApiErrorResult } from "@/lib/api-error";
 import { FormErrorBanner, FieldError } from "@/components/common/form-errors";
+import { FormProgressNav } from "@/components/common/form-progress-nav";
 
 type Option = { id: string; name: string; country?: string };
 type SizeGridOption = { id: string; name: string; sizes: string[] };
@@ -227,9 +228,22 @@ export function ModelForm({
   // Чужой бренд в артикуле запрещён (товарный знак, WB блокирует).
   const bannedBrand = findBannedBrand(styleUsed) || findBannedBrand(form.name);
 
+  // §4 UX-аудита: якоря-прогресс по секциям (закон «длинная форма с прогрессом»).
+  const navSections = [
+    { id: "msec-main", title: "Основное", filled: form.name.trim().length > 0 },
+    { id: "msec-production", title: "Производство", filled: !!form.preferredFactoryId && !!form.sizeGridId },
+    { id: "msec-artikul", title: "Артикул", filled: form.name.trim().length > 0 },
+    { id: "msec-fabric", title: "Ткань", filled: !!(form.fabricName.trim() || form.fabricComposition.trim()) },
+    { id: "msec-cost", title: "Себестоимость", filled: !!(form.purchasePriceRub || form.purchasePriceCny) },
+    { id: "msec-photos", title: "Фото", filled: form.photoUrls.length > 0 },
+    { id: "msec-docs", title: "Документация", filled: form.patternsUrl.trim().length > 0 },
+    { id: "msec-packaging", title: "Упаковка", filled: form.packagingPicks.length > 0 },
+  ];
+
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      <Section title="Основное">
+      <FormProgressNav sections={navSections} />
+      <Section id="msec-main" title="Основное">
         <Field label="Название фасона *" full>
           <input required value={form.name} onChange={(e) => update("name", e.target.value)} className={inputCls} placeholder="Пальто Классика Двубортное Миди" />
           <FieldError error={apiErr} field="name" />
@@ -257,7 +271,7 @@ export function ModelForm({
         </Field>
       </Section>
 
-      <Section title="Производство">
+      <Section id="msec-production" title="Производство">
         <Field label="Страна *">
           <select value={form.countryOfOrigin} onChange={(e) => update("countryOfOrigin", e.target.value)} className={inputCls}>
             <option>Россия</option>
@@ -295,7 +309,7 @@ export function ModelForm({
         </Field>
       </Section>
 
-      <Section title="Артикул (vendorCode на WB)">
+      <Section id="msec-artikul" title="Артикул (vendorCode на WB)">
         {latin && (
           <Field label="Метка фасона (англ.)">
             <div className="flex items-stretch gap-2">
@@ -342,7 +356,7 @@ export function ModelForm({
         </Field>
       </Section>
 
-      <Section title="Ткань (опционально)">
+      <Section id="msec-fabric" title="Ткань (опционально)">
         <Field label="Название ткани">
           <input value={form.fabricName} onChange={(e) => update("fabricName", e.target.value)} className={inputCls} placeholder="Диагональ" />
         </Field>
@@ -351,7 +365,7 @@ export function ModelForm({
         </Field>
       </Section>
 
-      <Section title="Себестоимость">
+      <Section id="msec-cost" title="Себестоимость">
         <Field label="Цена за единицу" full>
           <div className="flex items-stretch gap-2">
             <input
@@ -422,7 +436,7 @@ export function ModelForm({
         ) : null}
       </Section>
 
-      <Section title="Фото фасона">
+      <Section id="msec-photos" title="Фото фасона">
         <div className="md:col-span-2">
           <DropzonePhotos value={form.photoUrls} onChange={(urls) => setForm((f) => ({ ...f, photoUrls: urls }))} />
           <p className="mt-1 text-xs text-slate-500">
@@ -431,7 +445,7 @@ export function ModelForm({
         </div>
       </Section>
 
-      <Section title="Документация (Google Drive / Яндекс.Диск)">
+      <Section id="msec-docs" title="Документация (Google Drive / Яндекс.Диск)">
         <Field label="Ссылка на папку с материалами" full>
           <input
             type="url"
@@ -446,7 +460,7 @@ export function ModelForm({
         </Field>
       </Section>
 
-      <Section title="Комплект упаковки">
+      <Section id="msec-packaging" title="Комплект упаковки">
         <div className="md:col-span-2 space-y-2">
           {form.packagingPicks.length > 0 ? (
             <div className="space-y-2">
@@ -511,9 +525,9 @@ export function ModelForm({
 
 const inputCls = "min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, id }: { title: string; children: React.ReactNode; id?: string }) {
   return (
-    <fieldset className="space-y-3">
+    <fieldset id={id} className="space-y-3 scroll-mt-24">
       <legend className="text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</legend>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{children}</div>
     </fieldset>
