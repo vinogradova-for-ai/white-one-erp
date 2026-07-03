@@ -16,7 +16,10 @@ import { DeleteButton } from "@/components/common/delete-button";
 import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
 import { CommentsThread } from "@/components/comments/comments-thread";
 import { SamplesSection } from "@/components/models/samples-section";
+import { ModelStageBadge } from "@/components/models/model-stage-badge";
 import { auth } from "@/lib/auth";
+import { can } from "@/lib/rbac";
+import type { Role } from "@prisma/client";
 
 export default async function ModelDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -97,6 +100,18 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
           </div>
           <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900 md:text-3xl">{model.name}</h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <ModelStageBadge
+              modelId={model.id}
+              status={model.status}
+              sizeChartReady={model.sizeChartReady}
+              canEdit={
+                sessionUser?.role
+                  ? can(sessionUser.role as Role, "product.updateStatus", model.ownerId, currentUserId)
+                  : false
+              }
+              hasActiveOrder={model.orders.length > 0}
+            />
+            <span>·</span>
             <span>{model.variants.length} цветов</span>
             <span>·</span>
             <span>{model.owner.name}</span>
