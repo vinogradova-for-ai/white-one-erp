@@ -21,6 +21,11 @@ export const shipmentAddOrderSchema = z.object({
   orderId: z.string().min(1),
 });
 
+// Собрать поставку из выбранных заказов («Заказы в пути», чекбоксы).
+export const shipmentFromOrdersSchema = z.object({
+  orderIds: z.array(z.string().min(1)).min(1, "Выберите хотя бы один заказ"),
+});
+
 // Убрать партию из поставки.
 export const shipmentRemoveBatchSchema = z.object({
   batchId: z.string().min(1),
