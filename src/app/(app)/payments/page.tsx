@@ -11,6 +11,7 @@ import { toKopecks } from "@/lib/payments/allocate-payout";
 import { getOverdueDebt, formatOverdueDebt } from "@/lib/queries/overdue-debt";
 import { paymentTargetLabel } from "@/lib/payments/display-name";
 import { ListGroupTabs } from "@/components/payments/list-group-tabs";
+import { PaymentsBulkList, type PaymentListItem } from "@/components/payments/payments-bulk-list";
 
 type View = "calendar" | "list" | "archive" | "payouts";
 
@@ -495,6 +496,11 @@ async function ListView({
   group: "date" | "factory";
   hasExplicitGroupParam: boolean;
 }) {
+  const session = await auth();
+  const role = (session?.user as { role?: Role } | undefined)?.role;
+  // Чекбоксы массовой отметки — только тем, кто вправе отмечать оплату.
+  const canMarkPaid = role ? can(role, "payment.markPaid") : false;
+
   const where: Prisma.PaymentWhereInput = {
     status: "PENDING",
     ...(typeFilter ? { type: typeFilter } : {}),
@@ -514,6 +520,31 @@ async function ListView({
 
   const total = payments.reduce((a, p) => a + Number(p.amount), 0);
   const overdue = payments.filter((p) => p.plannedDate < todayStart).reduce((a, p) => a + Number(p.amount), 0);
+
+  // Сериализация для клиентского списка с чекбоксами (§4 UX-аудита: массовая отметка).
+  const listItems: PaymentListItem[] = payments.map((p) => {
+    const subject =
+      p.type === "ORDER"
+        ? (p.order?.productModel.name ?? p.factory?.name ?? p.label)
+        : (p.packagingItem?.name ??
+            (p.packagingOrder?.lines?.map((l) => l.packagingItem.name).join(", ") || paymentTargetLabel(p)));
+    return {
+      id: p.id,
+      plannedDateIso: p.plannedDate.toISOString(),
+      amount: p.amount.toString(),
+      label: p.label,
+      type: p.type,
+      subject,
+      colorNames:
+        p.type === "ORDER" && p.order && p.order.lines.length > 0
+          ? p.order.lines.map((l) => l.productVariant.colorName).join(", ")
+          : null,
+      counterparty:
+        p.type === "ORDER" ? (p.factory?.name ?? null) : (p.supplierName ?? p.packagingOrder?.supplierName ?? null),
+      orderNumber: p.type === "ORDER" ? (p.order?.orderNumber ?? null) : (p.packagingOrder?.orderNumber ?? null),
+      href: paymentTargetHref(p),
+    };
+  });
 
   return (
     <>
@@ -539,61 +570,15 @@ async function ListView({
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">
           Предстоящих платежей нет.
         </div>
-      ) : group === "date" ? (
-        <div className="space-y-2">
-          {payments.map((p) => (
-            <BigCard key={p.id} p={p} todayStart={todayStart} />
-          ))}
-        </div>
       ) : (
-        <FactoryGroups payments={payments} todayStart={todayStart} />
+        <PaymentsBulkList
+          items={listItems}
+          group={group}
+          canMarkPaid={canMarkPaid}
+          todayIso={moscowTodayIso().slice(0, 10)}
+        />
       )}
     </>
-  );
-}
-
-// «Предстоящие» по фабрикам: итог по каждой («Сердцебиение: 9,8 млн»),
-// внутри — те же карточки от ближайшей даты (топ-12).
-function FactoryGroups({
-  payments,
-  todayStart,
-}: {
-  payments: PaymentWithRelations[];
-  todayStart: Date;
-}) {
-  const groups = new Map<string, { name: string; items: PaymentWithRelations[] }>();
-  for (const p of payments) {
-    const name =
-      p.type === "ORDER"
-        ? (p.factory?.name ?? "Фабрика не указана")
-        : (p.supplierName ?? p.packagingOrder?.supplierName ?? "Упаковка · поставщик не указан");
-    const g = groups.get(name) ?? { name, items: [] };
-    g.items.push(p);
-    groups.set(name, g);
-  }
-  const sorted = [...groups.values()].sort((a, b) => sum(b.items) - sum(a.items));
-
-  function sum(items: PaymentWithRelations[]): number {
-    return items.reduce((a, p) => a + Number(p.amount), 0);
-  }
-
-  return (
-    <div className="space-y-5">
-      {sorted.map((g) => (
-        <section key={g.name}>
-          <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 px-1">
-            <h3 className="text-sm font-semibold text-slate-900">{g.name}</h3>
-            <span className="text-sm font-semibold text-slate-700">{formatCurrency(sum(g.items))}</span>
-            <span className="text-xs text-slate-500">{g.items.length} шт</span>
-          </div>
-          <div className="space-y-2">
-            {g.items.map((p) => (
-              <BigCard key={p.id} p={p} todayStart={todayStart} />
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
   );
 }
 
