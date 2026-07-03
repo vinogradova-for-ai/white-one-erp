@@ -8,6 +8,7 @@ import { PayoutsPanel, type PayoutListItem } from "@/components/payments/payouts
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { toKopecks } from "@/lib/payments/allocate-payout";
+import { getOverdueDebt, formatOverdueDebt } from "@/lib/queries/overdue-debt";
 
 type View = "calendar" | "list" | "archive" | "payouts";
 
@@ -48,6 +49,10 @@ export default async function PaymentsPage({
   const typeFilter = sp.type === "ORDER" || sp.type === "PACKAGING" ? (sp.type as PaymentType) : null;
   const q = (sp.q ?? "").trim();
 
+  // Единая правда о долге (П1): все просроченные PENDING без нулевых,
+  // НЕ зависит от выбранного месяца — блок не исчезает при листании.
+  const overdueDebt = await getOverdueDebt(today);
+
   return (
     <div className="space-y-4">
       <div className="flex items-baseline justify-between gap-3">
@@ -76,6 +81,21 @@ export default async function PaymentsPage({
         <FilterPill href={hrefWith(sp, { view, type: "ORDER" })} active={typeFilter === "ORDER"} label="Фабрики" />
         <FilterPill href={hrefWith(sp, { view, type: "PACKAGING" })} active={typeFilter === "PACKAGING"} label="Упаковка" />
       </div>
+      )}
+
+      {/* Закреплённый блок долга — виден на всех вкладках планов, при любом месяце */}
+      {view !== "payouts" && overdueDebt.count > 0 && (
+        <Link
+          href="/payments?view=list"
+          className="flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm hover:bg-red-100 dark:border-red-400/30 dark:bg-red-400/10 dark:hover:bg-red-400/20"
+        >
+          <span className="font-semibold text-red-700 dark:text-red-300">
+            Просрочено ранее: {formatOverdueDebt(overdueDebt)}
+          </span>
+          <span className="text-xs text-red-600/80 dark:text-red-300/80">
+            все неоплаченные с датой раньше сегодня, за всё время →
+          </span>
+        </Link>
       )}
 
       {view === "calendar" && (
@@ -202,9 +222,6 @@ async function CalendarView({
   const pending = total - paid;
   // МСК-полночь (UTC-база) — согласуется с UTC-датами ячеек календаря ниже.
   const todayStart = moscowTodayStart();
-  const overdue = payments
-    .filter((p) => p.status === "PENDING" && p.plannedDate < todayStart)
-    .reduce((a, p) => a + Number(p.amount), 0);
 
   const prevMonth = new Date(Date.UTC(y, m - 2, 1));
   const nextMonth = new Date(Date.UTC(y, m, 1));
@@ -223,12 +240,12 @@ async function CalendarView({
 
   return (
     <>
-      {/* Сводка */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Summary title="К оплате" value={formatCurrency(pending)} />
+      {/* Сводка месяца. Просрочка здесь НЕ показывается по месяцу —
+          единая цифра долга в красном блоке выше (П1: одна правда о долге). */}
+      <div className="grid grid-cols-3 gap-3">
+        <Summary title="К оплате в этом месяце" value={formatCurrency(pending)} />
         <Summary title="Оплачено" value={formatCurrency(paid)} muted />
         <Summary title="Всего" value={formatCurrency(total)} muted />
-        <Summary title="Просрочено" value={formatCurrency(overdue)} danger={overdue > 0} />
       </div>
 
       {/* Навигация по месяцам — на мобиле у боковых кнопок только стрелка, чтобы влезало */}

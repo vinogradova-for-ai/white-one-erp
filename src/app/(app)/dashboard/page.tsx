@@ -15,6 +15,7 @@ import { MoneyTaskRow } from "@/components/dashboard/money-task-row";
 import { can } from "@/lib/rbac";
 import type { Role } from "@prisma/client";
 import { getDataGaps, countGaps } from "@/lib/queries/data-gaps";
+import { getOverdueDebt, formatOverdueDebt } from "@/lib/queries/overdue-debt";
 import { getRecentEvents, type DailyEvent } from "@/lib/queries/daily-events";
 
 // «сегодня 14:05» / «вчера 18:30» по МСК для ленты событий.
@@ -70,7 +71,11 @@ export default async function DashboardPage({
 
   const all = await getMainScreenChecklist();
   const groups = groupByOwner(all);
-  const [gaps, recentEvents] = await Promise.all([getDataGaps(), getRecentEvents()]);
+  const [gaps, recentEvents, overdueDebt] = await Promise.all([
+    getDataGaps(),
+    getRecentEvents(),
+    getOverdueDebt(), // та же цифра, что в красном блоке на /payments (П1)
+  ]);
   const gapsCount = countGaps(gaps);
 
   // Кабинет общий — разбивку задач по сотрудникам видят ВСЕ (прозрачность), не только админ.
@@ -103,6 +108,14 @@ export default async function DashboardPage({
             </p>
           ) : (
             <p className="text-sm text-emerald-700 dark:text-emerald-300">Всё под контролем. Срочного нет.</p>
+          )}
+          {overdueDebt.count > 0 && (
+            <Link
+              href="/payments?view=list"
+              className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700 hover:bg-red-100 dark:bg-red-400/10 dark:text-red-300 dark:hover:bg-red-400/20"
+            >
+              Долг фабрикам: {formatOverdueDebt(overdueDebt)} →
+            </Link>
           )}
           {gapsCount > 0 && (
             <Link
