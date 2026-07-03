@@ -106,11 +106,21 @@ export function OrderForm({
   const [error, setError] = useState<string | null>(null);
   const [apiErr, setApiErr] = useState<ApiErrorResult | null>(null);
 
-  const [modelId, setModelId] = useState(preselectedModelId ?? models[0]?.id ?? "");
+  // Фасон НЕ предвыбран (топ-4 UX-аудита): раньше подставлялся первый по
+  // алфавиту — риск заказа «не туда». Теперь дефолт «— выберите —».
+  const [modelId, setModelId] = useState(preselectedModelId ?? "");
   const model = useMemo(() => models.find((m) => m.id === modelId) ?? null, [models, modelId]);
+  // Поиск по списку фасонов (их 42+, глазами листать долго).
+  const [modelQuery, setModelQuery] = useState("");
+  const filteredModels = useMemo(() => {
+    const q = modelQuery.trim().toLowerCase();
+    if (!q) return models;
+    // Выбранный фасон оставляем в списке всегда, иначе select его «теряет».
+    return models.filter((m) => m.id === modelId || m.name.toLowerCase().includes(q));
+  }, [models, modelQuery, modelId]);
 
   const [lines, setLines] = useState<LineInput[]>(() => {
-    const m = models.find((x) => x.id === (preselectedModelId ?? models[0]?.id));
+    const m = models.find((x) => x.id === preselectedModelId);
     const sizes = m?.sizes ?? [];
     if (preselectedVariantId && m?.variants.some((v) => v.id === preselectedVariantId)) {
       return [{ variantId: preselectedVariantId, sizeDistribution: emptyDistribution(sizes) }];
@@ -132,7 +142,7 @@ export function OrderForm({
   // другую фабрику в форме (например, тестово размещаем на другой) —
   // переопределение действует только для этого заказа.
   const initialFactoryId = (() => {
-    const pref = models.find((m) => m.id === (preselectedModelId ?? models[0]?.id))?.preferredFactoryId;
+    const pref = models.find((m) => m.id === preselectedModelId)?.preferredFactoryId;
     return pref && factories.some((f) => f.id === pref) ? pref : "";
   })();
   // Этап, на который встанет заказ (= колонка канбана). По умолчанию «Разработка»,
@@ -360,17 +370,30 @@ export function OrderForm({
     <form onSubmit={onSubmit} className="space-y-6">
       <Section id="sec-model" title="Фасон">
         <Field label="Фасон *" full>
-          <select
-            required
-            value={modelId}
-            onChange={(e) => onModelChange(e.target.value)}
-            className={inputCls}
-          >
-            <option value="">— выберите —</option>
-            {models.map((m) => (
-              <option key={m.id} value={m.id}>{m.name}</option>
-            ))}
-          </select>
+          <div className="space-y-2">
+            <input
+              type="search"
+              value={modelQuery}
+              onChange={(e) => setModelQuery(e.target.value)}
+              placeholder="Поиск по фасонам…"
+              className={inputCls}
+            />
+            <select
+              required
+              value={modelId}
+              onChange={(e) => onModelChange(e.target.value)}
+              className={inputCls}
+              size={modelQuery.trim() ? Math.min(8, Math.max(2, filteredModels.length)) : undefined}
+            >
+              <option value="">— выберите —</option>
+              {filteredModels.map((m) => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+            {modelQuery.trim() && filteredModels.length === 0 && (
+              <p className="text-xs text-slate-500">Ничего не найдено по «{modelQuery}».</p>
+            )}
+          </div>
         </Field>
       </Section>
 
