@@ -133,13 +133,14 @@ export async function POST(req: NextRequest) {
         data: { orderId: created.id, toStatus: created.status, changedById: session.user.id, comment: "Создание" },
       });
 
-      // Копируем комплект упаковки с фасона
+      // Копируем комплект упаковки с фасона (syncedFromModel: зеркалится с фасоном)
       if (model.packagingItems && model.packagingItems.length > 0) {
         await tx.orderPackaging.createMany({
           data: model.packagingItems.map((mp) => ({
             orderId: created.id,
             packagingItemId: mp.packagingItemId,
             quantityPerUnit: mp.quantityPerUnit,
+            syncedFromModel: true,
           })),
           skipDuplicates: true,
         });

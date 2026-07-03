@@ -51,7 +51,11 @@ export default async function PackagingDetailPage({ params }: { params: Promise<
   );
   const orderTotalQty = (u: (typeof item.orderUsages)[number]) =>
     u.order.lines.reduce((a, l) => a + l.quantity, 0);
-  const required = activeUsages.reduce((s, u) => s + orderTotalQty(u) * Number(u.quantityPerUnit), 0);
+  // Минус уже списанное (заказ в «Упаковке») — не давим на склад дважды (№3).
+  const required = activeUsages.reduce(
+    (s, u) => s + Math.max(0, Math.ceil(orderTotalQty(u) * Number(u.quantityPerUnit)) - (u.consumedQty ?? 0)),
+    0,
+  );
   // «В производстве» = сумма количеств активных линий заказов упаковки (не ARRIVED/CANCELLED)
   const inProduction = item.packagingOrderLines.reduce((a, l) => a + l.quantity, 0);
   const available = item.stock + inProduction;

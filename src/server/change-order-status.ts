@@ -3,6 +3,7 @@ import { logAudit } from "@/server/audit";
 import type { OrderStatus, Role } from "@prisma/client";
 // Единый источник переходов и дат-на-статус — тот же, что читает UI-компонент.
 import { ORDER_TRANSITIONS, ORDER_STATUS_DATE_FIELDS } from "@/lib/status-machine/order-statuses";
+import { ORDER_STATUS_ORDER } from "@/lib/constants";
 
 /**
  * ЕДИНАЯ точка смены статуса заказа.
@@ -128,8 +129,13 @@ export async function changeOrderStatus(params: {
     }));
   }
 
-  // Откат из «Упаковка» назад — возвращаем ранее списанную упаковку на склад.
-  const isLeavingPacking = order.status === "PACKING" && toStatus !== "PACKING";
+  // Возврат упаковки на склад — ТОЛЬКО при откате НАЗАД (до «Упаковки»).
+  // Раньше условие срабатывало и при движении вперёд (PACKING → SHIPPED_WB):
+  // товар физически упакован и уехал, а система «возвращала» упаковку на склад —
+  // остатки завышались с каждым отгруженным заказом (правка Алёны №4, 03.07).
+  const isRollingBackFromPacking =
+    order.status === "PACKING" &&
+    ORDER_STATUS_ORDER.indexOf(toStatus) < ORDER_STATUS_ORDER.indexOf("PACKING");
 
   const dateField = ORDER_STATUS_DATE_FIELDS[toStatus];
   await prisma.$transaction(async (tx) => {
@@ -160,8 +166,8 @@ export async function changeOrderStatus(params: {
       }
     }
 
-    // Откат из PACKING — возвращаем списанное на склад и обнуляем consumedQty.
-    if (isLeavingPacking) {
+    // Откат из PACKING назад — возвращаем списанное на склад и обнуляем consumedQty.
+    if (isRollingBackFromPacking) {
       const consumed = await tx.orderPackaging.findMany({
         where: { orderId, consumedQty: { not: null } },
         select: { id: true, packagingItemId: true, consumedQty: true },

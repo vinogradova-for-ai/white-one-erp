@@ -18,6 +18,7 @@ export default async function PackagingListPage() {
         },
         select: {
           quantityPerUnit: true,
+          consumedQty: true,
           order: { select: { lines: { select: { quantity: true } } } },
         },
       },
@@ -31,7 +32,10 @@ export default async function PackagingListPage() {
   const rows = items.map((i) => {
     const required = i.orderUsages.reduce((sum, u) => {
       const orderQty = u.order.lines.reduce((a, l) => a + l.quantity, 0);
-      return sum + orderQty * Number(u.quantityPerUnit);
+      // Уже списанное со склада (заказ в «Упаковке») не считаем повторно:
+      // иначе одно и то же требование давит и на stock, и на потребность (№3).
+      const remaining = Math.max(0, Math.ceil(orderQty * Number(u.quantityPerUnit)) - (u.consumedQty ?? 0));
+      return sum + remaining;
     }, 0);
     const inProduction = i.packagingOrderLines.reduce((a, l) => a + l.quantity, 0);
     const available = i.stock + inProduction;
