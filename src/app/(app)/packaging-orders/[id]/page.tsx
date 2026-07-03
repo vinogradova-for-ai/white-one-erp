@@ -6,7 +6,11 @@ import { PACKAGING_ORDER_STATUS_LABELS, PACKAGING_ORDER_STATUS_COLORS } from "@/
 import { DELIVERY_METHOD_LABELS } from "@/lib/constants";
 import { PhotoThumb } from "@/components/common/photo-thumb";
 import { PackagingOrderActions } from "@/components/packaging-orders/packaging-order-actions";
-import { PackagingOrderStatus } from "@prisma/client";
+import { MarkPaidButton } from "@/components/payments/mark-paid-button";
+import { auth } from "@/lib/auth";
+import { can } from "@/lib/rbac";
+import { moscowTodayStart } from "@/lib/dates";
+import { PackagingOrderStatus, type Role } from "@prisma/client";
 
 function lineTotalRub(line: {
   quantity: number;
@@ -41,6 +45,12 @@ export default async function PackagingOrderPage({ params }: { params: Promise<{
     },
   });
   if (!order) return notFound();
+
+  // Кнопка «Оплачен» у платежей — те же права, что на /payments (топ-8).
+  const session = await auth();
+  const role = (session?.user as { role?: Role } | undefined)?.role;
+  const canMarkPaid = role ? can(role, "payment.markPaid") : false;
+  const todayStart = moscowTodayStart();
 
   const totalQty = order.lines.reduce((a, l) => a + l.quantity, 0);
   const totalRub = order.lines.reduce((a, l) => a + lineTotalRub(l), 0);
@@ -153,16 +163,35 @@ export default async function PackagingOrderPage({ params }: { params: Promise<{
           </div>
         ) : (
           <div className="space-y-1.5">
-            {order.payments.map((pp) => (
-              <div key={pp.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className={`inline-block h-2 w-2 rounded-full ${pp.status === "PAID" ? "bg-emerald-500" : "bg-amber-400"}`} />
-                  <span className="text-slate-900">{pp.label}</span>
-                  <span className="text-xs text-slate-500">· {formatDate(pp.plannedDate)}</span>
+            {order.payments.map((pp) => {
+              const isPaid = pp.status === "PAID";
+              const overdueDays = !isPaid && pp.plannedDate < todayStart
+                ? Math.floor((todayStart.getTime() - pp.plannedDate.getTime()) / 86_400_000)
+                : 0;
+              return (
+                <div key={pp.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
+                    <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${isPaid ? "bg-emerald-500" : overdueDays > 0 ? "bg-red-500" : "bg-amber-400"}`} />
+                    <span className="text-slate-900">{pp.label}</span>
+                    <span className="text-xs text-slate-500">· {formatDate(pp.plannedDate)}</span>
+                    {/* Статус словами — раньше только точка, «оплачен или нет» было не понять (топ-8) */}
+                    {isPaid ? (
+                      <span className="text-xs text-emerald-700 dark:text-emerald-300">
+                        · оплачен{pp.paidAt ? ` ${formatDate(pp.paidAt)}` : ""}
+                      </span>
+                    ) : overdueDays > 0 ? (
+                      <span className="text-xs font-semibold text-red-600 dark:text-red-300">· просрочен {overdueDays} дн</span>
+                    ) : (
+                      <span className="text-xs text-slate-500">· не оплачен</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm font-medium text-slate-900">{formatCurrency(Number(pp.amount))}</div>
+                    {!isPaid && canMarkPaid && <MarkPaidButton id={pp.id} />}
+                  </div>
                 </div>
-                <div className="text-sm font-medium text-slate-900">{formatCurrency(Number(pp.amount))}</div>
-              </div>
-            ))}
+              );
+            })}
             <div className="pt-1 text-right text-xs text-slate-500">
               Сумма: {formatCurrency(order.payments.reduce((a, p) => a + Number(p.amount), 0))}
             </div>
