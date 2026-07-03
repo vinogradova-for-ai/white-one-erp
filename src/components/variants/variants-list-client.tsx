@@ -70,32 +70,40 @@ export function VariantsListClient({ rows }: { rows: VariantListRow[] }) {
       {/* Мобильная версия — карточки */}
       <div className="md:hidden space-y-2">
         {filtered.map((v) => (
-          <Link
+          <div
             key={v.id}
-            href={`/variants/${v.id}`}
-            className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 active:bg-slate-50"
+            className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3"
           >
-            <VariantVisual
-              variantPhotoUrl={v.photoUrl}
-              modelPhotoUrl={v.modelPhotoUrl}
-              colorName={v.colorName}
-              size={56}
-              hideBadge
-            />
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium text-slate-900">{v.modelName}</div>
-              <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
-                <ColorChip name={v.colorName} />
-                <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${PRODUCT_VARIANT_STATUS_COLORS[v.status]}`}>
-                  {PRODUCT_VARIANT_STATUS_LABELS[v.status]}
-                </span>
+            <Link href={`/variants/${v.id}`} className="flex min-w-0 flex-1 items-center gap-3 active:bg-slate-50">
+              <VariantVisual
+                variantPhotoUrl={v.photoUrl}
+                modelPhotoUrl={v.modelPhotoUrl}
+                colorName={v.colorName}
+                size={56}
+                hideBadge
+              />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium text-slate-900">{v.modelName}</div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs">
+                  <ColorChip name={v.colorName} />
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${PRODUCT_VARIANT_STATUS_COLORS[v.status]}`}>
+                    {PRODUCT_VARIANT_STATUS_LABELS[v.status]}
+                  </span>
+                </div>
+                <div className="mt-1 truncate font-mono text-[11px] text-slate-400">{v.sku}</div>
               </div>
-              <div className="mt-1 truncate font-mono text-[11px] text-slate-400">{v.sku}</div>
+            </Link>
+            <div className="shrink-0 text-right">
+              <div className="text-xs text-slate-500">{v.cost != null ? formatCurrency(v.cost) : "—"}</div>
+              {/* §4 UX-аудита: править цвет прямо из списка */}
+              <Link
+                href={`/variants/${v.id}/edit`}
+                className="mt-1 inline-flex min-h-[36px] items-center rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-600 active:bg-slate-50"
+              >
+                Править
+              </Link>
             </div>
-            <div className="shrink-0 text-right text-xs text-slate-500">
-              {v.cost != null ? formatCurrency(v.cost) : "—"}
-            </div>
-          </Link>
+          </div>
         ))}
         {filtered.length === 0 && (
           <div className="rounded-xl border border-slate-200 bg-white px-6 py-12 text-center text-sm text-slate-500">
@@ -117,6 +125,7 @@ export function VariantsListClient({ rows }: { rows: VariantListRow[] }) {
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Цвет</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Статус</th>
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Себест.</th>
+              <th className="px-3 py-2" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -148,6 +157,14 @@ export function VariantsListClient({ rows }: { rows: VariantListRow[] }) {
                   </span>
                 </td>
                 <td className="px-3 py-2 text-right text-xs">{v.cost != null ? formatCurrency(v.cost) : "—"}</td>
+                <td className="px-3 py-2 text-right">
+                  <Link
+                    href={`/variants/${v.id}/edit`}
+                    className="inline-flex min-h-[32px] items-center rounded-lg border border-slate-300 bg-white px-2.5 text-xs text-slate-600 hover:bg-slate-50"
+                  >
+                    Править
+                  </Link>
+                </td>
               </tr>
             ))}
           </tbody>
