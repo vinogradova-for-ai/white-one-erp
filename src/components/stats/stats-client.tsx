@@ -62,9 +62,14 @@ export function StatsClient({
   const trend = stats.trend.slice(-period);
 
   // Смена фильтра «Ответственный» — через URL (перезапрос серверного расчёта).
+  // Выбранный месяц (?month=) сохраняем — раньше сбрасывался (хэндофф 02.07).
   const setOwner = (ids: string[]) => {
     const id = ids[0] ?? null;
-    router.push(id ? `/stats?owner=${id}` : "/stats");
+    const params = new URLSearchParams(window.location.search);
+    if (id) params.set("owner", id);
+    else params.delete("owner");
+    const qs = params.toString();
+    router.push(qs ? `/stats?${qs}` : "/stats");
   };
 
   const ownerOptions = stats.owners.map((o) => ({ value: o.id, label: o.name }));
