@@ -196,13 +196,25 @@ export function GanttV2Chart({
   const todayLeftPx = posPx(todayIso);
   const todayInRange = todayLeftPx >= 0 && todayLeftPx <= timelinePx;
 
-  // При заходе на страницу скроллим в начало — Алёна жаловалась, что при
-  // авто-скролле к "сегодня" левая колонка с названиями заказов прячется.
+  // Автоскролл к «сегодня» при открытии и смене зума (топ-6 UX-аудита: гант
+  // открывался на марте). Левая колонка теперь sticky, поэтому старая жалоба
+  // «названия прячутся» не воспроизводится: колонка остаётся на месте.
   const scrollRef = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
+  const scrollToToday = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    el.scrollLeft = 0;
+    if (!(todayLeftPx >= 0 && todayLeftPx <= timelinePx)) {
+      el.scrollLeft = 0;
+      return;
+    }
+    // «Сегодня» — примерно на трети видимой области, чтобы видеть и хвост, и будущее.
+    const visible = el.clientWidth - leftColWidth;
+    el.scrollLeft = Math.max(0, todayLeftPx - Math.max(0, visible) * 0.33);
+  }, [todayLeftPx, timelinePx, leftColWidth]);
+  useLayoutEffect(() => {
+    scrollToToday();
+    // Только при открытии и смене зума — не дёргаем скролл на каждый рендер.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoom]);
 
   // ── Автоскролл контейнера при drag у края (как в phase-timeline) ──────────
@@ -253,7 +265,15 @@ export function GanttV2Chart({
   return (
     <div className="rounded-xl border border-slate-200 bg-white">
       {/* Десктоп: Гант */}
-      <div className="hidden md:block">
+      <div className="relative hidden md:block">
+        {/* Кнопка «Сегодня» — вернуться к текущей дате из любого места таймлайна */}
+        <button
+          type="button"
+          onClick={scrollToToday}
+          className="absolute right-3 top-2 z-40 rounded-lg border border-slate-300 bg-white/95 px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm backdrop-blur hover:bg-slate-50"
+        >
+          Сегодня
+        </button>
         <div ref={scrollRef} className="h-[calc(100vh-200px)] overflow-auto select-none">
           <div style={{ width: `${totalPx}px`, minWidth: "100%" }}>
             {/* Шкала */}
