@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CommentsDrawer } from "./comments-drawer";
+import { usePersistedState } from "@/lib/use-persisted-state";
 
 // Колонки разработки — бросок фасона сюда меняет стадию фасона (PATCH kanban-stage).
 const DEV_TARGETS = new Set(["idea", "sample", "ideal_sample", "sizing_done"]);
@@ -78,6 +79,9 @@ export function BoardClient({
   // непустая колонка (обычно «Идея»). На десктопе всё как было.
   const firstNonEmpty = columns.find((c) => (buckets[c.key] ?? []).length > 0)?.key ?? columns[0].key;
   const [mobileCol, setMobileCol] = useState<string>(firstNonEmpty);
+  // П4 UX-аудита: «Завершено» (23 карточки) свёрнуто по умолчанию — экономит
+  // экран под живую работу. Клик по узкой колонке раскрывает, выбор запоминается.
+  const [doneCollapsed, setDoneCollapsed] = usePersistedState<boolean>("kanban:done-collapsed:v1", true);
 
   function fmtDM(iso: string) {
     const [, m, d] = iso.split("-");
@@ -179,12 +183,14 @@ export function BoardClient({
           <div className="w-[210px] shrink-0"></div>
           <div className="w-[210px] shrink-0"></div>
         </div>
-        <div className="flex gap-3 shrink-0">
-          <div className="w-[210px] shrink-0 px-1">
-            <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Завершено</div>
-            <div className="text-[10px] text-slate-400">только дата прибытия</div>
+        {!doneCollapsed && (
+          <div className="flex gap-3 shrink-0">
+            <div className="w-[210px] shrink-0 px-1">
+              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Завершено</div>
+              <div className="text-[10px] text-slate-400">только дата прибытия</div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-3 md:flex-row">
@@ -195,6 +201,29 @@ export function BoardClient({
           const canDrop = isDevTarget || isOrderCreateTarget;
           const isOver = dropZone === col.key;
           const isMobileActive = col.key === mobileCol;
+
+          // Свёрнутая «Завершено» — узкая вертикальная плашка (только десктоп;
+          // на мобиле колонка и так спрятана за pill-табом).
+          if (col.key === "done" && doneCollapsed) {
+            return (
+              <button
+                key={col.key}
+                type="button"
+                onClick={() => setDoneCollapsed(false)}
+                title="Показать завершённые"
+                className={`${isMobileActive ? "flex" : "hidden md:flex"} w-full flex-row items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-slate-500 hover:bg-slate-100 md:w-[44px] md:shrink-0 md:flex-col md:justify-start md:px-2`}
+              >
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: col.dot }} />
+                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                  {cards.length}
+                </span>
+                <span className="text-xs font-semibold uppercase tracking-wider md:[writing-mode:vertical-rl]">
+                  {col.title}
+                </span>
+                <span className="ml-auto text-xs md:ml-0 md:mt-auto">▸</span>
+              </button>
+            );
+          }
 
           return (
             <div
@@ -222,6 +251,16 @@ export function BoardClient({
                 <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: col.dot }} />
                 <span className="text-sm font-semibold flex-1">{col.title}</span>
                 <span className="text-xs bg-slate-100 text-slate-600 rounded-full px-2 py-0.5">{cards.length}</span>
+                {col.key === "done" && (
+                  <button
+                    type="button"
+                    onClick={() => setDoneCollapsed(true)}
+                    title="Свернуть завершённые"
+                    className="rounded px-1 text-xs text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  >
+                    ◂
+                  </button>
+                )}
               </div>
               <div className="flex flex-col gap-2 p-2 min-h-[120px]">
                 {cards.length === 0 && (

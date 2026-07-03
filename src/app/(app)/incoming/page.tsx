@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { formatDate, formatNumber } from "@/lib/format";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, DELIVERY_METHOD_LABELS } from "@/lib/constants";
 import { VariantVisual } from "@/components/common/variant-visual";
@@ -10,36 +11,45 @@ import { IncomingExportButton } from "./export-button";
 /**
  * Окно для логистики (Таня).
  * Заказы в пути и к отгрузке. БЕЗ финансов.
+ * П4 UX-аудита: дефолт — только едущие; прибывшие на склад — за свёрткой.
  */
+
+const INCOMING_INCLUDE = {
+  productModel: { select: { name: true, photoUrls: true } },
+  lines: {
+    select: {
+      quantity: true,
+      quantityActual: true,
+      productVariant: { select: { sku: true, colorName: true, photoUrls: true } },
+    },
+    orderBy: { createdAt: "asc" as const },
+  },
+  factory: { select: { name: true, country: true } },
+} satisfies Prisma.OrderInclude;
+
+type IncomingOrder = Prisma.OrderGetPayload<{ include: typeof INCOMING_INCLUDE }>;
+
+// В Поставки уходит ФАКТ количества (фабрика могла накроить больше/меньше).
+// Если факт по линии не проставлен — используем план как fallback и помечаем.
+function lineQty(l: { quantity: number; quantityActual: number | null }): number {
+  return l.quantityActual ?? l.quantity;
+}
+function orderHasFactual(lines: Array<{ quantityActual: number | null }>): boolean {
+  return lines.some((l) => l.quantityActual !== null);
+}
+
 export default async function IncomingPage() {
   const orders = await prisma.order.findMany({
     where: {
       deletedAt: null,
       status: { in: ["READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK"] },
     },
-    include: {
-      productModel: { select: { name: true, photoUrls: true } },
-      lines: {
-        select: {
-          quantity: true,
-          quantityActual: true,
-          productVariant: { select: { sku: true, colorName: true, photoUrls: true } },
-        },
-        orderBy: { createdAt: "asc" },
-      },
-      factory: { select: { name: true, country: true } },
-    },
+    include: INCOMING_INCLUDE,
     orderBy: { arrivalPlannedDate: "asc" },
   });
 
-  // В Поставки уходит ФАКТ количества (фабрика могла накроить больше/меньше).
-  // Если факт по линии не проставлен — используем план как fallback и помечаем.
-  function lineQty(l: { quantity: number; quantityActual: number | null }): number {
-    return l.quantityActual ?? l.quantity;
-  }
-  function orderHasFactual(lines: Array<{ quantityActual: number | null }>): boolean {
-    return lines.some((l) => l.quantityActual !== null);
-  }
+  const riding = orders.filter((o) => o.status !== "WAREHOUSE_MSK");
+  const arrived = orders.filter((o) => o.status === "WAREHOUSE_MSK");
 
   return (
     <div className="space-y-4">
@@ -48,7 +58,10 @@ export default async function IncomingPage() {
           {/* Не «Поставки» — так называется /shipments (сборные поставки-партии).
               Это окно — все заказы в пути и к отгрузке, называем как в меню. */}
           <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Заказы в пути</h1>
-          <p className="text-sm text-slate-500">В пути и к отгрузке: {orders.length}</p>
+          <p className="text-sm text-slate-500">
+            В пути и к отгрузке: {riding.length}
+            {arrived.length > 0 && ` · прибыло: ${arrived.length} (свёрнуто ниже)`}
+          </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <IncomingExportButton />
@@ -59,6 +72,33 @@ export default async function IncomingPage() {
         </div>
       </div>
 
+      <OrdersBlock
+        orders={riding}
+        emptyText="Пока ничего не едет. Будет что-то на отгрузке — появится здесь."
+      />
+
+      {arrived.length > 0 && (
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+            <span className="text-slate-400 transition group-open:rotate-90">▸</span>
+            Прибыло на склад Москва
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs tabular-nums text-slate-600">
+              {arrived.length}
+            </span>
+          </summary>
+          <div className="mt-3">
+            <OrdersBlock orders={arrived} emptyText="" />
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+// Мобильные карточки + десктопная таблица для списка заказов.
+function OrdersBlock({ orders, emptyText }: { orders: IncomingOrder[]; emptyText: string }) {
+  return (
+    <>
       {/* Мобильная версия */}
       <div className="space-y-2 md:hidden">
         {orders.map((o) => {
@@ -107,10 +147,10 @@ export default async function IncomingPage() {
             </Link>
           );
         })}
-        {orders.length === 0 && (
+        {orders.length === 0 && emptyText && (
           <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">
             <div className="mb-2 text-3xl">▣</div>
-            Пока ничего не едет. Будет что-то на отгрузке — появится здесь.
+            {emptyText}
           </div>
         )}
       </div>
@@ -135,7 +175,7 @@ export default async function IncomingPage() {
           <tbody className="divide-y divide-slate-100">
             {orders.map((o) => {
               const totalQty = o.lines.reduce((a, l) => a + lineQty(l), 0);
-          const hasFact = orderHasFactual(o.lines);
+              const hasFact = orderHasFactual(o.lines);
               const colorNames = o.lines.map((l) => l.productVariant.colorName);
               const firstLine = o.lines[0];
               return (
@@ -180,9 +220,9 @@ export default async function IncomingPage() {
             })}
           </tbody>
         </table>
-        {orders.length === 0 && <div className="p-12 text-center text-sm text-slate-500">Поставок в движении нет</div>}
+        {orders.length === 0 && emptyText && <div className="p-12 text-center text-sm text-slate-500">{emptyText}</div>}
       </div>
       </div>
-    </div>
+    </>
   );
 }

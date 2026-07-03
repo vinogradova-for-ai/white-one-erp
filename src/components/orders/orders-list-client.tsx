@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/format";
-import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_TYPE_LABELS } from "@/lib/constants";
+import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, ORDER_TYPE_LABELS, ORDER_STATUS_ORDER } from "@/lib/constants";
 import { VariantVisual } from "@/components/common/variant-visual";
 import { ColorChip } from "@/components/common/color-chip";
 import { ClickableRow } from "@/components/common/clickable-row";
@@ -55,15 +55,33 @@ export function OrdersListClient({
     ownerId: string[];
     status: string[];
   }>("orders:filters:v1", { category: [], ownerId: [], status: [] });
+  // П4 UX-аудита: завершённое — за свёрткой. Дефолт «В работе» (до склада МСК),
+  // прибывшие показываются только в режиме «Все».
+  const [mode, setMode] = usePersistedState<"active" | "all">("orders:mode:v1", "active");
+  const warehouseIdx = ORDER_STATUS_ORDER.indexOf("WAREHOUSE_MSK");
 
   const filtered = useMemo(() => {
-    return orders.filter((o) => {
+    const base = orders.filter((o) => {
+      if (mode === "active" && ORDER_STATUS_ORDER.indexOf(o.status) >= warehouseIdx) return false;
       if (filters.category.length && !filters.category.includes(o.productModel.category)) return false;
       if (filters.ownerId.length && !filters.ownerId.includes(o.owner.id)) return false;
       if (filters.status.length && !filters.status.includes(o.status)) return false;
       return true;
     });
-  }, [orders, filters]);
+    if (mode !== "active") return base;
+    // «В работе» — ближайшее прибытие сверху, без даты — в конец.
+    return [...base].sort((a, b) => {
+      if (!a.arrivalPlannedDate && !b.arrivalPlannedDate) return 0;
+      if (!a.arrivalPlannedDate) return 1;
+      if (!b.arrivalPlannedDate) return -1;
+      return a.arrivalPlannedDate.localeCompare(b.arrivalPlannedDate);
+    });
+  }, [orders, filters, mode, warehouseIdx]);
+
+  const arrivedCount = useMemo(
+    () => orders.filter((o) => ORDER_STATUS_ORDER.indexOf(o.status) >= warehouseIdx).length,
+    [orders, warehouseIdx],
+  );
 
   return (
     <div className="space-y-4">
@@ -98,6 +116,27 @@ export function OrdersListClient({
             + Заказ
           </Link>
           <span className="mx-1 hidden h-5 w-px bg-slate-200 md:inline-block" aria-hidden />
+          {/* «В работе / Все» — завершённое спрятано по умолчанию (П4) */}
+          <div className="flex shrink-0 gap-1 rounded-lg bg-slate-100 p-0.5">
+            <button
+              type="button"
+              onClick={() => setMode("active")}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium ${
+                mode === "active" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              В работе
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("all")}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium ${
+                mode === "all" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Все{arrivedCount > 0 ? ` (+${arrivedCount} прибыло)` : ""}
+            </button>
+          </div>
           <span className="hidden text-xs uppercase tracking-wide text-slate-400 md:inline">Фильтры:</span>
           <FilterDropdown
             label="Категория"
