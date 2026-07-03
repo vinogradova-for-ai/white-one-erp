@@ -243,6 +243,15 @@ function MonthlyHeatmap({ overview }: { overview: SeasonOverview }) {
                 />
               </div>
             )}
+            {/* §4 UX-аудита: у «план не задан» — кнопка задания плана прямо в ячейке */}
+            {m.loadStatus === "gap" && (
+              <Link
+                href={`/admin/plans?year=${Math.floor(m.yearMonth / 100)}`}
+                className="mt-2 inline-flex min-h-[36px] items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+              >
+                Задать план →
+              </Link>
+            )}
           </div>
         );
       })}
@@ -364,25 +373,53 @@ function CategoriesBreakdown({ overview }: { overview: SeasonOverview }) {
 }
 
 function Blockers({ overview }: { overview: SeasonOverview }) {
-  if (overview.blockers.length === 0) {
+  // §4 UX-аудита: красный месяц (план есть, факт сильно ниже) — это тоже затор.
+  // Раньше при 🔴 в heatmap секция говорила «Заторов нет» — врала.
+  const redMonths = overview.monthly.filter((m) => m.loadStatus === "overload");
+  if (overview.blockers.length === 0 && redMonths.length === 0) {
     return <Empty>Заторов нет — всё движется по плану.</Empty>;
   }
   return (
-    <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      {overview.blockers.map((b, i) => (
-        <li key={i} className="px-4 py-2.5 text-sm">
-          <Link href={`/models/${b.modelId}`} className="block hover:bg-slate-50">
-            <div className="flex items-baseline justify-between gap-2">
-              <div className="min-w-0">
-                <div className="truncate font-medium text-slate-900">{b.modelName}</div>
-                <div className="truncate text-[11px] text-slate-500">{b.text}</div>
-              </div>
-              <div className="shrink-0 text-[11px] text-slate-400">{b.ownerName}</div>
-            </div>
-          </Link>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-2">
+      {redMonths.length > 0 && (
+        <ul className="divide-y divide-red-100 overflow-hidden rounded-2xl border border-red-200 bg-red-50/50 dark:divide-red-400/10 dark:border-red-400/20 dark:bg-red-400/10">
+          {redMonths.map((m) => {
+            const pct = m.plannedQuantity > 0 ? Math.round((m.factQuantity / m.plannedQuantity) * 100) : 0;
+            return (
+              <li key={m.yearMonth} className="px-4 py-2.5 text-sm">
+                <Link href="/plan-vs-fact" className="block">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate font-medium capitalize text-red-800 dark:text-red-300">🔴 {m.label} — факт сильно ниже плана</div>
+                      <div className="truncate text-[11px] text-red-700/80 dark:text-red-300/80">
+                        {m.factQuantity.toLocaleString("ru-RU")} из {m.plannedQuantity.toLocaleString("ru-RU")} шт ({pct}%) · открыть План/Факт →
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {overview.blockers.length > 0 && (
+        <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          {overview.blockers.map((b, i) => (
+            <li key={i} className="px-4 py-2.5 text-sm">
+              <Link href={`/models/${b.modelId}`} className="block hover:bg-slate-50">
+                <div className="flex items-baseline justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-slate-900">{b.modelName}</div>
+                    <div className="truncate text-[11px] text-slate-500">{b.text}</div>
+                  </div>
+                  <div className="shrink-0 text-[11px] text-slate-400">{b.ownerName}</div>
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
