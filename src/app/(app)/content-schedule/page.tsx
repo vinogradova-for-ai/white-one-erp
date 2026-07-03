@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import type { OrderStatus } from "@prisma/client";
 import { formatDate } from "@/lib/format";
 import { VariantVisual } from "@/components/common/variant-visual";
 import { ColorChip } from "@/components/common/color-chip";
@@ -8,8 +9,17 @@ import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
 /**
  * Артикулы для фотосессии — все цветомодели, которые запущены в заказ.
  * Для каждой показываем самый ранний активный заказ и его статус.
+ * §4 UX-аудита: фильтр «на складе / в пути» — Кате важно, что уже можно снимать.
  */
-export default async function ContentSchedulePage() {
+export default async function ContentSchedulePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ f?: string }>;
+}) {
+  const sp = await searchParams;
+  const filter: "all" | "warehouse" | "transit" =
+    sp.f === "warehouse" || sp.f === "transit" ? sp.f : "all";
+
   // Все строки заказов с активным (не отгруженным/не проданным) заказом
   const lines = await prisma.orderLine.findMany({
     where: {
@@ -51,7 +61,17 @@ export default async function ContentSchedulePage() {
     const b = line.order.arrivalPlannedDate?.getTime() ?? Infinity;
     if (b < a) byVariant.set(line.productVariant.id, line);
   }
-  const rows = Array.from(byVariant.values());
+  const allRows = Array.from(byVariant.values());
+
+  // Фильтр по местоположению: «на складе» = заказ уже в Москве, можно снимать;
+  // «в пути» — всё, что ещё не приехало (от подготовки до доставки).
+  const warehouseCount = allRows.filter((r) => r.order.status === "WAREHOUSE_MSK").length;
+  const rows =
+    filter === "warehouse"
+      ? allRows.filter((r) => r.order.status === "WAREHOUSE_MSK")
+      : filter === "transit"
+      ? allRows.filter((r) => r.order.status !== "WAREHOUSE_MSK")
+      : allRows;
 
   // Группируем по фасону — 127 строк простынёй не читаются; Кате нужно
   // «весь фасон одним блоком»: название один раз, под ним все цвета.
@@ -73,14 +93,66 @@ export default async function ContentSchedulePage() {
         </p>
       </header>
 
+      {/* Фильтр «где вещь»: снимать можно то, что на складе */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <FilterPill href="/content-schedule" active={filter === "all"} label={`Все (${allRows.length})`} />
+        <FilterPill href="/content-schedule?f=warehouse" active={filter === "warehouse"} label={`На складе (${warehouseCount})`} />
+        <FilterPill href="/content-schedule?f=transit" active={filter === "transit"} label={`В пути (${allRows.length - warehouseCount})`} />
+      </div>
+
       {rows.length === 0 ? (
         <div className="rounded-2xl bg-white p-12 text-center text-sm text-slate-400">
-          Пока нет ни одной цветомодели в заказе
+          {filter === "warehouse"
+            ? "На складе пока ничего нет — всё ещё едет."
+            : filter === "transit"
+            ? "В пути ничего нет — всё уже на складе."
+            : "Пока нет ни одной цветомодели в заказе"}
         </div>
       ) : (
         <div className="space-y-4">
           {groups.map((g) => (
-            <section key={g.id} className="overflow-hidden rounded-2xl bg-white">
+            <ModelSection key={g.id} g={g} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FilterPill({ href, active, label }: { href: string; active: boolean; label: string }) {
+  return (
+    <Link
+      href={href}
+      className={`inline-flex min-h-[40px] shrink-0 items-center rounded-full px-4 text-sm font-medium ${
+        active ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+      }`}
+    >
+      {label}
+    </Link>
+  );
+}
+
+type SectionLine = {
+  id: string;
+  productVariant: {
+    id: string;
+    colorName: string;
+    sku: string;
+    photoUrls: string[];
+    productModel: { id: string; name: string; photoUrls: string[] };
+  };
+  order: {
+    id: string;
+    orderNumber: string;
+    status: OrderStatus;
+    arrivalPlannedDate: Date | null;
+    arrivalActualDate: Date | null;
+  };
+};
+
+function ModelSection({ g }: { g: { id: string; name: string; items: SectionLine[] } }) {
+  return (
+    <section className="overflow-hidden rounded-2xl bg-white">
               <div className="flex items-baseline justify-between gap-2 border-b border-slate-100 px-4 py-2.5">
                 <Link
                   href={`/models/${g.id}`}
@@ -107,8 +179,8 @@ export default async function ContentSchedulePage() {
                         />
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
-                            <ColorChip name={v.colorName} size={10} />
-                            <span className="text-sm text-slate-900">{v.colorName}</span>
+                            {/* §4 UX-аудита: имя цвета один раз — оно уже внутри ColorChip */}
+                            <ColorChip name={v.colorName} size={10} textClassName="text-sm text-slate-900" />
                             <span className="font-mono">{v.sku}</span>
                           </div>
                         </div>
@@ -129,10 +201,6 @@ export default async function ContentSchedulePage() {
                   );
                 })}
               </ul>
-            </section>
-          ))}
-        </div>
-      )}
-    </div>
+    </section>
   );
 }
