@@ -72,6 +72,7 @@ export function PackagingOrderForm({
   users,
   defaultOwnerId,
   initial,
+  prefill,
   canMarkPaid = false,
 }: {
   packagings: PackagingOption[];
@@ -79,14 +80,30 @@ export function PackagingOrderForm({
   users: UserOption[];
   defaultOwnerId: string;
   initial?: Initial;
+  /** Предзаполнение из «Упаковки» (топ-13): позиция + количество = дефицит. */
+  prefill?: { itemId: string; qty: number };
   /** Есть ли право payment.markPaid. Без него чекбокс «Оплачено» заблокирован
    *  (сервер тоже игнорирует смену флага — двойная защита, аудит зоны упаковки). */
   canMarkPaid?: boolean;
 }) {
   const router = useRouter();
-  const [form, setForm] = useState<Initial>(
-    initial ?? {
-      lines: [makeEmptyLine()],
+  const [form, setForm] = useState<Initial>(() => {
+    if (initial) return initial;
+    let firstLine = makeEmptyLine();
+    const prefillItem = prefill && packagings.find((p) => p.id === prefill.itemId);
+    if (prefill && prefillItem) {
+      firstLine = {
+        ...firstLine,
+        packagingItemId: prefillItem.id,
+        quantity: prefill.qty,
+        unitPriceRub: prefillItem.unitPriceRub ?? "",
+        unitPriceCny: prefillItem.unitPriceCny ?? "",
+        priceCurrency: prefillItem.priceCurrency ?? "CNY",
+        cnyRubRate: prefillItem.cnyRubRate ?? DEFAULT_CNY_RATE,
+      };
+    }
+    return {
+      lines: [firstLine],
       factoryId: "",
       supplierName: "",
       productionEndDate: "",
@@ -94,8 +111,8 @@ export function PackagingOrderForm({
       ownerId: defaultOwnerId,
       notes: "",
       deliveryMethod: "CARGO_CN",
-    },
-  );
+    };
+  });
   const [payments, setPayments] = useState<PaymentRow[]>(
     initial?.payments ?? [],
   );

@@ -5,9 +5,20 @@ import { redirect } from "next/navigation";
 import { PackagingOrderForm } from "@/components/packaging-orders/packaging-order-form";
 import type { Role } from "@prisma/client";
 
-export default async function NewPackagingOrderPage() {
+export default async function NewPackagingOrderPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ itemId?: string; qty?: string }>;
+}) {
   const session = await auth();
   if (!session?.user) redirect("/login");
+  // Предзаполнение из «Упаковки» (топ-13): ?itemId=…&qty=дефицит
+  const sp = await searchParams;
+  const prefillQty = Number(sp.qty);
+  const prefill =
+    sp.itemId && Number.isFinite(prefillQty) && prefillQty > 0
+      ? { itemId: sp.itemId, qty: Math.round(prefillQty) }
+      : undefined;
 
   const [packagings, factories, users] = await Promise.all([
     prisma.packagingItem.findMany({
@@ -39,6 +50,7 @@ export default async function NewPackagingOrderPage() {
         factories={factories}
         users={users}
         defaultOwnerId={session.user.id}
+        prefill={prefill}
         canMarkPaid={can(session.user.role as Role, "payment.markPaid")}
       />
     </div>
