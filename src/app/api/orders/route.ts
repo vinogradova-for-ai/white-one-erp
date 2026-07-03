@@ -82,6 +82,28 @@ export async function POST(req: NextRequest) {
 
     const toDate = (s?: string | null) => (s ? new Date(s) : null);
 
+    // Сквозной таймлайн «идея → заказ» (правка Алёны №2, 03.07):
+    // ПЕРВЫЙ заказ фасона наследует старт разработки — decisionDate по умолчанию
+    // = дата взятия фасона в работу (model.createdAt), а не «сегодня». Гант
+    // показывает, сколько шла разработка, и заказ продолжает ту же линию,
+    // не «вставая опять на разработку». Если заказ создаётся сразу на этапе
+    // производства и дальше — разработка закрывается сегодняшним днём.
+    // Повторные заказы фасона ведут себя как раньше (разработка давно прошла).
+    const existingOrdersCount = await prisma.order.count({
+      where: { productModelId: data.productModelId, deletedAt: null },
+    });
+    const isFirstOrder = existingOrdersCount === 0;
+    const now = new Date();
+    const stage = data.status ?? "PREPARATION";
+    const stageInDev = stage === "PREPARATION" || stage === "FABRIC_ORDERED";
+    const inheritedDecision = isFirstOrder && !data.decisionDate ? model.createdAt : null;
+    // Разработка уже позади (заказ стартует с производства+) — конец фазы = сегодня.
+    // Пока заказ в разработке — конец не навязываем: доп. ~2 недели от сегодня.
+    const inheritedHanded =
+      inheritedDecision && !data.handedToFactoryDate
+        ? (stageInDev ? new Date(now.getTime() + 14 * 86_400_000) : now)
+        : null;
+
     // Фазы Разработка → Производство → ОТК → Доставка.
     // ВАЖНО: даты, которые Алёна расставила ползунками в форме, сохраняем
     // ТОЧЬ-В-ТОЧЬ (включая старт «Разработки» = decisionDate). Дефолтные
@@ -89,12 +111,12 @@ export async function POST(req: NextRequest) {
     // никакого «подтягивания» к минимуму, иначе плотный план раздувается и
     // в Ганте видны не те сроки, что задал пользователь.
     const phases = fillMissingOrderDates({
-      decisionDate: toDate(data.decisionDate),
-      handedToFactoryDate: toDate(data.handedToFactoryDate),
+      decisionDate: toDate(data.decisionDate) ?? inheritedDecision,
+      handedToFactoryDate: toDate(data.handedToFactoryDate) ?? inheritedHanded,
       readyAtFactoryDate: toDate(data.readyAtFactoryDate),
       qcDate: toDate(data.qcDate),
       arrivalPlannedDate: toDate(data.arrivalPlannedDate),
-      createdAt: new Date(),
+      createdAt: now,
     });
 
     // Всё создание заказа — атомарно: заказ + лог статуса + упаковка + платежи.

@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { GanttV2Client } from "@/components/gantt-v2/gantt-v2-client";
 import type { GanttRowV2, GanttBarV2, BarState, GanttFilterOptions } from "@/components/gantt-v2/types";
-import { ORDER_STATUS_LABELS, BRAND_LABELS } from "@/lib/constants";
+import { ORDER_STATUS_LABELS, BRAND_LABELS, PRODUCT_MODEL_STATUS_LABELS } from "@/lib/constants";
 import { orderActivePhaseIndex } from "@/lib/order-stage";
 import { moscowTodayIso } from "@/lib/dates";
 import { ListCapNotice } from "@/components/common/list-cap-notice";
@@ -69,7 +69,7 @@ export default async function GanttV2Page() {
   const session = await auth();
   const isOwner = session?.user?.role === "OWNER";
 
-  const [orders, packagingOrders, owners, factories] = await Promise.all([
+  const [orders, packagingOrders, devModels, owners, factories] = await Promise.all([
     prisma.order.findMany({
       where: { deletedAt: null, status: { not: "ON_SALE" } },
       orderBy: { launchMonth: "asc" },
@@ -98,6 +98,30 @@ export default async function GanttV2Page() {
     }).catch((err) => {
       console.warn("[gantt-v2] packagingOrder.findMany failed, returning empty:", err?.message);
       return [] as never[];
+    }),
+    // Фасоны в разработке БЕЗ заказа (правка Алёны №2, 03.07): идея, взятая
+    // в работу, видна в Ганте с первого дня — полоса «Разработка» до сегодня.
+    // Когда появится заказ, эта строка исчезнет, а заказ унаследует старт
+    // разработки (см. создание заказа) — таймлайн сквозной, без «обнуления».
+    prisma.productModel.findMany({
+      where: {
+        deletedAt: null,
+        activated: true,
+        orders: { none: { deletedAt: null } },
+      },
+      select: {
+        id: true,
+        name: true,
+        photoUrls: true,
+        brand: true,
+        category: true,
+        status: true,
+        createdAt: true,
+        plannedLaunchMonth: true,
+        owner: { select: { id: true, name: true } },
+        preferredFactory: { select: { id: true, name: true, country: true } },
+      },
+      orderBy: { createdAt: "asc" },
     }),
     prisma.user.findMany({
       where: { isActive: true },
@@ -306,9 +330,52 @@ export default async function GanttV2Page() {
     });
   }
 
-  // (Раньше тут была секция «Разработка фасонов» (Лекала/Образец/Утверждение/
-  // Подготовка) — убрана по запросу Алёны: «у нас нет такого этапа, как лекала».
-  // На /gantt-v2 теперь только заказы (4 фазы) и упаковка (3 фазы без ОТК).
+  // === РАЗРАБОТКА (фасоны без заказа) ===
+  // Одна полоса «Разработка» от взятия идеи в работу до сегодня (правка №2).
+  // Без дробления на «лекала/образец» — те под-этапы Алёна отклоняла раньше;
+  // стадия видна текстом в подписи. Полоса не таскается (дат-полей у неё нет),
+  // при создании заказа строка исчезает, а заказ наследует старт разработки.
+  for (const m of devModels) {
+    const startIso = iso(m.createdAt) ?? todayIso;
+    const devDays = Math.max(
+      1,
+      Math.round((new Date(todayIso).getTime() - new Date(startIso).getTime()) / 86400000),
+    );
+    const stageLabel = PRODUCT_MODEL_STATUS_LABELS[m.status];
+    rows.push({
+      group: "development",
+      id: m.id,
+      href: `/models/${m.id}`,
+      title: `${m.name} · разработка`,
+      subtitle: `${stageLabel} · ${devDays} дн в разработке`,
+      statusLabel: stageLabel,
+      brand: m.brand,
+      factoryId: m.preferredFactory?.id ?? null,
+      factoryName: m.preferredFactory?.name ?? null,
+      productionRegion: productionRegionOf(m.preferredFactory),
+      ownerId: m.owner?.id ?? null,
+      ownerName: m.owner?.name ?? null,
+      launchMonth: m.plannedLaunchMonth ?? null,
+      category: m.category ?? null,
+      rawStatus: m.status,
+      hasOverdue: false,
+      hasNearlyDue: false,
+      thumbnails: [{ photoUrl: m.photoUrls?.[0] ?? null, colorName: null }],
+      bars: [
+        {
+          key: "development",
+          title: "Разработка",
+          color: "bg-purple-400",
+          start: startIso,
+          end: todayIso,
+          state: "active",
+          owner: m.owner?.name ?? undefined,
+          overdue: false,
+          nearlyDue: false,
+        },
+      ],
+    });
+  }
 
   // Опции фильтров с подсчётом — берём ТОЛЬКО те значения, которые реально
   // присутствуют у заказов. Иначе фильтр «Статус» показывает все 10 статусов
