@@ -27,6 +27,7 @@ export default async function ShipmentsPage() {
           items: { select: { plannedQty: true } },
         },
       },
+      packagingOrders: { select: { id: true } },
     },
   });
 
@@ -64,12 +65,13 @@ export default async function ShipmentsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400 dark:border-slate-800">
-                <th className="px-4 py-3 font-medium">Номер</th>
+                <th className="px-4 py-3 font-medium">Номер / карго</th>
                 <th className="px-4 py-3 font-medium">Статус</th>
-                <th className="px-4 py-3 font-medium">Заказов</th>
-                <th className="px-4 py-3 font-medium">Штук</th>
+                <th className="px-4 py-3 font-medium">Внутри</th>
+                <th className="px-4 py-3 font-medium text-right">Мест · вес</th>
+                <th className="px-4 py-3 font-medium text-right">Карго, USDT</th>
                 <th className="px-4 py-3 font-medium">Выезд</th>
-                <th className="px-4 py-3 font-medium">Прибытие</th>
+                <th className="px-4 py-3 font-medium">Прибытие план / факт</th>
               </tr>
             </thead>
             <tbody>
@@ -79,22 +81,54 @@ export default async function ShipmentsPage() {
                   (a, b) => a + b.items.reduce((x, i) => x + i.plannedQty, 0),
                   0,
                 );
+                const pkgCount = s.packagingOrders.length;
                 return (
                   <ClickableRow
                     key={s.id}
                     href={`/shipments/${s.id}`}
                     className="border-b border-slate-50 last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
                   >
-                    <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">{s.number}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-slate-900 dark:text-slate-100">{s.number}</div>
+                      {s.cargoNumber && <div className="font-mono text-[11px] text-slate-500">{s.cargoNumber}</div>}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`rounded-lg px-2 py-0.5 text-xs font-medium ${SHIPMENT_STATUS_COLORS[s.status]}`}>
                         {SHIPMENT_STATUS_LABELS[s.status]}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{orders}</td>
-                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{formatNumber(units)}</td>
+                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                      {orders > 0 && <span>{orders} зак. · {formatNumber(units)} шт</span>}
+                      {orders > 0 && pkgCount > 0 && <span className="text-slate-300"> · </span>}
+                      {pkgCount > 0 && <span>📦 {pkgCount}</span>}
+                      {orders === 0 && pkgCount === 0 && "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-slate-700 dark:text-slate-300">
+                      {s.placesCount != null || s.weightKg != null
+                        ? `${s.placesCount ?? "—"} · ${s.weightKg != null ? `${Number(s.weightKg).toLocaleString("ru-RU")} кг` : "—"}`
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      {s.amountUsdt != null ? (
+                        <>
+                          <span className="text-slate-900 dark:text-slate-100">{Number(s.amountUsdt).toLocaleString("ru-RU")}</span>
+                          <span className={`ml-1.5 rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                            s.cargoPaidAt
+                              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300"
+                              : "bg-amber-50 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300"
+                          }`}>
+                            {s.cargoPaidAt ? "оплачено" : "не оплачено"}
+                          </span>
+                        </>
+                      ) : "—"}
+                    </td>
                     <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{s.departDate ? formatDate(s.departDate) : "—"}</td>
-                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{s.arriveDate ? formatDate(s.arriveDate) : "—"}</td>
+                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400">
+                      {s.arriveDate ? formatDate(s.arriveDate) : "—"}
+                      {s.arrivalActualDate && (
+                        <span className="ml-1 text-emerald-700 dark:text-emerald-300">/ {formatDate(s.arrivalActualDate)}</span>
+                      )}
+                    </td>
                   </ClickableRow>
                 );
               })}

@@ -680,9 +680,18 @@ model Shipment {
   status      ShipmentStatus @default(DRAFT)
 
   departDate  DateTime?                            // Дата выезда (перевод в IN_TRANSIT)
-  arriveDate  DateTime?                            // Дата прибытия на склад (перевод в ARRIVED)
+  arriveDate  DateTime?                            // Дата прибытия на склад (перевод в ARRIVED) — ПЛАН
   carrier     String?                              // Перевозчик / способ
   comment     String?
+
+  // ─── Карго-накладная (перенос листа «КАРГО» из Excel-матрицы, 04.07.2026) ───
+  // Одна поставка = одна накладная карго (номер вида M0514-4759-47).
+  cargoNumber       String?   @unique              // номер накладной карго
+  placesCount       Int?                           // количество мест
+  weightKg          Decimal?  @db.Decimal(10, 1)   // вес брутто, кг
+  amountUsdt        Decimal?  @db.Decimal(12, 2)   // сумма к оплате карго, USDT
+  cargoPaidAt       DateTime?                      // null = карго не оплачено
+  arrivalActualDate DateTime?                      // ФАКТ прибытия в Москву
 
   createdById String
   createdBy   User           @relation("ShipmentCreator", fields: [createdById], references: [id])
@@ -690,7 +699,9 @@ model Shipment {
   // Мягкое удаление (только OWNER/DIRECTOR) — «никогда не удаляем физически».
   deletedAt   DateTime?
 
-  batches     OrderBatch[]
+  batches         OrderBatch[]
+  // Заказы упаковки едут тем же карго, что и одежда (лист КАРГО: сумки, бирки, плечики).
+  packagingOrders PackagingOrder[]
 
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
@@ -1035,6 +1046,10 @@ model PackagingOrder {
 
   deliveryMethod  DeliveryMethod?
 
+  // Каким карго едет (лист КАРГО: упаковка едет теми же накладными, что одежда).
+  shipmentId      String?
+  shipment        Shipment?     @relation(fields: [shipmentId], references: [id])
+
   ownerId         String
   owner           User          @relation("PackagingOrderOwner", fields: [ownerId], references: [id])
 
@@ -1047,6 +1062,7 @@ model PackagingOrder {
 
   @@index([status])
   @@index([factoryId])
+  @@index([shipmentId])
 }
 
 model PackagingOrderLine {

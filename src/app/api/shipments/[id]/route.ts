@@ -24,6 +24,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         ...(data.comment !== undefined ? { comment: data.comment } : {}),
         ...(data.departDate !== undefined ? { departDate: data.departDate ? new Date(data.departDate) : null } : {}),
         ...(data.arriveDate !== undefined ? { arriveDate: data.arriveDate ? new Date(data.arriveDate) : null } : {}),
+        // Карго-накладная (лист «КАРГО»)
+        ...(data.cargoNumber !== undefined ? { cargoNumber: data.cargoNumber || null } : {}),
+        ...(data.placesCount !== undefined ? { placesCount: data.placesCount } : {}),
+        ...(data.weightKg !== undefined ? { weightKg: data.weightKg } : {}),
+        ...(data.amountUsdt !== undefined ? { amountUsdt: data.amountUsdt } : {}),
+        ...(data.cargoPaidAt !== undefined ? { cargoPaidAt: data.cargoPaidAt ? new Date(data.cargoPaidAt) : null } : {}),
+        ...(data.arrivalActualDate !== undefined ? { arrivalActualDate: data.arrivalActualDate ? new Date(data.arrivalActualDate) : null } : {}),
       },
     });
 

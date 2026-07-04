@@ -10,6 +10,9 @@ import { ShipmentStatusBar } from "@/components/shipments/shipment-status-bar";
 import { ShipmentAddOrder } from "@/components/shipments/shipment-add-order";
 import { ShipmentBatchCard } from "@/components/shipments/shipment-batch-card";
 import { ShipmentDeleteButton } from "@/components/shipments/shipment-delete-button";
+import { ShipmentCargoPanel } from "@/components/shipments/shipment-cargo-panel";
+import { ShipmentPackagingSection } from "@/components/shipments/shipment-packaging-section";
+import { PACKAGING_ORDER_STATUS_LABELS, PACKAGING_ORDER_STATUS_COLORS } from "@/lib/packaging-orders";
 
 export default async function ShipmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -36,10 +39,35 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
           items: { orderBy: [{ colorName: "asc" }, { size: "asc" }] },
         },
       },
+      packagingOrders: {
+        orderBy: { orderedDate: "asc" },
+        include: { lines: { select: { packagingItem: { select: { name: true } } } } },
+      },
     },
   });
 
   if (!shipment) return notFound();
+
+  // Кандидаты-упаковка: ещё не в поставке и не отменённые.
+  const pkgCandidates = canManage
+    ? await prisma.packagingOrder.findMany({
+        where: { shipmentId: null, status: { not: "CANCELLED" } },
+        select: {
+          id: true,
+          orderNumber: true,
+          lines: { select: { packagingItem: { select: { name: true } } }, take: 3 },
+        },
+        orderBy: { orderedDate: "desc" },
+        take: 100,
+      })
+    : [];
+
+  const pkgNames = (lines: Array<{ packagingItem: { name: string } }>, total?: number) => {
+    const names = lines.map((l) => l.packagingItem.name);
+    const shown = names.slice(0, 2).join(", ");
+    const more = (total ?? names.length) - Math.min(2, names.length);
+    return shown + (more > 0 ? ` (+${more})` : "");
+  };
 
   // Заказы, которые можно добавить: активные, не в статусе продажи, у которых
   // есть свободная партия ИЛИ ещё нет партий (создастся лениво). Простой список.
@@ -94,6 +122,41 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
       </header>
 
       {canManage ? <ShipmentStatusBar shipmentId={shipment.id} status={shipment.status} /> : null}
+
+      {/* Карго-накладная: номер, места, вес, USDT, оплата, факт прибытия */}
+      <section>
+        <h2 className="mb-2 text-base font-semibold text-slate-900 dark:text-slate-100">Карго</h2>
+        <ShipmentCargoPanel
+          shipmentId={shipment.id}
+          canManage={canManage}
+          initial={{
+            cargoNumber: shipment.cargoNumber ?? "",
+            placesCount: shipment.placesCount != null ? String(shipment.placesCount) : "",
+            weightKg: shipment.weightKg != null ? String(shipment.weightKg) : "",
+            amountUsdt: shipment.amountUsdt != null ? String(shipment.amountUsdt) : "",
+            cargoPaidAt: shipment.cargoPaidAt ? shipment.cargoPaidAt.toISOString().slice(0, 10) : "",
+            arrivalActualDate: shipment.arrivalActualDate ? shipment.arrivalActualDate.toISOString().slice(0, 10) : "",
+          }}
+        />
+      </section>
+
+      {/* Упаковка едет тем же карго */}
+      <ShipmentPackagingSection
+        shipmentId={shipment.id}
+        canManage={canManage}
+        attached={shipment.packagingOrders.map((p) => ({
+          id: p.id,
+          orderNumber: p.orderNumber,
+          itemNames: pkgNames(p.lines),
+          statusLabel: PACKAGING_ORDER_STATUS_LABELS[p.status],
+          statusCls: PACKAGING_ORDER_STATUS_COLORS[p.status],
+        }))}
+        candidates={pkgCandidates.map((c) => ({
+          id: c.id,
+          orderNumber: c.orderNumber,
+          itemNames: pkgNames(c.lines),
+        }))}
+      />
 
       {canManage ? (
         <section>

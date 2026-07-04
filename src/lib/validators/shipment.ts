@@ -3,14 +3,26 @@ import { z } from "zod";
 export const SHIPMENT_STATUSES = ["DRAFT", "IN_TRANSIT", "ARRIVED", "RECEIVED"] as const;
 
 // Создание/правка поставки — шапка. Партии добавляются отдельными эндпоинтами.
+// Карго-поля (лист «КАРГО»): номер накладной, места, вес, USDT, оплата, факт прибытия.
 export const shipmentCreateSchema = z.object({
   carrier: z.string().max(200).optional().nullable(),
   comment: z.string().max(2000).optional().nullable(),
   departDate: z.string().optional().nullable(),
   arriveDate: z.string().optional().nullable(),
+  cargoNumber: z.string().max(60).optional().nullable(),
+  placesCount: z.union([z.number(), z.string()]).transform((v) => (v === "" || v == null ? null : Number(v))).pipe(z.number().int().min(0).nullable()).optional(),
+  weightKg: z.union([z.number(), z.string()]).transform((v) => (v === "" || v == null ? null : Number(v))).pipe(z.number().min(0).nullable()).optional(),
+  amountUsdt: z.union([z.number(), z.string()]).transform((v) => (v === "" || v == null ? null : Number(v))).pipe(z.number().min(0).nullable()).optional(),
+  cargoPaidAt: z.string().optional().nullable(),
+  arrivalActualDate: z.string().optional().nullable(),
 });
 
 export const shipmentUpdateSchema = shipmentCreateSchema.partial();
+
+// Привязка/отвязка заказа упаковки к поставке (упаковка едет тем же карго).
+export const shipmentPackagingOrderSchema = z.object({
+  packagingOrderId: z.string().min(1),
+});
 
 export const shipmentStatusChangeSchema = z.object({
   status: z.enum(SHIPMENT_STATUSES),

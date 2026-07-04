@@ -53,6 +53,13 @@ export async function POST(req: NextRequest) {
         comment: data.comment ?? null,
         departDate: data.departDate ? new Date(data.departDate) : null,
         arriveDate: data.arriveDate ? new Date(data.arriveDate) : null,
+        // Карго-накладная (лист «КАРГО») — можно завести сразу при создании
+        cargoNumber: data.cargoNumber ?? null,
+        placesCount: data.placesCount ?? null,
+        weightKg: data.weightKg ?? null,
+        amountUsdt: data.amountUsdt ?? null,
+        cargoPaidAt: data.cargoPaidAt ? new Date(data.cargoPaidAt) : null,
+        arrivalActualDate: data.arrivalActualDate ? new Date(data.arrivalActualDate) : null,
         createdById: session.user.id,
       },
     });
