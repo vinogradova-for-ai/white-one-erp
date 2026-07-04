@@ -6,6 +6,7 @@ import { type KanbanCard, type KanbanColumn } from "@/components/models-kanban/b
 import { KanbanFiltersClient, type KanbanFilterOptions } from "@/components/models-kanban/kanban-filters-client";
 import { colorHexFromName } from "@/lib/color-map";
 import { orderKanbanColumn } from "@/lib/order-stage";
+import { packagingOrderPhase } from "@/lib/packaging-orders";
 import { moscowTodayIso } from "@/lib/dates";
 import { ListCapNotice } from "@/components/common/list-cap-notice";
 
@@ -35,18 +36,11 @@ function modelToColumn(status: ProductModelStatus, sizeChartReady: boolean): str
   return "production";
 }
 
-// PackagingOrder → колонка. У упаковки нет ОТК — пропускаем колонку qc.
-//   ORDERED        → production (только что заказали)
-//   IN_PRODUCTION  → production
-//   IN_TRANSIT     → delivery
-//   ARRIVED        → done
-//   CANCELLED      → не показываем
-const PKG_ORDER_STATUS_TO_COL: Partial<Record<PackagingOrderStatus, string>> = {
-  ORDERED: "production",
-  IN_PRODUCTION: "production",
-  IN_TRANSIT: "delivery",
-  ARRIVED: "done",
-};
+// PackagingOrder → колонка: ЕДИНЫЙ маппер packagingOrderPhase (lib/packaging-orders),
+// общий с Гантом — расхождение 04.07 (ORDERED: канбан «Производство», Гант
+// «Разработка») починено сведением правила в одно место. Фаза = имя колонки:
+// production / delivery / done; CANCELLED → null (не показываем).
+const pkgOrderColumn = (status: PackagingOrderStatus): string | null => packagingOrderPhase(status);
 
 // Статус заказа → колонка канбана берётся из ЕДИНОГО маппера
 // `orderKanbanColumn` (lib/order-stage), общего с Гантом — чтобы карточка и
@@ -316,7 +310,7 @@ export default async function ModelsKanbanPage() {
   // PackagingItem в lines, заголовок = "📦 PKG-..." + название первой позиции.
   // Без цветочипов и без drag-n-drop.
   for (const po of packagingOrders) {
-    const col = PKG_ORDER_STATUS_TO_COL[po.status];
+    const col = pkgOrderColumn(po.status);
     if (!col) continue;
     const firstLine = po.lines[0];
     const totalQty = po.lines.reduce((s, l) => s + l.quantity, 0);

@@ -11,7 +11,7 @@ import { ListCapNotice } from "@/components/common/list-cap-notice";
 // полосу «показаны первые N». Пагинация — отдельной задачей.
 const GANTT_ORDERS_CAP = 500;
 import { orderLateDays } from "@/lib/order-auto-status";
-import { PACKAGING_ORDER_STATUS_LABELS } from "@/lib/packaging-orders";
+import { PACKAGING_ORDER_STATUS_LABELS, packagingOrderPhase, packagingActivePhaseIndex } from "@/lib/packaging-orders";
 
 // Фазы заказа: 4 фиксированных этапа от Разработки до Доставки.
 // Каждой фазе соответствует пара полей в БД (start/end), причём end предыдущей
@@ -263,16 +263,13 @@ export default async function GanttV2Page() {
       .slice(0, 3);
     const factoryOwner = po.factory?.name ?? po.supplierName ?? po.owner?.name;
 
-    // Сверка с канбаном (Алёна 04.07): в канбане ORDERED → колонка «Производство»,
-    // а тут ORDERED держал активной «Разработку» — экраны расходились.
-    // ORDERED = заказ уже размещён, разработка позади: активная фаза — «Производство».
-    const developmentDone = true;
-    const productionDone = ["IN_TRANSIT", "ARRIVED"].includes(po.status);
-    const deliveryDone = po.status === "ARRIVED";
-
-    let activeIdx = -1;
-    if (!productionDone) activeIdx = 1;
-    else if (!deliveryDone) activeIdx = 2;
+    // Этап — из ЕДИНОГО маппера packagingOrderPhase (общий с канбаном), как у
+    // одежды orderPhase: расхождение канбан↔Гант физически невозможно.
+    const phase = packagingOrderPhase(po.status);
+    const developmentDone = true; // заказ размещён — разработка позади
+    const productionDone = phase === "delivery" || phase === "done";
+    const deliveryDone = phase === "done";
+    const activeIdx = packagingActivePhaseIndex(po.status);
 
     const phases: Array<{
       key: string; title: string; color: string;
