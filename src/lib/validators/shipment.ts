@@ -10,9 +10,9 @@ export const shipmentCreateSchema = z.object({
   departDate: z.string().optional().nullable(),
   arriveDate: z.string().optional().nullable(),
   cargoNumber: z.string().max(60).optional().nullable(),
-  placesCount: z.union([z.number(), z.string()]).transform((v) => (v === "" || v == null ? null : Number(v))).pipe(z.number().int().min(0).nullable()).optional(),
-  weightKg: z.union([z.number(), z.string()]).transform((v) => (v === "" || v == null ? null : Number(v))).pipe(z.number().min(0).nullable()).optional(),
-  amountUsdt: z.union([z.number(), z.string()]).transform((v) => (v === "" || v == null ? null : Number(v))).pipe(z.number().min(0).nullable()).optional(),
+  placesCount: z.union([z.number(), z.string(), z.null()]).transform((v) => (v === "" || v == null ? null : Number(v))).pipe(z.number().int().min(0).nullable()).optional(),
+  weightKg: z.union([z.number(), z.string(), z.null()]).transform((v) => (v === "" || v == null ? null : Number(v))).pipe(z.number().min(0).nullable()).optional(),
+  amountUsdt: z.union([z.number(), z.string(), z.null()]).transform((v) => (v === "" || v == null ? null : Number(v))).pipe(z.number().min(0).nullable()).optional(),
   cargoPaidAt: z.string().optional().nullable(),
   arrivalActualDate: z.string().optional().nullable(),
 });
