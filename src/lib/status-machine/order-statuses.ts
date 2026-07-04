@@ -6,12 +6,15 @@ import { OrderStatus, Role } from "@prisma/client";
 // пошив. Из enum статус НЕ убираем (его читают склад и детектор «застряло»), но
 // из PREPARATION даём прямой переход в SEWING в обход FABRIC_ORDERED. Сам
 // FABRIC_ORDERED остаётся валидной точкой цепи для легаси-данных.
+// READY_SHIP («Готов к отгрузке») выпилен так же (Алёна 04.07: «у нас нет
+// отдельного статуса, только ОТК»): из QC теперь сразу IN_TRANSIT, данные
+// смигрированы READY_SHIP→QC; из enum не убираем — история логов.
 export const ORDER_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   PREPARATION: ["SEWING", "FABRIC_ORDERED"],
   FABRIC_ORDERED: ["SEWING"],
   SEWING: ["QC"],
-  QC: ["READY_SHIP", "SEWING"], // ОТК может вернуть на пошив
-  READY_SHIP: ["IN_TRANSIT"],
+  QC: ["IN_TRANSIT", "SEWING"], // ОТК пройден → в Доставку; может вернуть на пошив
+  READY_SHIP: ["IN_TRANSIT"], // легаси-точка, недостижима из живых переходов
   IN_TRANSIT: ["WAREHOUSE_MSK"],
   WAREHOUSE_MSK: ["PACKING"],
   PACKING: ["SHIPPED_WB"],

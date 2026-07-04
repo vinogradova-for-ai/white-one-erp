@@ -397,8 +397,8 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
     }
 
     // Показываем «Примите ОТК» ТОЛЬКО пока заказ в статусе QC и ждёт приёмки.
-    // Галка ставит READY_SHIP — и задача больше не возвращается (принцип «галка =
-    // задача ушла из чек-листа»). Раньше условие включало READY_SHIP → закрытая
+    // Галка ставит IN_TRANSIT (READY_SHIP выпилен 04.07: ОТК принят = отгружаем) —
+    // и задача больше не возвращается. Раньше условие включало READY_SHIP → закрытая
     // задача воскресала после revalidate и висела красной до IN_TRANSIT.
     if (o.status === "QC" && o.qcDate) {
       const days = daysFromToday(o.qcDate, today);

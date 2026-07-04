@@ -65,7 +65,7 @@ export default async function IncomingCalendarPage({
   const orders = await prisma.order.findMany({
     where: {
       deletedAt: null,
-      status: { in: ["READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK"] },
+      status: { in: ["IN_TRANSIT", "WAREHOUSE_MSK"] },
       OR: [
         { arrivalPlannedDate: { gte: queryStart, lte: queryEnd } },
         { arrivalActualDate: { gte: queryStart, lte: queryEnd } },

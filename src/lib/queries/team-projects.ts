@@ -23,7 +23,6 @@ const ACTIVE_ORDER_STATUSES: OrderStatus[] = [
   "FABRIC_ORDERED",
   "SEWING",
   "QC",
-  "READY_SHIP",
   "IN_TRANSIT",
 ];
 

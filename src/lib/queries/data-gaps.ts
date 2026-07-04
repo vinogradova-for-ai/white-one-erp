@@ -36,7 +36,6 @@ export type GapSection = {
 const IN_WORK_STATUSES: OrderStatus[] = [
   "SEWING",
   "QC",
-  "READY_SHIP",
   "IN_TRANSIT",
   "WAREHOUSE_MSK",
   "PACKING",

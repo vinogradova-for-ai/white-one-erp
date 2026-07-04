@@ -346,7 +346,9 @@ export default async function GanttV2Page() {
       id: m.id,
       href: `/models/${m.id}`,
       title: `${m.name} · разработка`,
-      subtitle: `${stageLabel} · ${devDays} дн в разработке`,
+      // statusLabel уже выводится перед subtitle — стадию тут не дублируем
+      // (на проде было «Идея · Идея · 30 дн», скрин Алёны 04.07).
+      subtitle: `${devDays} дн в разработке`,
       statusLabel: stageLabel,
       brand: m.brand,
       factoryId: m.preferredFactory?.id ?? null,

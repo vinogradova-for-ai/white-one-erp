@@ -36,6 +36,9 @@ export type KanbanCard = {
   qty: number;
   orderNumber: string | null;
   orderId: string | null;
+  /** Точный статус заказа («ОТК», «Готов к отгрузке») — колонка «ОТК» вмещает
+   *  два статуса, без бейджа не видно, какой именно (пример Алёны 04.07). */
+  orderStatusLabel?: string | null;
   deadline: { iso: string; label: string } | null;
   dlColor: "red" | "amber" | "gray" | null;
   colorChips: Array<{ name: string; hex: string }>;
@@ -451,6 +454,12 @@ function KanbanCardView({
             </div>
           )}
           <div className="flex flex-wrap items-center gap-1">
+            {/* Точный статус заказа: колонка «ОТК» вмещает ОТК и «Готов к отгрузке» */}
+            {c.orderStatusLabel && (
+              <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-400/10 dark:text-blue-300">
+                {c.orderStatusLabel}
+              </span>
+            )}
             {c.factoryName && <span className="max-w-[120px] truncate rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-700">🏭 {c.factoryName}</span>}
             {c.qty > 0 && <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-700">{c.qty.toLocaleString("ru-RU")} шт</span>}
             {c.deadline && <span className={`rounded px-1.5 py-0.5 text-[10px] ${dlClass}`}>{dlPrefix} {fmtDM(c.deadline.iso)}</span>}

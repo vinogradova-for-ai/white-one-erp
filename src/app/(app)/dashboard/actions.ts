@@ -25,7 +25,8 @@ import type { Role } from "@prisma/client";
  *
  * Поддерживаемые kind'ы (где «галка» осмысленна, действие однозначное):
  *   order-qc        → Order.status = QC                  (заказали ОТК)
- *   accept-qc       → Order.status = READY_SHIP + qcDate (приняли ОТК)
+ *   accept-qc       → Order.status = IN_TRANSIT + qcDate (ОТК принят — отгружаем;
+ *                     READY_SHIP выпилен 04.07: «только ОТК», из QC сразу в Доставку)
  *   check-delivery  → Order.status = WAREHOUSE_MSK + arrivalActualDate
  *   size-chart      → ProductModel.sizeChartReady = true (нет даты)
  *   approve-sample  → ProductModel.status = APPROVED
@@ -81,9 +82,13 @@ export async function completeChecklistTask(
         break;
       }
       case "accept-qc": {
-        // ОТК прошёл и принят: status → READY_SHIP. qcDate = actualDate если ещё null.
+        // ОТК принят — «пора отгружать»: QC → IN_TRANSIT (READY_SHIP выпилен).
+        // qcDate (конец ОТК) = actualDate, если не проставлен раньше.
         const cur = await prisma.order.findUnique({ where: { id: entityId }, select: { qcDate: true } });
-        await updateOrderStatus(entityId, "READY_SHIP", user, cur?.qcDate ? {} : { qcDate: actualDate });
+        await updateOrderStatus(entityId, "IN_TRANSIT", user, {
+          shipmentDate: actualDate,
+          ...(cur?.qcDate ? {} : { qcDate: actualDate }),
+        });
         break;
       }
       case "check-delivery": {
@@ -132,11 +137,11 @@ export async function completeChecklistTask(
 // Смена статуса заказа с «Главного». Делегирует в общий changeOrderStatus —
 // тот же путь, что у UI смены статуса на карточке заказа: гейт упаковки, списание
 // consumedQty, OrderStatusLog и аудит в одном месте (см. change-order-status.ts).
-// Дашборд двигает только QC/READY_SHIP/WAREHOUSE_MSK — до PACKING не доходит,
+// Дашборд двигает только QC/IN_TRANSIT/WAREHOUSE_MSK — до PACKING не доходит,
 // но общий путь страхует на будущее.
 async function updateOrderStatus(
   orderId: string,
-  toStatus: "QC" | "READY_SHIP" | "WAREHOUSE_MSK",
+  toStatus: "QC" | "IN_TRANSIT" | "WAREHOUSE_MSK",
   user: { id: string; role: Role },
   extraData: Record<string, unknown>,
 ) {
@@ -148,9 +153,8 @@ async function updateOrderStatus(
     logComment: "Закрытие задачи с Главного",
     extraData,
   });
-  // Задача с «Главного» иногда закрывается, когда заказ уже в целевом статусе
-  // (напр. «Приём ОТК» показывается и для QC, и для READY_SHIP) — статус не
-  // меняется, но нужные даты (qcDate/arrivalActualDate) всё равно проставляем.
+  // Задача с «Главного» иногда закрывается, когда заказ уже в целевом статусе —
+  // статус не меняется, но нужные даты (qcDate/arrivalActualDate) всё равно проставляем.
   if (!result.ok && result.code === "no_change") {
     if (Object.keys(extraData).length > 0) {
       await prisma.order.update({ where: { id: orderId }, data: extraData });

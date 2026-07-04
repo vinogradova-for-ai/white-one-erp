@@ -138,12 +138,17 @@ export async function changeOrderStatus(params: {
     ORDER_STATUS_ORDER.indexOf(toStatus) < ORDER_STATUS_ORDER.indexOf("PACKING");
 
   const dateField = ORDER_STATUS_DATE_FIELDS[toStatus];
+  // Конец ОТК: раньше qcDate ставил переход в READY_SHIP; статус выпилен
+  // (04.07, «только ОТК»), поэтому при QC → IN_TRANSIT дозаполняем qcDate,
+  // если его не отметили отдельно — иначе Гант остаётся без конца фазы ОТК.
+  const fillQcDate = toStatus === "IN_TRANSIT" && !order.qcDate;
   await prisma.$transaction(async (tx) => {
     await tx.order.update({
       where: { id: orderId },
       data: {
         status: toStatus,
         ...(dateField ? { [dateField]: new Date() } : {}),
+        ...(fillQcDate ? { qcDate: new Date() } : {}),
         ...(extraData ?? {}),
       },
     });

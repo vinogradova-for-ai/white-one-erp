@@ -66,7 +66,7 @@ export default async function IncomingPage() {
   const orders = await prisma.order.findMany({
     where: {
       deletedAt: null,
-      status: { in: ["READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK"] },
+      status: { in: ["IN_TRANSIT", "WAREHOUSE_MSK"] },
     },
     include: INCOMING_INCLUDE,
     orderBy: { arrivalPlannedDate: "asc" },

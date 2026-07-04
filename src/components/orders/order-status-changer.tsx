@@ -13,7 +13,9 @@ import { ORDER_TRANSITIONS } from "@/lib/status-machine/order-statuses";
 // FABRIC_ORDERED («Ткань заказана») из UI не предлагаем как отдельный шаг (аудит п.5):
 // его никто вручную не проставлял, заказы шли сразу в пошив. Из PREPARATION
 // показываем прямой переход в SEWING. Статус остаётся в enum и цепи для легаси.
-const HIDDEN_TARGETS: OrderStatus[] = ["FABRIC_ORDERED"];
+// READY_SHIP выпилен так же (Алёна 04.07: «нет отдельного статуса, только ОТК»):
+// ОТК пройден → сразу «В доставке».
+const HIDDEN_TARGETS: OrderStatus[] = ["FABRIC_ORDERED", "READY_SHIP"];
 
 export function OrderStatusChanger({
   orderId,

@@ -7,7 +7,6 @@ const MIRROR_STATUSES = [
   "FABRIC_ORDERED",
   "SEWING",
   "QC",
-  "READY_SHIP",
   "IN_TRANSIT",
   "WAREHOUSE_MSK",
 ] as const;

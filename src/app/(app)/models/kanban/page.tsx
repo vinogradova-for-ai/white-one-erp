@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { ORDER_STATUS_ORDER } from "@/lib/constants";
+import { ORDER_STATUS_ORDER, ORDER_STATUS_LABELS } from "@/lib/constants";
 import { OrderStatus, PackagingOrderStatus, ProductModelStatus } from "@prisma/client";
 import { type KanbanCard, type KanbanColumn } from "@/components/models-kanban/board-client";
 import { KanbanFiltersClient, type KanbanFilterOptions } from "@/components/models-kanban/kanban-filters-client";
@@ -252,6 +252,12 @@ export default async function ModelsKanbanPage() {
         const diff = dayDiff(todayIso, deadline.iso);
         dlColor = diff < 0 ? "red" : diff <= 7 ? "amber" : "gray";
       }
+      // Точный статус заказа — только там, где колонка вмещает НЕСКОЛЬКО статусов
+      // (пример Алёны 04.07: в «ОТК» и сам ОТК, и «Готов к отгрузке»; «Завершено»
+      // вмещает 4). Где статус = колонке 1:1 — бейдж был бы шумом.
+      const ambiguous =
+        order && ((column === "qc" && order.status !== "QC") || column === "done");
+      const orderStatusLabel = ambiguous ? ORDER_STATUS_LABELS[order.status] : null;
       buckets[column].push({
         modelId: m.id,
         modelName: m.name,
@@ -267,6 +273,7 @@ export default async function ModelsKanbanPage() {
         qty,
         orderNumber: order?.orderNumber ?? null,
         orderId: order?.id ?? null,
+        orderStatusLabel,
         deadline,
         dlColor,
         colorChips,

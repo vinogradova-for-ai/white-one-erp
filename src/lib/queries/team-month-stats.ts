@@ -38,7 +38,6 @@ const ACTIVE_STATUSES: OrderStatus[] = [
   "FABRIC_ORDERED",
   "SEWING",
   "QC",
-  "READY_SHIP",
   "IN_TRANSIT",
 ];
 
@@ -281,8 +280,9 @@ export async function getTeamMonthStats(requestedYm?: number): Promise<TeamMonth
       acc.orderedModels.add(o.productModelId);
       acc.orderedUnits += units;
     }
-    // Проверено: qcDate в M И заказ реально прошёл ОТК (≥ READY_SHIP).
-    if (inMonth(o.qcDate, start, next) && statusAtLeast(o.status, "READY_SHIP")) {
+    // Проверено: qcDate в M И заказ реально прошёл ОТК (уехал: ≥ IN_TRANSIT;
+    // READY_SHIP выпилен 04.07 — ОТК принят = сразу отгрузка).
+    if (inMonth(o.qcDate, start, next) && statusAtLeast(o.status, "IN_TRANSIT")) {
       acc.checkedModels.add(o.productModelId);
       acc.checkedUnits += units;
     }
