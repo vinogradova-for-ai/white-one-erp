@@ -13,14 +13,35 @@ const scriptFontVars = `${greatVibes.variable} ${pacifico.variable} ${caveat.var
 export const metadata: Metadata = {
   title: "White One ERP",
   description: "Система управления продуктовым циклом",
+  // PWA-лайт «на экран домой»: манифест + иконки. Сервис-воркера/оффлайна нет.
+  manifest: "/manifest.webmanifest",
+  applicationName: "White One",
+  appleWebApp: {
+    capable: true,
+    title: "White One",
+    statusBarStyle: "default",
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 // viewport-fit=cover — чтобы работали safe-area-inset (чёлка/домашняя полоса iPhone).
 // maximum-scale не ставим: не блокируем зум (доступность).
+// theme-color через media: белый на светлой теме, чёрный на тёмной — статус-бар
+// PWA попадает в тон системы.
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+  ],
 };
 
 // Скрипт применяется ДО первого рендера — предотвращает мигание белым фоном
