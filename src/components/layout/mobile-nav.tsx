@@ -6,20 +6,20 @@ import { usePathname } from "next/navigation";
 import { bestMatch } from "./sidebar-nav";
 
 // Нижний таб-бар: 4 ключевых направления + кнопка «Ещё».
-// «Цели» и «План/Факт» убраны (Алёна 04.07: «ненужные, ориентируемся на
-// Статистику») — в табе теперь «Статистика». Страницы живы по URL.
+// В табе — «Гант» (Алёна 05.07: команда с телефона живёт в графике).
+// «Статистика» уехала в «Ещё». Страницы живы по URL.
 const TABS = [
   { href: "/dashboard", label: "Главный", icon: "✦" },
-  { href: "/stats", label: "Статистика", icon: "▤" },
+  { href: "/gantt-v2", label: "Гант", icon: "▦" },
   { href: "/orders", label: "Заказы", icon: "⬡" },
   { href: "/models", label: "Каталог", icon: "⬢" },
 ];
 
 const MORE_LINKS = [
+  { href: "/stats", label: "Статистика", icon: "▤" },
   { href: "/packaging", label: "Упаковка", icon: "▯" },
   { href: "/variants", label: "Цветомодели", icon: "◎" },
   { href: "/packaging-orders", label: "Заказы упаковки", icon: "▥" },
-  { href: "/gantt-v2", label: "График Ганта", icon: "▦" },
   { href: "/data-gaps", label: "Дыры в данных", icon: "⚠" },
   { href: "/payments", label: "Платежи", icon: "₽" },
   { href: "/shipments", label: "Карго", icon: "▣" },
