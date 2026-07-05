@@ -73,17 +73,29 @@ export function GanttV2Chart({
     return { min, max };
   }, [groups, pendingChanges]);
 
+  // «Рейл не дышит» (жалоба Алёны 05.07 «правлю — уходит вперёд-назад»):
+  // границы данных за сессию ТОЛЬКО расширяются. Иначе каждый drag/автосейв
+  // пересчитывал min/max, лента меняла ширину и всё съезжало под курсором.
+  const boundsRef = useRef<{ min: string | null; max: string | null }>({ min: null, max: null });
+  if (dataRange.min && (boundsRef.current.min === null || dataRange.min < boundsRef.current.min)) {
+    boundsRef.current.min = dataRange.min;
+  }
+  if (dataRange.max && (boundsRef.current.max === null || dataRange.max > boundsRef.current.max)) {
+    boundsRef.current.max = dataRange.max;
+  }
+  const bounds = boundsRef.current;
+
   const calStart = toISO(range.start);
   const calEnd = toISO(range.end);
   // Запас по краям, чтобы крайние ручки не липли к краю рейла.
   const MARGIN_DAYS = 7;
   let chartStart = calStart;
   let chartEnd = calEnd;
-  if (dataRange.min && dayDiff(dataRange.min, chartStart) > 0) {
-    chartStart = toISO(addDays(parseISO(dataRange.min), -MARGIN_DAYS));
+  if (bounds.min && dayDiff(bounds.min, chartStart) > 0) {
+    chartStart = toISO(addDays(parseISO(bounds.min), -MARGIN_DAYS));
   }
-  if (dataRange.max && dayDiff(chartEnd, dataRange.max) > 0) {
-    chartEnd = toISO(addDays(parseISO(dataRange.max), MARGIN_DAYS));
+  if (bounds.max && dayDiff(chartEnd, bounds.max) > 0) {
+    chartEnd = toISO(addDays(parseISO(bounds.max), MARGIN_DAYS));
   }
   const totalDays = Math.max(1, dayDiff(chartStart, chartEnd));
 
@@ -216,6 +228,21 @@ export function GanttV2Chart({
     // Только при открытии и смене зума — не дёргаем скролл на каждый рендер.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoom]);
+
+  // Если левая граница рейла всё же уехала влево (потянули самую раннюю дату
+  // ещё раньше) — все плашки сдвигаются вправо на дельту. Компенсируем скролл
+  // на ту же дельту, чтобы картинка под курсором не двигалась.
+  // При смене зума не компенсируем: там масштаб другой и скролл ставит
+  // scrollToToday (эффект выше).
+  const prevRailRef = useRef({ chartStart, pxPerDay });
+  useLayoutEffect(() => {
+    const prev = prevRailRef.current;
+    prevRailRef.current = { chartStart, pxPerDay };
+    if (prev.pxPerDay !== pxPerDay || prev.chartStart === chartStart) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollLeft += dayDiff(chartStart, prev.chartStart) * pxPerDay;
+  }, [chartStart, pxPerDay]);
 
   // ── Автоскролл контейнера при drag у края (как в phase-timeline) ──────────
   const autoScrollRef = useRef<number | null>(null);

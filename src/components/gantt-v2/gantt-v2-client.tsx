@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useTransition } from "react";
+import { useEffect, useState, useMemo, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -83,7 +83,14 @@ export function GanttV2Client({
 
   // ---------- Сортировка: по дедлайну производства (end фазы «Производство»)
   //  от ранней даты к поздней. Если у заказа нет фазы production (упаковка) —
-  //  берём end её аналогичной средней фазы. Без даты — в самый конец. ----------
+  //  берём end её аналогичной средней фазы. Без даты — в самый конец.
+  //
+  //  СТАБИЛЬНОСТЬ (жалоба Алёны 05.07 «правлю — уходит вперёд-назад»): порядок
+  //  строк фиксируется при заходе/смене фильтров и НЕ пересчитывается после
+  //  каждого автосейва — иначе редактируемый заказ прыгает по вертикали.
+  //  Свежий порядок по дедлайнам применится при следующем заходе на страницу. ----------
+  const sortSigRef = useRef<string>("");
+  const rowOrderRef = useRef<Map<string, number>>(new Map());
   const sorted = useMemo(() => {
     function productionDeadline(row: typeof filtered[number]): string {
       const prod = row.bars.find((b) => b.key === "production");
@@ -94,8 +101,25 @@ export function GanttV2Client({
     }
     const arr = [...filtered];
     arr.sort((a, b) => productionDeadline(a).localeCompare(productionDeadline(b)));
+
+    const sig = JSON.stringify(filters);
+    if (sortSigRef.current !== sig) {
+      // Новый вид (первый заход или сменили фильтры) — фиксируем порядок.
+      sortSigRef.current = sig;
+      rowOrderRef.current = new Map(arr.map((r, i) => [`${r.group}:${r.id}`, i]));
+      return arr;
+    }
+    // Тот же вид: держим зафиксированный порядок, новые строки — в конец
+    // (по дедлайну между собой, за счёт исходной сортировки arr).
+    const order = rowOrderRef.current;
+    let next = order.size;
+    for (const r of arr) {
+      const k = `${r.group}:${r.id}`;
+      if (!order.has(k)) order.set(k, next++);
+    }
+    arr.sort((a, b) => order.get(`${a.group}:${a.id}`)! - order.get(`${b.group}:${b.id}`)!);
     return arr;
-  }, [filtered]);
+  }, [filtered, filters]);
 
   // ---------- Без группировки ----------
   const groups = useMemo(
@@ -107,11 +131,16 @@ export function GanttV2Client({
   // Каждое изменение попадает в pending, перезапускаем дебаунс-таймер 600мс.
   // Когда таймер дотикает (юзер перестал тащить) — снапшот улетает в API
   // одним батчем (каждый заказ — один PATCH), потом toast «Сохранено» и refresh.
+  //
+  // ВАЖНО (жалоба Алёны 05.07 «уходит вперёд, потом назад, потом снова вперёд»):
+  // pending НЕ сбрасываем при отправке. Иначе между «отправили» и «пришли свежие
+  // строки с сервера» плашка на мгновение прыгает на старые даты и обратно.
+  // Буфер отпускаем в useEffect ниже — только когда сервер уже отдал строки
+  // с сохранёнными датами (визуально ничего не двигается).
   async function flushAutosave() {
+    saveTimer.current = null;
     const snapshot = pendingRef.current;
     if (Object.keys(snapshot).length === 0) return;
-    pendingRef.current = {};
-    setPending({});
     const byOrder: Record<string, { group: string; orderId: string; fields: Record<string, string> }> = {};
     for (const [k, v] of Object.entries(snapshot)) {
       const [g, id, field] = k.split(":");
@@ -137,12 +166,23 @@ export function GanttV2Client({
       }
     }
     if (errors.length > 0) {
+      // pending не трогаем: плашки остаются где их поставили, можно дёрнуть ещё раз.
       toast.error(`Не сохранилось: ${errors.join("; ")}`);
       return;
     }
     toast.success("Сохранено");
     startTransition(() => router.refresh());
   }
+
+  // Свежие строки приехали с сервера (после refresh) — сохранённые даты уже в
+  // rows, буфер можно отпустить без визуального скачка. Если юзер в этот момент
+  // уже тащит следующую правку (таймер заряжен) — не трогаем, дождёмся её сейва.
+  useEffect(() => {
+    if (saveTimer.current != null) return;
+    if (Object.keys(pendingRef.current).length === 0) return;
+    pendingRef.current = {};
+    setPending({});
+  }, [rows]);
 
   function handleBarChange(orderId: string, endField: string, newDateIso: string, group: string) {
     const key = `${group}:${orderId}:${endField}`;
