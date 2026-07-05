@@ -32,24 +32,27 @@ export const metadata: Metadata = {
 
 // viewport-fit=cover — чтобы работали safe-area-inset (чёлка/домашняя полоса iPhone).
 // maximum-scale не ставим: не блокируем зум (доступность).
-// theme-color через media: белый на светлой теме, чёрный на тёмной — статус-бар
-// PWA попадает в тон системы.
+// theme-color здесь НЕ задаём: тема кабинета — ручной класс .dark из
+// localStorage('theme'), а не системная prefers-color-scheme. Статический
+// themeColor через media красил бы статус-бар PWA по теме СИСТЕМЫ, а не
+// кабинета (белая полоса над тёмным приложением). Мета-тег ставится
+// динамически: themeInitScript ниже + переключатель темы (ThemeToggle).
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#000000" },
-  ],
 };
 
 // Скрипт применяется ДО первого рендера — предотвращает мигание белым фоном
-// при загрузке ночной темы.
+// при загрузке ночной темы. Заодно ставит <meta name="theme-color"> в тон
+// выбранной темы (статус-бар standalone-PWA); тег создаётся при отсутствии.
 const themeInitScript = `
   try {
     var t = localStorage.getItem('theme');
     if (t === 'dark') document.documentElement.classList.add('dark');
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (!m) { m = document.createElement('meta'); m.setAttribute('name', 'theme-color'); document.head.appendChild(m); }
+    m.setAttribute('content', t === 'dark' ? '#000000' : '#ffffff');
   } catch(_) {}
 `;
 

@@ -197,7 +197,7 @@ export function BoardClient({
                 key={col.key}
                 type="button"
                 onClick={() => scrollToCol(col.key)}
-                className={`inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-xs font-medium transition ${
+                className={`inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition ${
                   active
                     ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
                     : "border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
@@ -269,7 +269,7 @@ export function BoardClient({
                 type="button"
                 onClick={() => setDoneCollapsed(false)}
                 title="Показать завершённые"
-                className="flex w-[calc(100vw-2rem)] shrink-0 snap-center flex-row items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-slate-500 hover:bg-slate-100 md:w-[44px] md:flex-col md:justify-start md:px-2"
+                className="flex min-h-[44px] w-[calc(100vw-2rem)] shrink-0 snap-center flex-row items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-slate-500 hover:bg-slate-100 md:w-[44px] md:flex-col md:justify-start md:px-2"
               >
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: col.dot }} />
                 <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">

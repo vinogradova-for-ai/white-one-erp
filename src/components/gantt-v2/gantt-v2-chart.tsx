@@ -314,7 +314,7 @@ export function GanttV2Chart({
             key={key}
             type="button"
             onClick={() => setMobileView(key)}
-            className={`min-h-[36px] flex-1 rounded-lg px-2 text-xs font-medium transition ${
+            className={`min-h-[44px] flex-1 rounded-lg px-2 text-xs font-medium transition ${
               mobileView === key ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"
             }`}
           >
@@ -947,7 +947,7 @@ function PhaseSheet({
             type="button"
             onClick={onClose}
             aria-label="Закрыть"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-lg text-slate-500 dark:bg-slate-800 dark:text-slate-300"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-lg text-slate-500 dark:bg-slate-800 dark:text-slate-300"
           >
             ×
           </button>

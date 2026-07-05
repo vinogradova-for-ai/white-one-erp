@@ -19,6 +19,15 @@ export function ThemeToggle() {
     setTheme(next);
     localStorage.setItem("theme", next);
     document.documentElement.classList.toggle("dark", next === "dark");
+    // Статус-бар standalone-PWA в тон темы: тот же мета-тег, что ставит
+    // themeInitScript в layout.tsx (создаём, если вдруг нет).
+    let m = document.querySelector('meta[name="theme-color"]');
+    if (!m) {
+      m = document.createElement("meta");
+      m.setAttribute("name", "theme-color");
+      document.head.appendChild(m);
+    }
+    m.setAttribute("content", next === "dark" ? "#000000" : "#ffffff");
   }
 
   // До монтирования — нейтральная кнопка, чтобы не мигало
