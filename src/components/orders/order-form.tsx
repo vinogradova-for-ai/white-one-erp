@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ORDER_TYPE_LABELS, DELIVERY_METHOD_LABELS } from "@/lib/constants";
 import { ORDER_CREATE_STAGES } from "@/lib/order-stage";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatDate } from "@/lib/format";
 import { PhotoThumb } from "@/components/common/photo-thumb";
 import { VariantVisual } from "@/components/common/variant-visual";
 import { VariantPicker } from "@/components/common/variant-picker";
+import { FormProgressNav } from "@/components/common/form-progress-nav";
 import { parsePaymentTerms, allocatePaymentDates, paymentLabel } from "@/lib/payments/parse-terms";
 import { OrderTimeline } from "@/components/orders/order-timeline";
 import type { DeliveryMethod } from "@prisma/client";
@@ -132,6 +133,9 @@ export function OrderForm({
     return [];
   });
 
+  // П2: значение мини-заливки на строку (индекс → число), транзиентное UI-состояние.
+  const [fillValues, setFillValues] = useState<Record<number, string>>({});
+
   // Месяц продаж по умолчанию: +5 месяцев от сегодня. Редактируется ползунками на Гант-таймлайне
   // (sale start date), а поле в UI убрано — оно лишнее, когда есть визуальный график.
   const defaultLaunchMonth = (() => {
@@ -166,6 +170,12 @@ export function OrderForm({
   // (purchasePriceRub > purchasePriceCny × курс > fullCost). Алёна может
   // отредактировать в форме — это переопределение действует только для этого заказа.
   const [unitCost, setUnitCost] = useState<string>(model ? modelDefaultUnitCost(model) : "");
+
+  // П4: пресеты условий оплаты. Если стартовое значение не из пресетов —
+  // сразу режим «своё» с раскрытым инпутом.
+  const [customTerms, setCustomTerms] = useState<boolean>(
+    () => !PAYMENT_PRESETS.includes(common.paymentTerms),
+  );
 
   // Платежи — массив строк, пересчитывается из paymentTerms пока юзер не правил вручную
   type PaymentRow = { id: string; plannedDate: string; amount: number; label: string; paid: boolean };
@@ -225,6 +235,20 @@ export function OrderForm({
 
   function changeLineVariant(idx: number, variantId: string) {
     updateLine(idx, { variantId });
+  }
+
+  // П2: скопировать распределение по размерам из первого цвета в строку idx.
+  function copyFromFirst(idx: number) {
+    if (idx === 0 || !lines[0]) return;
+    updateLine(idx, { sizeDistribution: { ...lines[0].sizeDistribution } });
+  }
+
+  // П2: залить одно число во все размеры строки idx.
+  function fillAllSizes(idx: number, value: number) {
+    if (!model) return;
+    const dist: Record<string, number> = {};
+    model.sizes.forEach((s) => (dist[s] = value));
+    updateLine(idx, { sizeDistribution: dist });
   }
 
   function removeLine(idx: number) {
@@ -309,6 +333,33 @@ export function OrderForm({
   const paymentsTotal = payments.reduce((a, p) => a + (Number(p.amount) || 0), 0);
   const paymentsMismatch = totalBatchCost > 0 && Math.abs(paymentsTotal - totalBatchCost) > 1;
 
+  // П6: почему кнопка «Создать заказ» серая (совпадает с disabled-условием).
+  const submitBlockReason = !modelId
+    ? "Выбери фасон"
+    : lines.length === 0
+      ? "Добавь хотя бы один цвет"
+      : null;
+
+  // П5: прогресс-чипы. Секции, которых нет на экране (пока не выбран фасон
+  // или нет суммы), в навигацию не включаем.
+  const navSections = [
+    { id: "sec-model", title: "Фасон", filled: !!modelId },
+    ...(model
+      ? [{ id: "sec-lines", title: "Позиции", filled: totalQty > 0 }]
+      : []),
+    { id: "sec-production", title: "Производство", filled: !!common.ownerId && !!common.paymentTerms },
+    ...(model && totalQty > 0
+      ? [{ id: "sec-timeline", title: "Таймлайн", filled: !!timeline.decisionDate && !!timeline.arrivalPlannedDate }]
+      : []),
+    ...(model
+      ? [{ id: "sec-cost", title: "Стоимость", filled: unitCostNum > 0 }]
+      : []),
+    ...(model && totalBatchCost > 0
+      ? [{ id: "sec-payments", title: "Платежи", filled: payments.length > 0 && !paymentsMismatch }]
+      : []),
+    { id: "sec-params", title: "Параметры", filled: true },
+  ];
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -369,6 +420,7 @@ export function OrderForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-6">
+      <FormProgressNav sections={navSections} />
       <Section id="sec-model" title="Фасон">
         <Field label="Фасон *" full>
           <div className="space-y-2">
@@ -379,20 +431,49 @@ export function OrderForm({
               placeholder="Поиск по фасонам…"
               className={inputCls}
             />
-            <select
-              required
-              value={modelId}
-              onChange={(e) => onModelChange(e.target.value)}
-              className={inputCls}
-              size={modelQuery.trim() ? Math.min(8, Math.max(2, filteredModels.length)) : undefined}
-            >
-              <option value="">— выберите —</option>
-              {filteredModels.map((m) => (
-                <option key={m.id} value={m.id}>{m.name}</option>
-              ))}
-            </select>
+            {/* П1: выбор фасона фото-плитками вместо выпадашки. Поиск фильтрует. */}
+            <div className="model-tile-grid grid max-h-[calc(3*8.5rem)] grid-cols-3 gap-2 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2 sm:grid-cols-4 md:grid-cols-6 dark:border-slate-700 dark:bg-slate-800/50">
+              {filteredModels.map((m) => {
+                const selected = m.id === modelId;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => onModelChange(m.id)}
+                    aria-pressed={selected}
+                    className={`group relative flex flex-col overflow-hidden rounded-lg border bg-white text-left transition dark:bg-slate-900 ${
+                      selected
+                        ? "border-slate-900 ring-2 ring-slate-900 dark:border-slate-100 dark:ring-slate-100"
+                        : "border-slate-200 hover:border-slate-400 dark:border-slate-600 dark:hover:border-slate-400"
+                    }`}
+                  >
+                    <div className="relative aspect-square w-full bg-slate-100 dark:bg-slate-800">
+                      {m.photoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={m.photoUrl} alt={m.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center px-1 text-center text-[10px] text-slate-400">
+                          {m.name}
+                        </div>
+                      )}
+                      {selected && (
+                        <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-[11px] text-white dark:bg-slate-100 dark:text-slate-900">
+                          ✓
+                        </span>
+                      )}
+                    </div>
+                    <div className="truncate px-1.5 py-1 text-[11px] font-medium text-slate-700 dark:text-slate-200">
+                      {m.name}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
             {modelQuery.trim() && filteredModels.length === 0 && (
               <p className="text-xs text-slate-500">Ничего не найдено по «{modelQuery}».</p>
+            )}
+            {!modelId && (
+              <p className="text-xs text-slate-500">Выбери фасон — нажми на плитку.</p>
             )}
           </div>
         </Field>
@@ -447,8 +528,41 @@ export function OrderForm({
                       </div>
                       {model.sizes.length > 0 && (
                         <div>
-                          <div className="text-xs text-slate-500">
-                            Распределение по размерам
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-xs text-slate-500">
+                              Распределение по размерам
+                            </div>
+                            {/* П2: ускорители ввода */}
+                            {idx > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => copyFromFirst(idx)}
+                                disabled={sumSizes(lines[0]?.sizeDistribution ?? {}) === 0}
+                                className="inline-flex min-h-[36px] items-center rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-40 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                              >
+                                ⧉ как у первого цвета
+                              </button>
+                            )}
+                            <div className="inline-flex items-center gap-1">
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={fillValues[idx] ?? ""}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) =>
+                                  setFillValues((v) => ({ ...v, [idx]: e.target.value.replace(/\D/g, "") }))
+                                }
+                                placeholder="0"
+                                className="h-9 w-14 rounded-md border border-slate-300 bg-white px-2 text-center text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => fillAllSizes(idx, Number(fillValues[idx] || 0))}
+                                className="inline-flex min-h-[36px] items-center rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                              >
+                                залить во все размеры
+                              </button>
+                            </div>
                           </div>
                           <div className="mt-1 grid grid-cols-4 gap-1 sm:grid-cols-6 md:grid-cols-8">
                             {model.sizes.map((s) => (
@@ -466,7 +580,7 @@ export function OrderForm({
                                       sizeDistribution: { ...line.sizeDistribution, [s]: n },
                                     });
                                   }}
-                                  className="mt-0.5 w-full rounded border border-slate-300 bg-white px-1 py-1 text-center text-xs"
+                                  className="mt-0.5 w-full rounded border border-slate-300 bg-white px-1 py-1.5 text-center text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                                 />
                               </label>
                             ))}
@@ -478,6 +592,26 @@ export function OrderForm({
                 </div>
               );
             })}
+
+            {/* П2: итог по размерам — сумма по каждому размеру по всем цветам. */}
+            {model.sizes.length > 0 && totalQty > 0 && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/50">
+                <div className="mb-1 text-xs font-medium text-slate-500">Итого по размерам</div>
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
+                  {model.sizes.map((s) => {
+                    const sum = lines.reduce((a, l) => a + (Number(l.sizeDistribution[s]) || 0), 0);
+                    return (
+                      <span key={s} className="text-slate-700 dark:text-slate-300">
+                        <span className="font-medium">{s}:</span> {sum}
+                      </span>
+                    );
+                  })}
+                  <span className="ml-auto font-semibold text-slate-900 dark:text-slate-100">
+                    Всего: {totalQty} шт
+                  </span>
+                </div>
+              </div>
+            )}
 
             {availableVariants.length > 0 && (
               <div className="flex gap-2">
@@ -544,21 +678,66 @@ export function OrderForm({
         </Field>
         {/* §4: условия оплаты и ожидаемая готовность — прямо в форме,
             а не только через график/таймлайн ниже. */}
+        {/* П4: пресеты-чипы условий оплаты. «Своё» раскрывает text-инпут. */}
         <Field label="Условия оплаты">
-          <input
-            value={common.paymentTerms}
-            onChange={(e) => setCommon({ ...common, paymentTerms: e.target.value })}
-            placeholder="30/70"
-            className={inputCls}
-          />
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-1.5">
+              {PAYMENT_PRESETS.map((preset) => {
+                const active = !customTerms && common.paymentTerms === preset;
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      setCustomTerms(false);
+                      setCommon((c) => ({ ...c, paymentTerms: preset }));
+                    }}
+                    aria-pressed={active}
+                    className={`inline-flex min-h-[36px] items-center rounded-full border px-3 text-xs font-medium transition ${
+                      active
+                        ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
+                        : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => setCustomTerms(true)}
+                aria-pressed={customTerms}
+                className={`inline-flex min-h-[36px] items-center rounded-full border px-3 text-xs font-medium transition ${
+                  customTerms
+                    ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
+                    : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                }`}
+              >
+                своё
+              </button>
+            </div>
+            {customTerms && (
+              <input
+                value={common.paymentTerms}
+                onChange={(e) => setCommon({ ...common, paymentTerms: e.target.value })}
+                placeholder="30/70"
+                className={inputCls}
+              />
+            )}
+          </div>
         </Field>
-        <Field label="Ожидаемая готовность на фабрике">
-          <input
-            type="date"
-            value={timeline.readyAtFactoryDate}
-            onChange={(e) => setTimeline({ ...timeline, readyAtFactoryDate: e.target.value })}
-            className={inputCls}
-          />
+        {/* П3: дату готовности задаём в таймлайне — здесь только показываем. */}
+        <Field label="Готовность на фабрике">
+          <button
+            type="button"
+            onClick={() => document.getElementById("sec-timeline")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            className="flex min-h-[44px] w-full items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:border-slate-500"
+          >
+            <span>
+              {timeline.readyAtFactoryDate ? formatDate(timeline.readyAtFactoryDate) : "не задана"}
+              <span className="ml-1 text-slate-400">· задаётся в таймлайне ↓</span>
+            </span>
+          </button>
         </Field>
         <Field label="Способ доставки" full>
           <select value={common.deliveryMethod} onChange={(e) => setCommon({ ...common, deliveryMethod: e.target.value })} className={inputCls}>
@@ -747,12 +926,12 @@ export function OrderForm({
             {Object.entries(ORDER_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Field>
-        <Field label="Этап (колонка канбана) *">
+        <Field label="Где сейчас заказ *">
           <select value={common.stage} onChange={(e) => setCommon({ ...common, stage: e.target.value })} className={inputCls}>
             {ORDER_CREATE_STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
           <p className="mt-1 text-xs text-slate-500">
-            На какую колонку встанет заказ. По умолчанию «Разработка» — поставь дальше, если заказ уже шьётся или в пути.
+            По умолчанию — Разработка. Если заказ уже шьётся или едет — поставь нужный этап.
           </p>
         </Field>
       </Section>
@@ -760,19 +939,28 @@ export function OrderForm({
       {error && <div className="rounded-lg bg-red-50 dark:bg-red-400/10 p-3 text-sm text-red-700 dark:text-red-300">{error}</div>}
       <FormErrorBanner error={apiErr} />
 
-      <div className="pb-safe-4 sticky bottom-16 z-30 -mx-4 flex gap-3 border-t border-slate-200 bg-white px-4 pt-4 md:bottom-0 md:mx-0 md:flex-wrap md:justify-end md:px-0">
-        <button type="button" onClick={() => router.back()} className="flex h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm">
-          Отмена
-        </button>
-        <button type="submit" disabled={saving || !modelId || lines.length === 0} className="flex h-11 flex-1 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-50 md:flex-none">
-          {saving ? "Сохранение…" : "Создать заказ"}
-        </button>
+      <div className="pb-safe-4 sticky bottom-16 z-30 -mx-4 flex flex-col gap-2 border-t border-slate-200 bg-white px-4 pt-4 md:bottom-0 md:mx-0 md:px-0">
+        {/* П6: серая кнопка объясняет, чего не хватает. */}
+        {submitBlockReason && (
+          <p className="text-xs text-slate-500 md:text-right">{submitBlockReason}</p>
+        )}
+        <div className="flex gap-3 md:flex-wrap md:justify-end">
+          <button type="button" onClick={() => router.back()} className="flex h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm">
+            Отмена
+          </button>
+          <button type="submit" disabled={saving || !modelId || lines.length === 0} className="flex h-11 flex-1 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-50 md:flex-none">
+            {saving ? "Сохранение…" : "Создать заказ"}
+          </button>
+        </div>
       </div>
     </form>
   );
 }
 
 const inputCls = "min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
+
+// П4: пресеты условий оплаты (пишутся прямо в common.paymentTerms).
+const PAYMENT_PRESETS = ["30/70", "50/50", "70/30", "100%"];
 
 // Оценка даты готовности партии для дефолтного графика платежей.
 // Берём 1-е число месяца продаж (YYYY-MM) и вычитаем 45 дней.
