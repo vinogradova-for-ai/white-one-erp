@@ -88,8 +88,10 @@ export function OrdersListClient({
 
   return (
     <div className="space-y-4">
-      {/* Мобайл: заголовок + действие в отдельной строке, фильтры лентой ниже */}
-      <div className="sticky top-0 z-20 -mx-4 border-b border-slate-200 bg-slate-50/95 px-4 py-2 backdrop-blur md:static md:mx-0 md:rounded-xl md:border md:bg-white md:p-2 md:backdrop-blur-none">
+      {/* Мобайл: заголовок + действие в отдельной строке, фильтры лентой ниже.
+          Тёмная тема: bg-slate-50/95 и md:bg-white не кроются глобальным dark-слоем
+          (он матчит только базовые классы) — «не видно что наверху», скрин Алёны 05.07 */}
+      <div className="sticky top-0 z-20 -mx-4 border-b border-slate-200 bg-slate-50/95 px-4 py-2 backdrop-blur dark:bg-slate-900/95 md:static md:mx-0 md:rounded-xl md:border md:bg-white md:p-2 md:backdrop-blur-none dark:md:bg-slate-900">
         <div className="flex items-center justify-between gap-3 md:hidden">
           <div className="flex items-baseline gap-2">
             <h1 className="text-xl font-semibold text-slate-900">Заказы</h1>
