@@ -74,10 +74,10 @@ export function OrderBatchesSection({
   if (batches.length === 0) {
     return (
       <div className="rounded-2xl bg-white p-5 text-sm text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-        Партий пока нет. Партия создастся автоматически, когда заказ добавят в поставку
+        Партий пока нет. Партия создастся автоматически, когда заказ добавят в карго
         (раздел{" "}
         <Link href="/shipments" className="text-slate-900 underline dark:text-slate-200">
-          Поставки
+          Карго
         </Link>
         ).
       </div>

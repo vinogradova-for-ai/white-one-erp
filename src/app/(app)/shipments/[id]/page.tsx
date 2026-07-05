@@ -104,7 +104,7 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <Link href="/shipments" className="text-xs text-slate-400 hover:text-slate-600">
-            ← Поставки
+            ← Карго
           </Link>
           <h1 className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">{shipment.number}</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">

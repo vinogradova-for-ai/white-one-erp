@@ -8,7 +8,8 @@ import type { Role } from "@prisma/client";
 import { ClickableRow } from "@/components/common/clickable-row";
 import { NewShipmentButton } from "@/components/shipments/new-shipment-button";
 
-// Раздел «Поставки» — группы партий, едущих на склад МСК.
+// Раздел «Карго» (бывш. «Поставки», переименован по слову Алёны 05.07) —
+// группы партий, едущих на склад МСК; одна поставка = одна карго-накладная.
 // Старое окно логистики (заказы в пути) осталось вкладкой «Заказы в пути» (/incoming).
 export default async function ShipmentsPage() {
   const session = await auth();
@@ -35,7 +36,7 @@ export default async function ShipmentsPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Поставки</h1>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Карго</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Партии заказов, едущие на склад: {shipments.length}
           </p>
@@ -44,7 +45,7 @@ export default async function ShipmentsPage() {
           {canManage ? <NewShipmentButton /> : null}
           <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800">
             <span className="rounded-md bg-white px-3 py-1 text-sm font-medium text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100">
-              Поставки
+              Карго
             </span>
             <Link
               href="/incoming"
@@ -58,7 +59,7 @@ export default async function ShipmentsPage() {
 
       {shipments.length === 0 ? (
         <div className="rounded-2xl bg-white p-8 text-center text-sm text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-          Поставок пока нет. Нажмите «+ Поставка», затем добавьте в неё заказы.
+          Карго пока нет. Нажмите «+ Карго», затем добавьте в него заказы.
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl bg-white dark:bg-slate-900">

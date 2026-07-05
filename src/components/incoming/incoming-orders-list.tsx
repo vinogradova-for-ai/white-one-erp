@@ -248,7 +248,7 @@ export function IncomingOrdersList({
               disabled={busy}
               className="inline-flex min-h-[44px] items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
             >
-              {busy ? "Собираю…" : `Собрать поставку из выбранных (${selected.size})`}
+              {busy ? "Собираю…" : `Собрать карго из выбранных (${selected.size})`}
             </button>
           </div>
         </div>
