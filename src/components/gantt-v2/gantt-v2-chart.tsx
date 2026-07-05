@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { GanttRowV2, GanttBarV2, GanttGroup, GanttZoom, GanttDensity } from "./types";
 import {
   ZOOM_OPTIONS,
@@ -718,6 +719,7 @@ function BarView({
       barColor={bar.color}
       stateClass={stateClass}
       tooltip={tooltip}
+      barTitle={bar.title}
       editable={editable}
       hasStartHandle={hasStartHandle}
       startIso={startIso}
@@ -732,7 +734,7 @@ function BarView({
 }
 
 function DraggableBar({
-  left, width, top, height, barColor, stateClass, tooltip,
+  left, width, top, height, barColor, stateClass, tooltip, barTitle,
   editable, hasStartHandle, startIso, endIso, pxPerDay, barIndex, dispatchDrag, maybeAutoScroll, stopAutoScroll,
 }: {
   left: number;
@@ -742,6 +744,7 @@ function DraggableBar({
   barColor: string;
   stateClass: string;
   tooltip: string;
+  barTitle: string;
   editable: boolean;
   hasStartHandle: boolean;
   startIso: string;
@@ -755,6 +758,19 @@ function DraggableBar({
   const [hoverIso, setHoverIso] = useState<string | null>(null);
   const [dragEdge, setDragEdge] = useState<"start" | "end" | null>(null);
   const [flash, setFlash] = useState(false);
+  // П6: тап по телу плашки на тач-устройстве открывает нижний лист с фазой
+  // (название, start→end, два date-инпута). Сохранение пишет ТЕ ЖЕ поля через
+  // dispatchDrag — контракт жестов (правка start фазы N = end фазы N-1 внутри
+  // applyDrag). На десктопе тап игнорируем — там работает drag за края.
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const didDragRef = useRef(false);
+  function onBodyClick() {
+    if (!editable) return;
+    if (didDragRef.current) { didDragRef.current = false; return; }
+    if (typeof window !== "undefined" && window.matchMedia("(hover: none)").matches) {
+      setSheetOpen(true);
+    }
+  }
   const dragRef = useRef<{
     edge: "start" | "end";
     startX: number;
@@ -783,6 +799,7 @@ function DraggableBar({
     setHoverIso(newIso);
     maybeAutoScroll(e.clientX, () => dragRef.current != null);
     if (deltaDays === 0) return;
+    didDragRef.current = true; // был реальный сдвиг — не открывать лист по трейлинг-клику
     // Вся математика — через applyDrag (без клампов/подтяжек).
     dispatchDrag(barIndex, s.edge, newIso);
   }
@@ -806,7 +823,8 @@ function DraggableBar({
 
   return (
     <div
-      className={`group absolute rounded ${barColor} ${stateClass} shadow-sm transition-all duration-300 ${flash ? "ring-2 ring-emerald-400 ring-offset-1 dark:ring-emerald-400/30" : ""}`}
+      onClick={onBodyClick}
+      className={`group absolute rounded ${barColor} ${stateClass} shadow-sm transition-all duration-300 ${editable ? "[@media(hover:none)]:cursor-pointer" : ""} ${flash ? "ring-2 ring-emerald-400 ring-offset-1 dark:ring-emerald-400/30" : ""}`}
       style={{ left, width, top, height }}
     >
       {/* Тёмный кастомный тултип под плашкой (родного title нет). */}
@@ -851,6 +869,135 @@ function DraggableBar({
           {dragEdge === "end" ? "→" : "←"} {formatDM(hoverIso)}
         </div>
       )}
+
+      {sheetOpen && (
+        <PhaseSheet
+          title={barTitle}
+          startIso={startIso}
+          endIso={endIso}
+          hasStartHandle={hasStartHandle}
+          onSaveStart={(iso) => dispatchDrag(barIndex, "start", iso)}
+          onSaveEnd={(iso) => dispatchDrag(barIndex, "end", iso)}
+          onClose={() => setSheetOpen(false)}
+        />
+      )}
     </div>
+  );
+}
+
+// П6: нижний лист правки фазы (только тач). Два date-инпута; сохранение пишет
+// те же поля через dispatchDrag — контракт жестов. Свайп вниз/крестик — закрыть.
+function PhaseSheet({
+  title, startIso, endIso, hasStartHandle, onSaveStart, onSaveEnd, onClose,
+}: {
+  title: string;
+  startIso: string;
+  endIso: string;
+  hasStartHandle: boolean;
+  onSaveStart: (iso: string) => void;
+  onSaveEnd: (iso: string) => void;
+  onClose: () => void;
+}) {
+  const [start, setStart] = useState(startIso);
+  const [end, setEnd] = useState(endIso);
+  const touchStartY = useRef<number | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+  }, [onClose]);
+
+  function save() {
+    // Правку start дозволяем, только если у фазы есть «левая ручка» (у первого
+    // бара — свой startField, у остальных start = end предыдущей фазы).
+    if (hasStartHandle && start && start !== startIso) onSaveStart(start);
+    if (end && end !== endIso) onSaveEnd(end);
+    onClose();
+  }
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-[1000] flex flex-col justify-end bg-black/40"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={(e) => { touchStartY.current = e.touches[0].clientY; }}
+        onTouchEnd={(e) => {
+          const dy = touchStartY.current != null ? e.changedTouches[0].clientY - touchStartY.current : 0;
+          if (dy > 60) onClose();
+          touchStartY.current = null;
+        }}
+        className="pb-safe-4 max-h-[85vh] overflow-y-auto rounded-t-2xl bg-white px-4 pb-6 pt-2 shadow-xl dark:bg-slate-900"
+      >
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-slate-300 dark:bg-slate-600" />
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</div>
+            <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+              {formatDM(startIso)} → {formatDM(endIso)} · {dayDiff(startIso, endIso)} дн
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Закрыть"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-lg text-slate-500 dark:bg-slate-800 dark:text-slate-300"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {hasStartHandle ? (
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Начало</span>
+              <input
+                type="date"
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+                className="h-12 w-full rounded-lg border border-slate-300 bg-white px-3 text-base text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              />
+            </label>
+          ) : (
+            <div className="text-xs text-slate-400 dark:text-slate-500">
+              Начало = конец предыдущей фазы — двигай его в той фазе.
+            </div>
+          )}
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Конец</span>
+            <input
+              type="date"
+              value={end}
+              onChange={(e) => setEnd(e.target.value)}
+              className="h-12 w-full rounded-lg border border-slate-300 bg-white px-3 text-base text-slate-900 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+            />
+          </label>
+        </div>
+
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-[48px] flex-1 rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300"
+          >
+            Отмена
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            className="min-h-[48px] flex-1 rounded-lg bg-slate-900 text-sm font-medium text-white dark:bg-slate-100 dark:text-slate-900"
+          >
+            Сохранить
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
