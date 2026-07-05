@@ -18,6 +18,7 @@ import {
 import { MobileList } from "./gantt-mobile";
 import { ThumbnailStack, LegendItem, ResizeHandle } from "./gantt-pieces";
 import { applyDrag, type TimelinePhase } from "@/lib/timeline-math";
+import { usePersistedState } from "@/lib/use-persisted-state";
 
 export type GanttGroupView = { key: string; label: string; rows: GanttRowV2[] };
 
@@ -50,6 +51,13 @@ export function GanttV2Chart({
   const { pxPerDay } = ZOOM_OPTIONS[zoom];
   const today = parseISO(todayIso);
   const range = calendarRangeForZoom(zoom, today);
+
+  // Мобильный режим: «График» (настоящий Гант, пальцем) или «Список».
+  // Помним выбор между заходами (закон «память состояния UI»).
+  const [mobileView, setMobileView] = usePersistedState<"chart" | "list">(
+    "gantt-v2:mobileView:v1",
+    "chart",
+  );
 
   // ── Границы рейла ─────────────────────────────────────────────────────────
   // Зум задаёт стартовую точку и pxPerDay (масштаб). Но рейл ОБЯЗАН покрывать
@@ -101,15 +109,21 @@ export function GanttV2Chart({
 
   // Ширина левой колонки «Заказ / фасон» — drag-resize, как в Google Sheets.
   // Сохраняется в localStorage, чтобы при перезагрузке не сбрасывалась.
-  const LEFT_MIN = 140;
+  // На телефоне своя (узкая) ширина и свой ключ: 300px съели бы почти весь экран.
+  const LEFT_MIN = 90;
   const LEFT_MAX = 700;
+  const isMobileViewport = () =>
+    typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches;
+  const leftColKey = () => (isMobileViewport() ? "gantt-v2:leftColWidth:m" : "gantt-v2:leftColWidth");
   const [leftColWidth, setLeftColWidth] = useState<number>(300);
   useEffect(() => {
-    const stored = Number(window.localStorage.getItem("gantt-v2:leftColWidth"));
+    const stored = Number(window.localStorage.getItem(leftColKey()));
     if (stored >= LEFT_MIN && stored <= LEFT_MAX) setLeftColWidth(stored);
+    else if (isMobileViewport()) setLeftColWidth(120);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   function persistLeftColWidth(w: number) {
-    window.localStorage.setItem("gantt-v2:leftColWidth", String(w));
+    window.localStorage.setItem(leftColKey(), String(w));
   }
   const gridCols = `${leftColWidth}px 1fr`;
 
@@ -291,8 +305,25 @@ export function GanttV2Chart({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white">
-      {/* Десктоп: Гант */}
-      <div className="relative hidden md:block">
+      {/* Мобильный переключатель: настоящий Гант (Алёна 05.07 «чтобы пальцем
+          перетаскивать, рассматривать, двигать») или компактный список. */}
+      <div className="flex gap-1 border-b border-slate-100 p-2 md:hidden">
+        {([["chart", "📊 График"], ["list", "📋 Список"]] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setMobileView(key)}
+            className={`min-h-[36px] flex-1 rounded-lg px-2 text-xs font-medium transition ${
+              mobileView === key ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Гант: на десктопе всегда, на мобиле — когда выбран «График» */}
+      <div className={`relative ${mobileView === "chart" ? "block" : "hidden md:block"}`}>
         {/* Кнопка «Сегодня» — вернуться к текущей дате из любого места таймлайна */}
         <button
           type="button"
@@ -301,7 +332,10 @@ export function GanttV2Chart({
         >
           Сегодня
         </button>
-        <div ref={scrollRef} className="h-[calc(100vh-200px)] overflow-auto select-none">
+        <div
+          ref={scrollRef}
+          className="h-[calc(100dvh-290px)] touch-pan-x touch-pan-y overflow-auto select-none md:h-[calc(100vh-200px)]"
+        >
           <div style={{ width: `${totalPx}px`, minWidth: "100%" }}>
             {/* Шкала */}
             <div className="sticky top-0 z-20 grid border-b border-slate-200 bg-white" style={{ gridTemplateColumns: gridCols }}>
@@ -397,8 +431,8 @@ export function GanttV2Chart({
         </div>
       </div>
 
-      {/* Мобильный: список */}
-      <div className="md:hidden p-2">
+      {/* Мобильный: компактный список (второй режим переключателя) */}
+      <div className={`p-2 md:hidden ${mobileView === "list" ? "" : "hidden"}`}>
         <MobileList groups={groups} todayIso={todayIso} />
       </div>
     </div>
@@ -788,7 +822,7 @@ function DraggableBar({
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
           title="Потянуть — изменить начало фазы"
-          className="absolute left-0 top-1/2 z-20 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100"
+          className="absolute left-0 top-1/2 z-20 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100 [@media(hover:none)]:opacity-80"
         >
           <span className="pointer-events-none w-[3px] rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.35)]" style={{ height: height - 6 }} />
         </span>
@@ -802,7 +836,7 @@ function DraggableBar({
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
           title="Потянуть — изменить конец фазы"
-          className="absolute right-0 top-1/2 z-20 flex h-11 w-11 translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100"
+          className="absolute right-0 top-1/2 z-20 flex h-11 w-11 translate-x-1/2 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center opacity-0 transition-opacity duration-150 group-hover:opacity-100 hover:!opacity-100 [@media(hover:none)]:opacity-80"
         >
           <span className="pointer-events-none w-[3px] rounded-full bg-white shadow-[0_0_0_1px_rgba(15,23,42,0.35)]" style={{ height: height - 6 }} />
         </span>
