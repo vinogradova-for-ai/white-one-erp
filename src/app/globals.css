@@ -149,6 +149,22 @@ html.dark .bg-pink-50\/40 { background-color: rgba(255, 55, 95, 0.04) !important
 html.dark .border-pink-200 { border-color: rgba(255, 55, 95, 0.22) !important; }
 html.dark .text-pink-700 { color: #ff6482 !important; }
 
+/* Светлый «канвас» (.light-canvas) — зона, которая остаётся светлой и в тёмной
+   теме (доска раскладки: флэты красятся в цвет ткани, чёрное на тёмном не видно).
+   Возвращаем внутри неё исходные светлые значения поверх dark-слоя. */
+html.dark .light-canvas .bg-white { background-color: #ffffff !important; }
+html.dark .light-canvas .bg-white\/60 { background-color: rgb(255 255 255 / 0.6) !important; }
+html.dark .light-canvas .hover\:bg-slate-100:hover { background-color: #f1f5f9 !important; }
+html.dark .light-canvas .text-slate-900 { color: #0f172a !important; }
+html.dark .light-canvas .text-slate-800 { color: #1e293b !important; }
+html.dark .light-canvas .text-slate-700 { color: #334155 !important; }
+html.dark .light-canvas .text-slate-600 { color: #475569 !important; }
+html.dark .light-canvas .text-slate-500 { color: #64748b !important; }
+html.dark .light-canvas .text-slate-400 { color: #94a3b8 !important; }
+html.dark .light-canvas .text-slate-300 { color: #cbd5e1 !important; }
+html.dark .light-canvas .border-slate-200 { border-color: #e2e8f0 !important; }
+html.dark .light-canvas .border-slate-300 { border-color: #cbd5e1 !important; }
+
 /* iOS: не зумить input'ы */
 input, textarea, select {
   font-size: 16px;

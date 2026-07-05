@@ -76,7 +76,7 @@ export function MoneyTaskRow({
           {text}
         </Link>
         {(canMarkPaid || canPostpone) && (
-          <span className="flex shrink-0 gap-1.5">
+          <span className="flex shrink-0 gap-1.5 max-sm:w-full max-sm:pl-[22px]">
             {canMarkPaid && (
               <button
                 onClick={markPaid}

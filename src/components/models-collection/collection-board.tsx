@@ -119,9 +119,9 @@ export function CollectionBoard({ models }: { models: CollModel[] }) {
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] w-full overflow-hidden bg-[#f5f3ee]">
-      {/* Библиотека фасонов слева */}
-      <aside className="flex w-60 flex-shrink-0 flex-col border-r border-slate-200 bg-white">
+    <div className="flex h-[calc(100vh-4rem)] w-full overflow-hidden bg-[#f5f3ee] max-md:h-auto max-md:min-h-[calc(100vh-4rem)] max-md:flex-col">
+      {/* Библиотека фасонов слева (на мобилке — сверху, свёрнутая по высоте) */}
+      <aside className="flex w-60 flex-shrink-0 flex-col border-r border-slate-200 bg-white max-md:max-h-56 max-md:w-full max-md:border-r-0 max-md:border-b">
         <div className="border-b border-slate-100 px-4 py-3">
           <div className="text-sm font-semibold text-slate-900">Библиотека</div>
           <div className="text-[11px] text-slate-500">Нажми, чтобы добавить на доску</div>
@@ -183,8 +183,9 @@ export function CollectionBoard({ models }: { models: CollModel[] }) {
         )}
       </aside>
 
-      {/* Доска: ряды по фасонам */}
-      <div className="min-w-0 flex-1 overflow-auto">
+      {/* Доска: ряды по фасонам. light-canvas — доска остаётся светлой и в тёмной
+          теме: флэты красятся в цвет ткани (в т.ч. чёрный), на тёмном фоне их не видно */}
+      <div className="light-canvas min-w-0 flex-1 overflow-auto">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-[#f5f3ee]/95 px-6 py-3 backdrop-blur">
           <div>
             <div className="text-base font-semibold text-slate-900">Раскладка по цветам</div>

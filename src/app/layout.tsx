@@ -38,7 +38,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={`h-full antialiased ${scriptFontVars}`}>
+    // suppressHydrationWarning: themeInitScript вешает .dark на <html> до гидрации —
+    // расхождение className сервер/клиент ожидаемое
+    <html lang="ru" suppressHydrationWarning className={`h-full antialiased ${scriptFontVars}`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
