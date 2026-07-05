@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { CommentsDrawer } from "./comments-drawer";
 import { usePersistedState } from "@/lib/use-persisted-state";
 import { isLightColor } from "@/lib/color-map";
@@ -77,17 +77,51 @@ export function BoardClient({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openComments, setOpenComments] = useState<{ id: string; name: string } | null>(null);
-  // На мобиле 8 колонок шириной 210px не помещаются — на 390px видно только
-  // 1.5 колонки и пользователь теряется. Поэтому на ≤md показываем одну
-  // колонку, выбираемую через pill-табы со счётчиками. Дефолт — первая
-  // непустая колонка (обычно «Идея»). На десктопе всё как было.
+  // На мобиле 8 колонок шириной 210px не помещаются. Раньше показывали ровно
+  // одну колонку по pill-табу — но так теряется ощущение доски. Теперь мобильный
+  // свайп-пейджер: все колонки лежат в горизонтальном scroll-snap контейнере,
+  // одна колонка = один экран (w-[calc(100vw-2rem)] snap-center). Чипы-колонки
+  // сверху — якоря: тап скроллит к колонке, скролл подсвечивает текущую.
   const firstNonEmpty = columns.find((c) => (buckets[c.key] ?? []).length > 0)?.key ?? columns[0].key;
   const [mobileCol, setMobileCol] = useState<string>(firstNonEmpty);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const colRefs = useRef<Record<string, HTMLElement | null>>({});
+  // Тап по чипу — плавно доскроллить колонку к центру экрана.
+  const scrollToCol = useCallback((key: string) => {
+    setMobileCol(key);
+    colRefs.current[key]?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, []);
+  // Скролл пейджера подсвечивает чип по колонке, ближайшей к центру видимой области.
+  const onScrollerScroll = useCallback(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const mid = scroller.scrollLeft + scroller.clientWidth / 2;
+    let bestKey = columns[0]?.key;
+    let bestDist = Infinity;
+    for (const col of columns) {
+      const el = colRefs.current[col.key];
+      if (!el) continue;
+      const center = el.offsetLeft + el.offsetWidth / 2;
+      const dist = Math.abs(center - mid);
+      if (dist < bestDist) { bestDist = dist; bestKey = col.key; }
+    }
+    if (bestKey) setMobileCol((prev) => (prev === bestKey ? prev : bestKey));
+  }, [columns]);
   // П4 UX-аудита: «Завершено» (23 карточки) свёрнуто по умолчанию — экономит
   // экран под живую работу. Клик по узкой колонке раскрывает, выбор запоминается.
   const [doneCollapsed, setDoneCollapsed] = usePersistedState<boolean>("kanban:done-collapsed:v1", true);
-  // §4: тумблер «компактно» — мини-карточки, выбор запоминается.
+  // §4: тумблер «компактно» — мини-карточки, выбор запоминается. На мобиле
+  // карточки всегда компактные (см. mobileCompact ниже), тумблер — только десктоп.
   const [compact, setCompact] = usePersistedState<boolean>("kanban:compact:v1", false);
+  // Мобилка стартует с первой непустой колонки в центре пейджера.
+  useEffect(() => {
+    const el = colRefs.current[firstNonEmpty];
+    if (el && scrollerRef.current && window.matchMedia("(max-width: 767px)").matches) {
+      el.scrollIntoView({ behavior: "auto", inline: "center", block: "nearest" });
+    }
+    // один раз при маунте: доскроллить к стартовой колонке
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function fmtDM(iso: string) {
     const [, m, d] = iso.split("-");
@@ -151,8 +185,9 @@ export function BoardClient({
         </button>
       </div>
 
-      {/* Мобильные pill-табы по колонкам — sticky сверху. */}
-      <div className="-mx-4 mb-3 overflow-x-auto px-4 md:hidden">
+      {/* Мобильные чипы-якоря колонок — sticky сверху. Тап скроллит пейджер к
+          колонке, свайп пейджера подсвечивает текущий чип. */}
+      <div className="sticky top-0 z-10 -mx-4 mb-3 overflow-x-auto bg-slate-50 px-4 py-1 dark:bg-black md:hidden">
         <div className="flex gap-1.5 whitespace-nowrap">
           {columns.map((col) => {
             const count = (buckets[col.key] ?? []).length;
@@ -161,18 +196,18 @@ export function BoardClient({
               <button
                 key={col.key}
                 type="button"
-                onClick={() => setMobileCol(col.key)}
+                onClick={() => scrollToCol(col.key)}
                 className={`inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-xs font-medium transition ${
                   active
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-700"
+                    ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
+                    : "border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
                 }`}
               >
                 <span className="h-2 w-2 rounded-full" style={{ background: col.dot }} />
                 <span>{col.title}</span>
                 <span
                   className={`rounded-full px-1.5 text-[10px] font-semibold ${
-                    active ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
+                    active ? "bg-white/20 text-white dark:bg-black/20 dark:text-slate-900" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
                   }`}
                 >
                   {count}
@@ -212,28 +247,32 @@ export function BoardClient({
         )}
       </div>
 
-      <div className="flex flex-col gap-3 md:flex-row">
+      <div
+        ref={scrollerRef}
+        onScroll={onScrollerScroll}
+        className="-mx-4 flex snap-x snap-mandatory flex-row gap-3 overflow-x-auto px-4 md:mx-0 md:snap-none md:overflow-visible md:px-0"
+      >
         {columns.map((col) => {
           const cards = buckets[col.key] ?? [];
           const isDevTarget = DEV_TARGETS.has(col.key);
           const isOrderCreateTarget = col.key in ORDER_CREATE_TARGETS;
           const canDrop = isDevTarget || isOrderCreateTarget;
           const isOver = dropZone === col.key;
-          const isMobileActive = col.key === mobileCol;
 
-          // Свёрнутая «Завершено» — узкая вертикальная плашка (только десктоп;
-          // на мобиле колонка и так спрятана за pill-табом).
+          // Свёрнутая «Завершено» — узкая вертикальная плашка на десктопе;
+          // на мобиле это отдельная страница пейджера (колонка целиком).
           if (col.key === "done" && doneCollapsed) {
             return (
               <button
                 key={col.key}
+                ref={(el) => { colRefs.current[col.key] = el; }}
                 type="button"
                 onClick={() => setDoneCollapsed(false)}
                 title="Показать завершённые"
-                className={`${isMobileActive ? "flex" : "hidden md:flex"} w-full flex-row items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-slate-500 hover:bg-slate-100 md:w-[44px] md:shrink-0 md:flex-col md:justify-start md:px-2`}
+                className="flex w-[calc(100vw-2rem)] shrink-0 snap-center flex-row items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-slate-500 hover:bg-slate-100 md:w-[44px] md:flex-col md:justify-start md:px-2"
               >
                 <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: col.dot }} />
-                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
                   {cards.length}
                 </span>
                 <span className="text-xs font-semibold uppercase tracking-wider md:[writing-mode:vertical-rl]">
@@ -247,9 +286,10 @@ export function BoardClient({
           return (
             <div
               key={col.key}
-              className={`flex flex-col bg-white rounded-xl border border-slate-200 transition w-full md:w-[210px] md:shrink-0 ${
-                isMobileActive ? "" : "hidden md:flex"
-              } ${isOver ? "ring-2 ring-blue-400 ring-offset-1 dark:ring-blue-400/30" : ""} ${
+              ref={(el) => { colRefs.current[col.key] = el; }}
+              className={`flex w-[calc(100vw-2rem)] shrink-0 snap-center flex-col rounded-xl border border-slate-200 bg-white transition md:w-[210px] ${
+                isOver ? "ring-2 ring-blue-400 ring-offset-1 dark:ring-blue-400/30" : ""
+              } ${
                 dragging && !canDrop ? "opacity-50" : ""
               }`}
               onDragOver={(e) => {
@@ -365,46 +405,93 @@ function KanbanCardView({
   const commentCount = c.commentCount ?? 0;
   const lastComments = c.lastComments ?? [];
 
+  // П2: на мобиле карточка ВСЕГДА компактная — фото-миниатюра 56×56 слева,
+  // справа название, цвето-кружки, фабрика, № заказа/дедлайн. Тап — как обычно
+  // (фасон/заказ). Drag на тач не нужен. Десктоп рендерит своё ниже (md:hidden).
+  const mobileCard = (
+    <Link
+      href={href}
+      onClick={(e) => { if (dragging) e.preventDefault(); }}
+      className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white p-2 transition active:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:active:bg-slate-800 md:hidden"
+    >
+      {photos.length > 0 ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={photos[0]} alt="" draggable={false} className={`h-14 w-14 shrink-0 rounded-lg object-cover ${isDone ? "opacity-80 grayscale" : ""}`} />
+      ) : (
+        <span
+          className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg text-center text-[8px] font-medium leading-tight"
+          style={{ background: `linear-gradient(135deg, ${c.palette[0]}, ${c.palette[1]})`, color: isLightColor(c.palette[0]) ? "#334155" : "rgba(255,255,255,0.92)" }}
+        >
+          {isPackaging ? "📦" : ""}
+        </span>
+      )}
+      <span className="min-w-0 flex-1 space-y-1">
+        <span className="line-clamp-1 text-sm font-medium leading-tight text-slate-900">{c.modelName}</span>
+        {c.colorChips.length > 0 && (
+          <span className="flex flex-wrap items-center gap-1">
+            {c.colorChips.slice(0, 6).map((cc, i) => (<span key={i} className="inline-block h-3 w-3 rounded-full ring-1 ring-slate-200 dark:ring-slate-600" style={{ backgroundColor: cc.hex }} />))}
+            {c.colorChips.length > 6 && <span className="text-[10px] text-slate-400">+{c.colorChips.length - 6}</span>}
+          </span>
+        )}
+        <span className="flex flex-wrap items-center gap-1 text-[11px]">
+          {c.orderStatusLabel && <span className="rounded bg-blue-50 px-1.5 py-0.5 font-medium text-blue-700 dark:bg-blue-400/10 dark:text-blue-300">{c.orderStatusLabel}</span>}
+          {c.factoryName && <span className="max-w-[130px] truncate rounded bg-slate-100 px-1.5 py-0.5 text-slate-700 dark:bg-slate-800 dark:text-slate-300">🏭 {c.factoryName}</span>}
+          {c.orderNumber && <span className="font-mono text-slate-500 dark:text-slate-400">{c.orderNumber}</span>}
+          {commentCount > 0 && <span className="text-slate-500 dark:text-slate-400">💬{commentCount}</span>}
+        </span>
+      </span>
+      {c.deadline && (
+        <span className={`shrink-0 self-start rounded px-1.5 py-0.5 text-[10px] ${dlClass}`}>{dlPrefix} {fmtDM(c.deadline.iso)}</span>
+      )}
+    </Link>
+  );
+
   // §4: компактный режим — мини-фото строкой вместо большой карточки,
-  // колонки по 16-21 карточке перестают быть километрами скролла.
+  // колонки по 16-21 карточке перестают быть километрами скролла. Десктоп-only:
+  // на мобиле выше отдельная карточка (mobileCard).
   if (compact) {
     return (
-      <div
-        draggable={dragEnabled}
-        onDragStart={(e) => { if (!dragEnabled) return; onDragStartCard(); e.dataTransfer.effectAllowed = "move"; }}
-        onDragEnd={onDragEndCard}
-        className={`overflow-hidden rounded-xl border border-slate-200 bg-white transition-all hover:shadow-md ${
-          dragEnabled ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
-        } ${dragging === c.modelId ? "rotate-1 opacity-40" : ""}`}
-      >
-        <Link href={href} className="flex items-center gap-2 p-1.5" onClick={(e) => { if (dragging) e.preventDefault(); }}>
-          {photos.length > 0 ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={photos[0]} alt="" draggable={false} className={`h-9 w-9 shrink-0 rounded-lg object-cover ${isDone ? "opacity-80 grayscale" : ""}`} />
-          ) : (
-            <span className="h-9 w-9 shrink-0 rounded-lg" style={{ background: `linear-gradient(135deg, ${c.palette[0]}, ${c.palette[1]})` }} />
-          )}
-          <span className="min-w-0 flex-1">
-            <span className="line-clamp-1 text-[11px] font-medium leading-tight text-slate-900">{c.modelName}</span>
-            <span className="flex items-center gap-1 text-[10px] text-slate-500">
-              {c.orderNumber && <span className="font-mono">{c.orderNumber}</span>}
-              {commentCount > 0 && <span>💬{commentCount}</span>}
+      <>
+        {mobileCard}
+        <div
+          draggable={dragEnabled}
+          onDragStart={(e) => { if (!dragEnabled) return; onDragStartCard(); e.dataTransfer.effectAllowed = "move"; }}
+          onDragEnd={onDragEndCard}
+          className={`hidden overflow-hidden rounded-xl border border-slate-200 bg-white transition-all hover:shadow-md md:block ${
+            dragEnabled ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
+          } ${dragging === c.modelId ? "rotate-1 opacity-40" : ""}`}
+        >
+          <Link href={href} className="flex items-center gap-2 p-1.5" onClick={(e) => { if (dragging) e.preventDefault(); }}>
+            {photos.length > 0 ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photos[0]} alt="" draggable={false} className={`h-9 w-9 shrink-0 rounded-lg object-cover ${isDone ? "opacity-80 grayscale" : ""}`} />
+            ) : (
+              <span className="h-9 w-9 shrink-0 rounded-lg" style={{ background: `linear-gradient(135deg, ${c.palette[0]}, ${c.palette[1]})` }} />
+            )}
+            <span className="min-w-0 flex-1">
+              <span className="line-clamp-1 text-[11px] font-medium leading-tight text-slate-900">{c.modelName}</span>
+              <span className="flex items-center gap-1 text-[10px] text-slate-500">
+                {c.orderNumber && <span className="font-mono">{c.orderNumber}</span>}
+                {commentCount > 0 && <span>💬{commentCount}</span>}
+              </span>
             </span>
-          </span>
-          {c.deadline && (
-            <span className={`shrink-0 rounded px-1 py-0.5 text-[9px] ${dlClass}`}>{dlPrefix} {fmtDM(c.deadline.iso)}</span>
-          )}
-        </Link>
-      </div>
+            {c.deadline && (
+              <span className={`shrink-0 rounded px-1 py-0.5 text-[9px] ${dlClass}`}>{dlPrefix} {fmtDM(c.deadline.iso)}</span>
+            )}
+          </Link>
+        </div>
+      </>
     );
   }
 
   const wrapper = (
+    <>
+    {mobileCard}
     <div
       draggable={dragEnabled}
       onDragStart={(e) => { if (!dragEnabled) return; onDragStartCard(); e.dataTransfer.effectAllowed = "move"; }}
       onDragEnd={onDragEndCard}
-      className={`group/card block overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all hover:shadow-md ${
+      className={`group/card hidden overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all hover:shadow-md md:block ${
         dragEnabled ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
       } ${dragging === c.modelId ? "rotate-1 opacity-40" : ""}`}
     >
@@ -503,6 +590,7 @@ function KanbanCardView({
         </div>
       )}
     </div>
+    </>
   );
 
   return wrapper;
