@@ -62,7 +62,72 @@ export default async function ShipmentsPage() {
           Карго пока нет. Нажмите «+ Карго», затем добавьте в него заказы.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl bg-white dark:bg-slate-900">
+        <>
+        {/* Мобилка: список карточек вместо широкой таблицы (маркер: shipments-mobile-card) */}
+        <div className="space-y-2 md:hidden">
+          {shipments.map((s) => {
+            const orders = new Set(s.batches.map((b) => b.orderId)).size;
+            const units = s.batches.reduce(
+              (a, b) => a + b.items.reduce((x, i) => x + i.plannedQty, 0),
+              0,
+            );
+            const pkgCount = s.packagingOrders.length;
+            return (
+              <Link
+                key={s.id}
+                href={`/shipments/${s.id}`}
+                className="shipments-mobile-card block rounded-2xl border border-slate-200 bg-white p-3 active:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:active:bg-slate-800"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-slate-900 dark:text-slate-100">{s.number}</div>
+                    {s.cargoNumber && <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{s.cargoNumber}</div>}
+                  </div>
+                  <span className={`shrink-0 rounded-lg px-2 py-0.5 text-xs font-medium ${SHIPMENT_STATUS_COLORS[s.status]}`}>
+                    {SHIPMENT_STATUS_LABELS[s.status]}
+                  </span>
+                </div>
+
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-700 dark:text-slate-300">
+                  {orders > 0 && <span>{orders} зак. · {formatNumber(units)} шт</span>}
+                  {pkgCount > 0 && <span>📦 {pkgCount}</span>}
+                  {(s.placesCount != null || s.weightKg != null) && (
+                    <span>
+                      {s.placesCount ?? "—"} мест · {s.weightKg != null ? `${Number(s.weightKg).toLocaleString("ru-RU")} кг` : "—"}
+                    </span>
+                  )}
+                </div>
+
+                {s.amountUsdt != null && (
+                  <div className="mt-2 flex items-center gap-1.5 text-sm">
+                    <span className="font-medium text-slate-900 dark:text-slate-100">{Number(s.amountUsdt).toLocaleString("ru-RU")} USDT</span>
+                    <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                      s.cargoPaidAt
+                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300"
+                        : "bg-amber-50 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300"
+                    }`}>
+                      {s.cargoPaidAt ? "оплачено" : "не оплачено"}
+                    </span>
+                  </div>
+                )}
+
+                <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                  <span>{s.departDate ? formatDate(s.departDate) : "—"}</span>
+                  <span aria-hidden>→</span>
+                  <span>
+                    {s.arriveDate ? formatDate(s.arriveDate) : "—"}
+                    {s.arrivalActualDate && (
+                      <span className="ml-1 text-emerald-700 dark:text-emerald-300">/ {formatDate(s.arrivalActualDate)}</span>
+                    )}
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Десктоп: широкая таблица (без изменений) */}
+        <div className="hidden overflow-hidden rounded-2xl bg-white dark:bg-slate-900 md:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400 dark:border-slate-800">
@@ -136,6 +201,7 @@ export default async function ShipmentsPage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );
