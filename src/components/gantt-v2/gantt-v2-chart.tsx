@@ -643,8 +643,8 @@ function BarView({
   if (bar.state === "future") stateClass = "opacity-50";
 
   const tooltip = `${bar.title} · ${formatDM(startIso)} → ${formatDM(endIso)} · ${days} дн${
-    bar.owner ? ` · ${bar.owner}` : ""
-  }${dirty ? " · ИЗМЕНЕНО" : ""}`;
+    bar.lagDays ? ` · отстаёт от плана на ${bar.lagDays} дн` : ""
+  }${bar.owner ? ` · ${bar.owner}` : ""}${dirty ? " · ИЗМЕНЕНО" : ""}`;
 
   const editable = !!(bar.orderId && bar.endField);
 
@@ -656,6 +656,7 @@ function BarView({
       height={barH}
       barColor={bar.color}
       stateClass={stateClass}
+      lagPx={bar.lagDays ? Math.min(bar.lagDays * pxPerDay, width) : 0}
       tooltip={tooltip}
       editable={editable}
       hasStartHandle={hasStartHandle}
@@ -671,7 +672,7 @@ function BarView({
 }
 
 function DraggableBar({
-  left, width, top, height, barColor, stateClass, tooltip,
+  left, width, top, height, barColor, stateClass, lagPx = 0, tooltip,
   editable, hasStartHandle, startIso, endIso, pxPerDay, barIndex, dispatchDrag, maybeAutoScroll, stopAutoScroll,
 }: {
   left: number;
@@ -680,6 +681,9 @@ function DraggableBar({
   height: number;
   barColor: string;
   stateClass: string;
+  // Ширина «хвоста просрочки» (px): активная фаза дотянута до «сегодня»
+  // сверх плана — эта часть рисуется штриховкой (см. lib/gantt-fact).
+  lagPx?: number;
   tooltip: string;
   editable: boolean;
   hasStartHandle: boolean;
@@ -748,6 +752,19 @@ function DraggableBar({
       className={`group absolute rounded ${barColor} ${stateClass} shadow-sm transition-all duration-300 ${flash ? "ring-2 ring-emerald-400 ring-offset-1 dark:ring-emerald-400/30" : ""}`}
       style={{ left, width, top, height }}
     >
+      {/* Хвост просрочки: часть плашки сверх плана — штриховкой, чтобы было
+          видно «фаза тянется дольше запланированного». */}
+      {lagPx > 1 && (
+        <div
+          className="pointer-events-none absolute inset-y-0 right-0 rounded-r"
+          style={{
+            width: lagPx,
+            backgroundImage:
+              "repeating-linear-gradient(-45deg, rgba(255,255,255,0.45) 0 4px, transparent 4px 9px)",
+          }}
+        />
+      )}
+
       {/* Тёмный кастомный тултип под плашкой (родного title нет). */}
       <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] text-white shadow-lg group-hover:block">
         {tooltip}
