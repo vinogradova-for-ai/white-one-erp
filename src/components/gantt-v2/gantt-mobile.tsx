@@ -76,9 +76,7 @@ export function MobilePhaseCard({ row, todayIso }: { row: GanttRowV2; todayIso: 
   //   - ✓ Готово (всё done)
   let statusEl: React.ReactNode;
   if (overdueBar) {
-    // lagDays: активная фаза дотянута до «сегодня» (Гант показывает факт),
-    // её конец = today и dayDiff даст 0 — размер просрочки лежит в lagDays.
-    const daysOver = overdueBar.lagDays ?? dayDiff(overdueBar.end, todayIso);
+    const daysOver = dayDiff(overdueBar.end, todayIso);
     statusEl = (
       <span className="font-semibold text-red-600 dark:text-red-300">
         🔥 {overdueBar.title} просрочено на {daysOver} {pluralDays(daysOver)}

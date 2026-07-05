@@ -20,10 +20,6 @@ export type GanttBarV2 = {
   // Производные риски (рассчитываются на сервере):
   overdue?: boolean;     // end < today и не done
   nearlyDue?: boolean;   // end ≤ today+5 и не done и не overdue
-  // Гант показывает ФАКТ: активная по статусу фаза дотянута до «сегодня».
-  // lagDays — на сколько дней она отстала от плана (длина дотяжки);
-  // план в БД при этом не менялся. См. lib/gantt-fact.
-  lagDays?: number;
   // Поля для drag — пишутся в БД на orderId через endField/startField
   orderId?: string;
   endField?: string;

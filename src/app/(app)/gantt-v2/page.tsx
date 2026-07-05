@@ -4,7 +4,6 @@ import { GanttV2Client } from "@/components/gantt-v2/gantt-v2-client";
 import type { GanttRowV2, GanttBarV2, BarState, GanttFilterOptions } from "@/components/gantt-v2/types";
 import { ORDER_STATUS_LABELS, BRAND_LABELS, PRODUCT_MODEL_STATUS_LABELS } from "@/lib/constants";
 import { orderActivePhaseIndex } from "@/lib/order-stage";
-import { alignBarsToStatus, recomputeBarRisks } from "@/lib/gantt-fact";
 import { moscowTodayIso } from "@/lib/dates";
 import { ListCapNotice } from "@/components/common/list-cap-notice";
 
@@ -208,13 +207,6 @@ export default async function GanttV2Page() {
       });
     }
 
-    // Гант показывает факт: «сегодня» всегда в плашке активной по статусу фазы
-    // (иначе Гант и канбан «расходятся» — жалобы команды). Риски пересчитываем
-    // после сдвига: дотянутая фаза остаётся просроченной (lagDays), уехавшие
-    // вправо будущие фазы — больше нет.
-    alignBarsToStatus(bars, activeIdx, todayIso);
-    recomputeBarRisks(bars, todayIso, NEARLY_DUE_DAYS);
-
     const thumbs = o.lines.map((l) => ({
       photoUrl: l.productVariant?.photoUrls?.[0] ?? o.productModel.photoUrls?.[0] ?? null,
       colorName: l.productVariant?.colorName ?? null,
@@ -309,10 +301,6 @@ export default async function GanttV2Page() {
         ...(p.startField ? { startField: p.startField } : {}),
       };
     });
-
-    // Как у одежды: «сегодня» — в плашке фазы по статусу упаковки.
-    alignBarsToStatus(bars, activeIdx, todayIso);
-    recomputeBarRisks(bars, todayIso, NEARLY_DUE_DAYS);
 
     rows.push({
       group: "packaging",
