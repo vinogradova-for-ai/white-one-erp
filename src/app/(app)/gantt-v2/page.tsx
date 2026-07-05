@@ -11,7 +11,7 @@ import { ListCapNotice } from "@/components/common/list-cap-notice";
 // полосу «показаны первые N». Пагинация — отдельной задачей.
 const GANTT_ORDERS_CAP = 500;
 import { orderLateDays } from "@/lib/order-auto-status";
-import { PACKAGING_ORDER_STATUS_LABELS, packagingOrderPhase, packagingActivePhaseIndex } from "@/lib/packaging-orders";
+import { PACKAGING_ORDER_STATUS_LABELS, packagingActivePhaseIndex } from "@/lib/packaging-orders";
 
 // Фазы заказа: 4 фиксированных этапа от Разработки до Доставки.
 // Каждой фазе соответствует пара полей в БД (start/end), причём end предыдущей
@@ -170,9 +170,6 @@ export default async function GanttV2Page() {
       { name: "конец Доставки", d: o.arrivalPlannedDate },
     ]);
 
-    // Активная фаза — ОДИН маппер по статусу заказа (см. lib/order-stage).
-    // -1 ⇒ заказ завершён (все полосы закрашиваем как «done»).
-    const activeIdx = orderActivePhaseIndex(o.status);
     let prevEnd: string | null = null;
 
     const bars: GanttBarV2[] = [];
@@ -183,13 +180,6 @@ export default async function GanttV2Page() {
       const startIso: string = iso(startRaw) ?? prevEnd ?? todayIso;
       const endIso: string = iso(endRaw) ?? startIso;
       prevEnd = endIso;
-      // Фаза «закрыта», если заказ её уже прошёл (i < активной) или завершён.
-      const done = activeIdx === -1 || i < activeIdx;
-      const isActive = i === activeIdx;
-      const state: BarState = done ? "done" : isActive ? "active" : "future";
-      const overdue = !done && endIso < todayIso;
-      const daysToEnd = Math.round((new Date(endIso).getTime() - new Date(todayIso).getTime()) / 86400000);
-      const nearlyDue = !done && !overdue && daysToEnd >= 0 && daysToEnd <= NEARLY_DUE_DAYS;
       const isFirstInChain = i === 0;
       bars.push({
         key: ph.key,
@@ -197,14 +187,33 @@ export default async function GanttV2Page() {
         color: ph.color,
         start: startIso,
         end: endIso,
-        state,
+        state: "future", // проставится ниже, когда известна активная фаза
         owner: getPhaseOwner(ph.key, o.owner?.name, o.factory?.name),
-        overdue,
-        nearlyDue,
         orderId: o.id,
         endField: ph.endKey,
         ...(isFirstInChain ? { startField: ph.startKey } : {}),
       });
+    }
+
+    // ГАНТ ПЕРВИЧЕН (Алёна 05.07): активная фаза = где стоит «сегодня» по датам
+    // (девочки двигают Гант, статусы руками не отмечают). Ручной статус решает
+    // только «завершён ли заказ» (склад принял — orderActivePhaseIndex = -1).
+    // Если «сегодня» за концом Доставки, а заказ не завершён — активной остаётся
+    // Доставка (просрочка подсвечивается красным, а не ложным «готово»).
+    const firstUnfinished = bars.findIndex((b) => todayIso < b.end);
+    const activeIdx =
+      orderActivePhaseIndex(o.status) === -1
+        ? -1
+        : firstUnfinished === -1
+          ? bars.length - 1
+          : firstUnfinished;
+    for (let i = 0; i < bars.length; i++) {
+      const done = activeIdx === -1 || i < activeIdx;
+      bars[i].state = done ? "done" : i === activeIdx ? "active" : "future";
+      const overdue = !done && bars[i].end < todayIso;
+      const daysToEnd = Math.round((new Date(bars[i].end).getTime() - new Date(todayIso).getTime()) / 86400000);
+      bars[i].overdue = overdue;
+      bars[i].nearlyDue = !done && !overdue && daysToEnd >= 0 && daysToEnd <= NEARLY_DUE_DAYS;
     }
 
     const thumbs = o.lines.map((l) => ({
@@ -263,29 +272,32 @@ export default async function GanttV2Page() {
       .slice(0, 3);
     const factoryOwner = po.factory?.name ?? po.supplierName ?? po.owner?.name;
 
-    // Этап — из ЕДИНОГО маппера packagingOrderPhase (общий с канбаном), как у
-    // одежды orderPhase: расхождение канбан↔Гант физически невозможно.
-    const phase = packagingOrderPhase(po.status);
-    const developmentDone = true; // заказ размещён — разработка позади
-    const productionDone = phase === "delivery" || phase === "done";
-    const deliveryDone = phase === "done";
-    const activeIdx = packagingActivePhaseIndex(po.status);
-
     const phases: Array<{
       key: string; title: string; color: string;
-      start: string; end: string; done: boolean;
+      start: string; end: string;
       endField: string; startField?: string;
     }> = [
-      { key: "preparation", title: "Разработка",  color: "bg-slate-400",    start: decisionIso,    end: orderedIso,       done: developmentDone, endField: "orderedDate", startField: "decisionDate" },
-      { key: "production",  title: "Производство", color: "bg-blue-500",    start: orderedIso,     end: productionEndIso, done: productionDone,  endField: "productionEndDate" },
-      { key: "delivery",    title: "Доставка",      color: "bg-emerald-500", start: productionEndIso, end: expectedIso,    done: deliveryDone,    endField: "expectedDate" },
+      { key: "preparation", title: "Разработка",  color: "bg-slate-400",    start: decisionIso,    end: orderedIso,       endField: "orderedDate", startField: "decisionDate" },
+      { key: "production",  title: "Производство", color: "bg-blue-500",    start: orderedIso,     end: productionEndIso, endField: "productionEndDate" },
+      { key: "delivery",    title: "Доставка",      color: "bg-emerald-500", start: productionEndIso, end: expectedIso,    endField: "expectedDate" },
     ];
 
+    // ГАНТ ПЕРВИЧЕН: активная фаза упаковки — где «сегодня» по датам (как у
+    // одежды). Ручной статус решает только завершённость (ARRIVED/CANCELLED
+    // сюда не попадают — отфильтрованы запросом). Разработка позади всегда:
+    // заказ размещён, поэтому активная фаза минимум «Производство».
+    const firstUnfinishedPkg = phases.findIndex((p) => todayIso < p.end);
+    const activeIdx =
+      packagingActivePhaseIndex(po.status) === -1
+        ? -1
+        : Math.max(1, firstUnfinishedPkg === -1 ? phases.length - 1 : firstUnfinishedPkg);
+
     const bars: GanttBarV2[] = phases.map((p, i) => {
-      const overdue = !p.done && p.end < todayIso;
+      const done = activeIdx === -1 || i < activeIdx;
+      const overdue = !done && p.end < todayIso;
       const daysToEnd = Math.round((new Date(p.end).getTime() - new Date(todayIso).getTime()) / 86400000);
-      const nearlyDue = !p.done && !overdue && daysToEnd >= 0 && daysToEnd <= NEARLY_DUE_DAYS;
-      const state: BarState = p.done ? "done" : i === activeIdx ? "active" : "future";
+      const nearlyDue = !done && !overdue && daysToEnd >= 0 && daysToEnd <= NEARLY_DUE_DAYS;
+      const state: BarState = done ? "done" : i === activeIdx ? "active" : "future";
       return {
         key: p.key,
         title: p.title,
