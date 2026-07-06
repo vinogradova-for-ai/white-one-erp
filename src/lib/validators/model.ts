@@ -61,6 +61,9 @@ export const modelCreateSchema = z.object({
 
   correctionsNeeded: z.boolean().optional(),
   sizeChartReady: z.boolean().optional(),
+  // «Снять с разработки / вернуть в работу» (Алёна 05.07): false — фасон уходит
+  // с канбана/Ганта/задач, остаётся в «Фасонах» под фильтром «не в работе».
+  activated: z.boolean().optional(),
 
   notes: z.string().optional().nullable(),
 });

@@ -13,6 +13,7 @@ import { PhotoGallery, PhotoThumb } from "@/components/common/photo-thumb";
 import { ColorChip } from "@/components/common/color-chip";
 import { colorHexFromName, isLightColor } from "@/lib/color-map";
 import { DeleteButton } from "@/components/common/delete-button";
+import { ModelWorkToggle } from "@/components/models/model-work-toggle";
 import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
 import { CommentsThread } from "@/components/comments/comments-thread";
 import { SamplesSection } from "@/components/models/samples-section";
@@ -121,6 +122,14 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
                 <span className="text-amber-700">повтор</span>
               </>
             )}
+            {!model.activated && (
+              <>
+                <span>·</span>
+                <span className="rounded bg-slate-200 px-1.5 py-0.5 font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                  не в работе
+                </span>
+              </>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -130,6 +139,11 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
           >
             Редактировать
           </Link>
+          {/* «Передумала» для фасона с историей заказов: снять с разработки
+              вместо запрещённого удаления (Алёна 05.07). */}
+          {sessionUser?.role && can(sessionUser.role as Role, "product.update", model.ownerId, currentUserId) && (
+            <ModelWorkToggle modelId={model.id} activated={model.activated} />
+          )}
           <DeleteButton
             apiPath={`/api/models/${model.id}`}
             redirectTo="/models"
