@@ -56,9 +56,12 @@ export default async function PackagingDetailPage({ params }: { params: Promise<
     (s, u) => s + Math.max(0, Math.ceil(orderTotalQty(u) * Number(u.quantityPerUnit)) - (u.consumedQty ?? 0)),
     0,
   );
-  // «В производстве» = сумма количеств активных линий заказов упаковки (не ARRIVED/CANCELLED)
-  const inProduction = item.packagingOrderLines.reduce((a, l) => a + l.quantity, 0);
-  const available = item.stock + inProduction;
+  // Активные линии заказов упаковки (не ARRIVED/CANCELLED): «в пути» отдельно от производства.
+  const transitLines = item.packagingOrderLines.filter((l) => l.packagingOrder.status === "IN_TRANSIT");
+  const productionLines = item.packagingOrderLines.filter((l) => l.packagingOrder.status !== "IN_TRANSIT");
+  const inTransit = transitLines.reduce((a, l) => a + l.quantity, 0);
+  const inProduction = productionLines.reduce((a, l) => a + l.quantity, 0);
+  const available = item.stock + inProduction + inTransit;
   const shortage = Math.max(0, Math.ceil(required) - available);
 
   return (
@@ -142,7 +145,7 @@ export default async function PackagingDetailPage({ params }: { params: Promise<
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Metric
           label="На складе"
           value={item.stock}
@@ -162,9 +165,18 @@ export default async function PackagingDetailPage({ params }: { params: Promise<
           label="В производстве"
           value={inProduction}
           footer={
-            item.packagingOrderLines.length > 0
-              ? `${item.packagingOrderLines.length} активных заказ(а) упаковки`
+            productionLines.length > 0
+              ? `${productionLines.length} заказ(а) упаковки`
               : "Нет активных заказов"
+          }
+        />
+        <Metric
+          label="В пути"
+          value={inTransit}
+          footer={
+            transitLines.length > 0
+              ? `${transitLines.length} заказ(а) едут на склад`
+              : "Ничего не едет"
           }
         />
         <DemandMetric

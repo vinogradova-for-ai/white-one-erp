@@ -42,7 +42,7 @@ export default async function PackagingListPage() {
       },
       packagingOrderLines: {
         where: { packagingOrder: { status: { notIn: ["ARRIVED", "CANCELLED"] } } },
-        select: { quantity: true },
+        select: { quantity: true, packagingOrder: { select: { status: true } } },
       },
     },
   });
@@ -55,12 +55,19 @@ export default async function PackagingListPage() {
       const remaining = Math.max(0, Math.ceil(orderQty * Number(u.quantityPerUnit)) - (u.consumedQty ?? 0));
       return sum + remaining;
     }, 0);
-    const inProduction = i.packagingOrderLines.reduce((a, l) => a + l.quantity, 0);
-    const available = i.stock + inProduction;
+    // Активные заказы упаковки делим: «в пути» (IN_TRANSIT) видно отдельно от производства.
+    const inTransit = i.packagingOrderLines
+      .filter((l) => l.packagingOrder.status === "IN_TRANSIT")
+      .reduce((a, l) => a + l.quantity, 0);
+    const inProduction = i.packagingOrderLines
+      .filter((l) => l.packagingOrder.status !== "IN_TRANSIT")
+      .reduce((a, l) => a + l.quantity, 0);
+    const available = i.stock + inProduction + inTransit;
     const shortage = Math.max(0, Math.ceil(required) - available);
     return {
       ...i,
       inProduction,
+      inTransit,
       required: Math.ceil(required),
       shortage,
       lowStock: i.minStock != null && i.stock < i.minStock,
@@ -119,7 +126,7 @@ export default async function PackagingListPage() {
                   {r.name}
                 </Link>
                 <span className="flex items-center gap-2 text-xs">
-                  нужно {r.required.toLocaleString("ru-RU")} шт · есть {(r.stock + r.inProduction).toLocaleString("ru-RU")} ·
+                  нужно {r.required.toLocaleString("ru-RU")} шт · есть {(r.stock + r.inProduction + r.inTransit).toLocaleString("ru-RU")} ·
                   <span className="font-semibold text-red-700 dark:text-red-300">
                     дефицит {r.shortage.toLocaleString("ru-RU")}
                   </span>
@@ -168,7 +175,7 @@ export default async function PackagingListPage() {
                 <span className="shrink-0 text-[11px] text-emerald-600 dark:text-emerald-300">✓ Хватает</span>
               )}
             </div>
-            <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+            <div className="mt-2 grid grid-cols-4 gap-2 text-[11px]">
               <div>
                 <div className="text-slate-400">Склад</div>
                 <div className={`font-semibold ${r.lowStock ? "text-amber-700 dark:text-amber-300" : "text-slate-900"}`}>
@@ -178,6 +185,10 @@ export default async function PackagingListPage() {
               <div>
                 <div className="text-slate-400">В произв.</div>
                 <div className="font-medium text-slate-900">{r.inProduction > 0 ? r.inProduction.toLocaleString("ru-RU") : "—"}</div>
+              </div>
+              <div>
+                <div className="text-slate-400">В пути</div>
+                <div className="font-medium text-slate-900">{r.inTransit > 0 ? r.inTransit.toLocaleString("ru-RU") : "—"}</div>
               </div>
               <div>
                 <div className="text-slate-400">Нужно</div>
@@ -206,6 +217,7 @@ export default async function PackagingListPage() {
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Тип</th>
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">На складе</th>
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">В производстве</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">В пути</th>
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Потребность</th>
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Дефицит</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Статус</th>
@@ -243,6 +255,9 @@ export default async function PackagingListPage() {
                 </td>
                 <td className="px-3 py-2 text-right">
                   {r.inProduction > 0 ? r.inProduction.toLocaleString("ru-RU") : "—"}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  {r.inTransit > 0 ? r.inTransit.toLocaleString("ru-RU") : "—"}
                 </td>
                 <td className="px-3 py-2 text-right text-slate-700">
                   {r.required > 0 ? r.required.toLocaleString("ru-RU") : "—"}
