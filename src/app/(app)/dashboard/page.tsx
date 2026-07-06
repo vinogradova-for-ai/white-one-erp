@@ -12,10 +12,7 @@ import {
 import { CheckableRow } from "./checkable-row";
 import { isCheckable } from "./checkable-kinds";
 import { MoneyTaskRow } from "@/components/dashboard/money-task-row";
-import { can } from "@/lib/rbac";
-import type { Role } from "@prisma/client";
 import { getDataGaps, countGapsSplit } from "@/lib/queries/data-gaps";
-import { getOverdueDebt, formatOverdueDebt } from "@/lib/queries/overdue-debt";
 import { getRecentEvents, type DailyEvent } from "@/lib/queries/daily-events";
 
 // «сегодня 14:05» / «вчера 18:30» по МСК для ленты событий.
@@ -62,21 +59,17 @@ export default async function DashboardPage({
   const session = await auth();
   const userName = session?.user?.name ?? "";
   const myId = (session?.user as { id?: string } | undefined)?.id ?? null;
-  // Права инлайн-кнопок в денежных задачах — те же, что на /payments (П3).
-  const role = (session?.user as { role?: string } | undefined)?.role as Role | undefined;
-  const money = {
-    canMarkPaid: role ? can(role, "payment.markPaid") : false,
-    canPostpone: role ? can(role, "payment.update") : false,
-  };
 
   const all = await getMainScreenChecklist();
-  const groups = groupByOwner(all);
-  const [gaps, recentEvents, overdueDebt] = await Promise.all([
-    getDataGaps(),
-    getRecentEvents(),
-    getOverdueDebt(), // та же цифра, что в красном блоке на /payments (П1)
-  ]);
-  // §4 UX-аудита: дыры, которые врут деньги, — отдельным красным бейджем.
+  // Деньги с главного убраны (Алёна 05.07: «оплаты дотошно горят — убери в
+  // Платежи, максимум лёгкая галочка»): задачи payment-due не попадают ни в
+  // списки, ни в счётчики сотрудников. Вместо них — тихий чип-ссылка ниже.
+  const paymentTasks = all.filter((t) => t.kind === "payment-due");
+  const tasks = all.filter((t) => t.kind !== "payment-due");
+  const paymentsOverdue = paymentTasks.filter((t) => t.urgency === "overdue").length;
+  const groups = groupByOwner(tasks);
+  // Долг фабрикам и суммы больше не на главном — их показывает /payments.
+  const [gaps, recentEvents] = await Promise.all([getDataGaps(), getRecentEvents()]);
   const gapsSplit = countGapsSplit(gaps);
 
   // Кабинет общий — разбивку задач по сотрудникам видят ВСЕ (прозрачность), не только админ.
@@ -103,10 +96,10 @@ export default async function DashboardPage({
       <div>
         <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Добрый день, {userName}</h1>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          {all.length > 0 ? (
+          {tasks.length > 0 ? (
             <p className="text-sm text-slate-600">
               {/* П5: «у вас 13 из 102» вместо двух несвязанных цифр */}
-              Задач на ближайшие дни: <b>{all.length}</b>
+              Задач на ближайшие дни: <b>{tasks.length}</b>
               {(() => {
                 const mine = groups.find((g) => g.ownerId === myId)?.tasks.length ?? 0;
                 return mine > 0 ? <> · у вас <b>{mine}</b></> : null;
@@ -115,28 +108,27 @@ export default async function DashboardPage({
           ) : (
             <p className="text-sm text-emerald-700 dark:text-emerald-300">Всё под контролем. Срочного нет.</p>
           )}
-          {overdueDebt.count > 0 && (
+          {/* Деньги — «лёгкая галочка» (Алёна 05.07): один тихий чип без сумм,
+              вся работа с оплатами — в «Платежах». Долг фабрикам и суммы
+              показывает сама страница /payments. */}
+          {paymentTasks.length > 0 && (
             <Link
               href="/payments?view=list"
-              className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700 hover:bg-red-100 dark:bg-red-400/10 dark:text-red-300 dark:hover:bg-red-400/20"
+              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-300 dark:hover:bg-slate-700"
             >
-              Долг фабрикам: {formatOverdueDebt(overdueDebt)} →
+              ₽ План платежей:{" "}
+              {paymentsOverdue > 0
+                ? `${paymentsOverdue} просрочено`
+                : `${paymentTasks.length} на подходе`}{" "}
+              →
             </Link>
           )}
-          {gapsSplit.money > 0 && (
-            <Link
-              href="/data-gaps"
-              className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700 hover:bg-red-100 dark:bg-red-400/10 dark:text-red-300 dark:hover:bg-red-400/20"
-            >
-              🔴 Врут деньги: {gapsSplit.money} · исправить →
-            </Link>
-          )}
-          {gapsSplit.other > 0 && (
+          {gapsSplit.money + gapsSplit.other > 0 && (
             <Link
               href="/data-gaps"
               className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-300 dark:hover:bg-slate-700"
             >
-              Прочие дыры: {gapsSplit.other} →
+              Дыры в данных: {gapsSplit.money + gapsSplit.other} →
             </Link>
           )}
         </div>
@@ -215,7 +207,7 @@ export default async function DashboardPage({
       )}
 
       {selected ? (
-        <ChecklistGroup tasks={selected.tasks} money={money} />
+        <ChecklistGroup tasks={selected.tasks} />
       ) : (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
           Срочных задач нет.
@@ -251,7 +243,7 @@ const ZONES: Array<{ key: TaskZone; title: string; muted: boolean }> = [
 
 type MoneyRights = { canMarkPaid: boolean; canPostpone: boolean };
 
-function ChecklistGroup({ tasks, money }: { tasks: ChecklistTask[]; money: MoneyRights }) {
+function ChecklistGroup({ tasks }: { tasks: ChecklistTask[] }) {
   return (
     <div className="space-y-10">
       {ZONES.map((zone) => {
@@ -259,7 +251,7 @@ function ChecklistGroup({ tasks, money }: { tasks: ChecklistTask[]; money: Money
         if (zoneTasks.length === 0) return null;
         return (
           <Zone key={zone.key} title={zone.title} count={zoneTasks.length} muted={zone.muted}>
-            <ZoneBody tasks={zoneTasks} showIdle={zone.key === "now"} money={money} />
+            <ZoneBody tasks={zoneTasks} showIdle={zone.key === "now"} />
           </Zone>
         );
       })}
@@ -267,12 +259,13 @@ function ChecklistGroup({ tasks, money }: { tasks: ChecklistTask[]; money: Money
   );
 }
 
-function ZoneBody({ tasks, showIdle, money }: { tasks: ChecklistTask[]; showIdle: boolean; money: MoneyRights }) {
+function ZoneBody({ tasks, showIdle }: { tasks: ChecklistTask[]; showIdle: boolean }) {
+  // Денежных задач здесь больше нет — payment-due отфильтрованы на странице
+  // (Алёна 05.07: оплаты живут в «Платежах», на главном — только тихий чип).
   const orderTasks = tasks.filter((t) => ORDER_KINDS.includes(t.kind));
   const packagingTasks = tasks.filter((t) => PACKAGING_KINDS.includes(t.kind));
-  const moneyTasks = tasks.filter((t) => t.kind === "payment-due");
   const devTasks = tasks.filter(
-    (t) => !ORDER_KINDS.includes(t.kind) && !PACKAGING_KINDS.includes(t.kind) && t.kind !== "payment-due",
+    (t) => !ORDER_KINDS.includes(t.kind) && !PACKAGING_KINDS.includes(t.kind),
   );
   const devWithDeadline = devTasks.filter((t) => t.daysToDeadline !== null);
   const devIdle = devTasks.filter((t) => t.daysToDeadline === null);
@@ -285,11 +278,6 @@ function ZoneBody({ tasks, showIdle, money }: { tasks: ChecklistTask[]; showIdle
 
   return (
     <div className="space-y-6">
-      {moneyTasks.length > 0 && (
-        <Section title="Деньги" count={moneyTasks.length}>
-          <TaskList tasks={moneyTasks} money={money} />
-        </Section>
-      )}
       {orderTasks.length > 0 && (
         <Section title="Заказы" count={orderTasks.length}>
           <TaskList tasks={orderTasks} />

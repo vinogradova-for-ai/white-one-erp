@@ -183,6 +183,9 @@ export function OrderForm({
   type PaymentRow = { id: string; plannedDate: string; amount: number; label: string; paid: boolean };
   const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [paymentsTouched, setPaymentsTouched] = useState(false);
+  // План платежей свёрнут («лёгкая галочка», Алёна 05.07); при расхождении
+  // с суммой заказа раскрываем принудительно — проблему прятать нельзя.
+  const [payOpen, setPayOpen] = useState(false);
 
   // Таймлайн — 4 этапа: разработка, производство, ОТК, доставка
   type Timeline = {
@@ -334,6 +337,9 @@ export function OrderForm({
 
   const paymentsTotal = payments.reduce((a, p) => a + (Number(p.amount) || 0), 0);
   const paymentsMismatch = totalBatchCost > 0 && Math.abs(paymentsTotal - totalBatchCost) > 1;
+  useEffect(() => {
+    if (paymentsMismatch) setPayOpen(true);
+  }, [paymentsMismatch]);
 
   // П6: почему кнопка «Создать заказ» серая (совпадает с disabled-условием).
   const submitBlockReason = !modelId
@@ -828,8 +834,31 @@ export function OrderForm({
       )}
 
       {model && totalBatchCost > 0 && (
-        <Section id="sec-payments" title="График платежей">
-          <div className="md:col-span-2 space-y-2">
+        <Section id="sec-payments" title="План платежей">
+          {/* «Лёгкая галочка с планом платежей» (Алёна 05.07): свёрнутая строка-
+              резюме; детали и правка — по клику. Оплаты ведутся в финсервисе,
+              здесь только план. При расхождении — раскрыто сразу. */}
+          <details
+            className="md:col-span-2 group rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50"
+            open={payOpen}
+            onToggle={(e) => setPayOpen((e.target as HTMLDetailsElement).open)}
+          >
+            <summary className="flex min-h-[44px] cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-sm [&::-webkit-details-marker]:hidden">
+              <span className="text-slate-400 transition group-open:rotate-90">▸</span>
+              <span className="text-slate-700 dark:text-slate-200">
+                {payments.length > 0
+                  ? `${payments.length} платеж${payments.length === 1 ? "" : payments.length < 5 ? "а" : "ей"} по условиям ${common.paymentTerms || "—"}`
+                  : "План не рассчитан"}
+              </span>
+              {payments.length > 0 && (
+                paymentsMismatch ? (
+                  <span className="text-xs font-medium text-red-600 dark:text-red-300">⚠ расходится с суммой заказа</span>
+                ) : (
+                  <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">✓ сходится · {formatCurrency(paymentsTotal)}</span>
+                )
+              )}
+            </summary>
+            <div className="space-y-2 border-t border-slate-200 px-3 py-3 dark:border-slate-700">
             <div className="flex items-center justify-between text-xs text-slate-500">
               <span>
                 Рассчитано по условиям «{common.paymentTerms}».
@@ -910,7 +939,8 @@ export function OrderForm({
                 )}
               </div>
             </div>
-          </div>
+            </div>
+          </details>
         </Section>
       )}
 
