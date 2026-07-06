@@ -5,6 +5,7 @@ import { PACKAGING_TYPE_LABELS, PACKAGING_TYPE_ICONS, ORDER_STATUS_LABELS, ORDER
 import { PACKAGING_STATUS_LABELS, PACKAGING_STATUS_COLORS } from "@/lib/status-machine/packaging-statuses";
 import { InlineNumberField } from "@/components/common/inline-number-field";
 import { PackagingStatusChanger } from "@/components/packaging/packaging-status-changer";
+import { WriteOffButton } from "@/components/packaging/write-off-button";
 import { PhotoThumb } from "@/components/common/photo-thumb";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
 
@@ -63,6 +64,80 @@ export default async function PackagingDetailPage({ params }: { params: Promise<
   const inProduction = productionLines.reduce((a, l) => a + l.quantity, 0);
   const available = item.stock + inProduction + inTransit;
   const shortage = Math.max(0, Math.ceil(required) - available);
+
+  // «Движения склада» — журнал прихода/расхода из уже имеющихся данных (без
+  // отдельной таблицы): приходы = приехавшие заказы упаковки; авто-списания =
+  // consumedQty под заказы одежды (дата — вход заказа в «Упаковку»); ручные
+  // списания и правки остатка — из аудита.
+  const consumedOrderIds = item.orderUsages.filter((u) => u.consumedQty != null).map((u) => u.orderId);
+  const [arrivedLines, packingLogs, auditRows] = await Promise.all([
+    prisma.packagingOrderLine.findMany({
+      where: { packagingItemId: id, packagingOrder: { status: "ARRIVED" } },
+      select: {
+        quantity: true,
+        packagingOrder: { select: { id: true, orderNumber: true, arrivedDate: true, orderedDate: true } },
+      },
+    }),
+    consumedOrderIds.length > 0
+      ? prisma.orderStatusLog.findMany({
+          where: { orderId: { in: consumedOrderIds }, toStatus: "PACKING" },
+          orderBy: { changedAt: "desc" },
+          select: { orderId: true, changedAt: true },
+        })
+      : Promise.resolve([]),
+    prisma.auditLog.findMany({
+      where: { entityType: "PackagingItem", entityId: id },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: { changes: true, createdAt: true, user: { select: { name: true } } },
+    }),
+  ]);
+  const packingDateByOrder = new Map<string, Date>();
+  for (const log of packingLogs) {
+    // desc-порядок: первая запись по заказу = последний вход в PACKING
+    if (!packingDateByOrder.has(log.orderId)) packingDateByOrder.set(log.orderId, log.changedAt);
+  }
+
+  type Movement = { date: Date | null; delta: number | null; label: string; sub?: string; href?: string };
+  const movements: Movement[] = [];
+  for (const l of arrivedLines) {
+    movements.push({
+      date: l.packagingOrder.arrivedDate ?? l.packagingOrder.orderedDate,
+      delta: l.quantity,
+      label: `Приход — заказ упаковки ${l.packagingOrder.orderNumber}`,
+      href: `/packaging-orders/${l.packagingOrder.id}`,
+    });
+  }
+  for (const u of item.orderUsages) {
+    if (u.consumedQty == null) continue;
+    movements.push({
+      date: packingDateByOrder.get(u.orderId) ?? null,
+      delta: -u.consumedQty,
+      label: `В изделие — ${u.order.productModel.name} (${u.order.orderNumber})`,
+      href: `/orders/${u.order.id}`,
+    });
+  }
+  for (const a of auditRows) {
+    const ch = a.changes as Record<string, unknown> | null;
+    if (!ch) continue;
+    if (typeof ch.writeOff === "number") {
+      movements.push({
+        date: a.createdAt,
+        delta: -ch.writeOff,
+        label: "Списание вручную",
+        sub: [typeof ch.reason === "string" ? ch.reason : null, a.user?.name].filter(Boolean).join(" · "),
+      });
+    } else if (typeof ch.stock === "number") {
+      movements.push({
+        date: a.createdAt,
+        delta: null,
+        label: `Остаток поправлен руками → ${ch.stock.toLocaleString("ru-RU")} шт`,
+        sub: a.user?.name ?? undefined,
+      });
+    }
+  }
+  movements.sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0));
+  const recentMovements = movements.slice(0, 30);
 
   return (
     <div className="space-y-6">
@@ -194,6 +269,8 @@ export default async function PackagingDetailPage({ params }: { params: Promise<
         />
       </div>
 
+      <WriteOffButton itemId={item.id} stock={item.stock} />
+
       {item.description && (
         <div className="rounded-2xl border border-slate-200 bg-white p-5">
           <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Описание</h2>
@@ -270,6 +347,40 @@ export default async function PackagingDetailPage({ params }: { params: Promise<
           )}
         </div>
       </section>
+
+      {recentMovements.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-lg font-semibold text-slate-900">Движения склада</h2>
+          <div className="rounded-2xl border border-slate-200 bg-white">
+            <ul className="divide-y divide-slate-100">
+              {recentMovements.map((m, idx) => (
+                <li key={idx} className="flex items-center justify-between gap-4 px-4 py-2.5 text-sm">
+                  <div className="min-w-0">
+                    {m.href ? (
+                      <Link href={m.href} className="font-medium text-slate-900 hover:underline">
+                        {m.label}
+                      </Link>
+                    ) : (
+                      <span className="font-medium text-slate-900">{m.label}</span>
+                    )}
+                    {m.sub && <div className="truncate text-xs text-slate-500">{m.sub}</div>}
+                  </div>
+                  <div className="flex shrink-0 items-baseline gap-3">
+                    {m.delta != null && (
+                      <span
+                        className={`font-semibold tabular-nums ${m.delta > 0 ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}`}
+                      >
+                        {m.delta > 0 ? "+" : "−"}{Math.abs(m.delta).toLocaleString("ru-RU")}
+                      </span>
+                    )}
+                    <span className="text-xs text-slate-500">{m.date ? formatDate(m.date) : "—"}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
 
       {item.statusLogs.length > 0 && (
         <section>
