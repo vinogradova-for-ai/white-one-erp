@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ORDER_TYPE_LABELS, DELIVERY_METHOD_LABELS } from "@/lib/constants";
-import { ORDER_CREATE_STAGES } from "@/lib/order-stage";
+import { ORDER_CREATE_STAGES, orderKanbanColumnByDates } from "@/lib/order-stage";
+import { moscowTodayIso } from "@/lib/dates";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { PhotoThumb } from "@/components/common/photo-thumb";
 import { VariantVisual } from "@/components/common/variant-visual";
@@ -150,14 +151,15 @@ export function OrderForm({
     const pref = models.find((m) => m.id === preselectedModelId)?.preferredFactoryId;
     return pref && factories.some((f) => f.id === pref) ? pref : "";
   })();
-  // Этап, на который встанет заказ (= колонка канбана). По умолчанию «Разработка»,
-  // либо предвыбранный (например, когда тащим фасон на колонку «Производство»).
-  const initialStage = ORDER_CREATE_STAGES.some((s) => s.value === preselectedStage)
+  // Этап руками НЕ выбирается (Алёна 05.07, «Гант первичен»): статус заказа
+  // вычисляется из дат таймлайна при сабмите (см. stageFromTimeline).
+  // preselectedStage (drop фасона на колонку канбана) — только запасной
+  // вариант, когда даты в таймлайне не заданы.
+  const fallbackStage = ORDER_CREATE_STAGES.some((s) => s.value === preselectedStage)
     ? (preselectedStage as string)
     : "PREPARATION";
   const [common, setCommon] = useState({
     orderType: "SEASONAL",
-    stage: initialStage,
     launchMonth: defaultLaunchMonth,
     factoryId: initialFactoryId,
     ownerId: (defaultOwnerId && users.some((u) => u.id === defaultOwnerId)) ? defaultOwnerId : (users[0]?.id ?? ""),
@@ -360,6 +362,25 @@ export function OrderForm({
     { id: "sec-params", title: "Параметры", filled: true },
   ];
 
+  // Статус нового заказа из дат таймлайна (тот же маппер, что у канбана —
+  // «Гант первичен»). Дат нет — запасной этап (?stage с канбана) или Разработка.
+  function stageFromTimeline(): string {
+    const d = (s: string) => (s ? new Date(`${s}T00:00:00Z`) : null);
+    const col = orderKanbanColumnByDates(
+      {
+        handedToFactoryDate: d(timeline.handedToFactoryDate),
+        readyAtFactoryDate: d(timeline.readyAtFactoryDate),
+        qcDate: d(timeline.qcDate),
+      },
+      moscowTodayIso(),
+    );
+    if (col === "production") return "SEWING";
+    if (col === "qc") return "QC";
+    if (col === "delivery") return "IN_TRANSIT";
+    // col === null: сегодня до передачи на фабрику ИЛИ дата не заполнена.
+    return timeline.handedToFactoryDate ? "PREPARATION" : fallbackStage;
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -378,7 +399,9 @@ export function OrderForm({
           sizeDistribution: Object.keys(l.sizeDistribution).length > 0 ? l.sizeDistribution : null,
         })),
         orderType: common.orderType,
-        status: common.stage,
+        // Гант первичен: статус нового заказа = где «сегодня» стоит по датам
+        // таймлайна. Руками этап не выбирается (Алёна 05.07).
+        status: stageFromTimeline(),
         launchMonth: Number(common.launchMonth.replace("-", "")),
         factoryId: common.factoryId || null,
         ownerId: common.ownerId,
@@ -726,19 +749,21 @@ export function OrderForm({
             )}
           </div>
         </Field>
-        {/* П3: дату готовности задаём в таймлайне — здесь только показываем. */}
-        <Field label="Готовность на фабрике">
-          <button
-            type="button"
-            onClick={() => document.getElementById("sec-timeline")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-            className="flex min-h-[44px] w-full items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:border-slate-500"
-          >
-            <span>
-              {timeline.readyAtFactoryDate ? formatDate(timeline.readyAtFactoryDate) : "не задана"}
-              <span className="ml-1 text-slate-400">· задаётся в таймлайне ↓</span>
-            </span>
-          </button>
-        </Field>
+        {/* П3 + правка Алёны: не поле, а обычная строка-справка — задаётся
+            ТОЛЬКО на таймлайне (Гант первичен), тут нечего вводить. */}
+        <div className="flex items-end">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Готовность на фабрике: <span className="font-medium text-slate-700 dark:text-slate-200">{timeline.readyAtFactoryDate ? formatDate(timeline.readyAtFactoryDate) : "—"}</span>
+            {" · "}
+            <button
+              type="button"
+              onClick={() => document.getElementById("sec-timeline")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              className="underline decoration-dotted underline-offset-2 hover:text-slate-700 dark:hover:text-slate-200"
+            >
+              двигается на таймлайне ↓
+            </button>
+          </p>
+        </div>
         <Field label="Способ доставки" full>
           <select value={common.deliveryMethod} onChange={(e) => setCommon({ ...common, deliveryMethod: e.target.value })} className={inputCls}>
             {Object.entries(DELIVERY_METHOD_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -926,14 +951,13 @@ export function OrderForm({
             {Object.entries(ORDER_TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </Field>
-        <Field label="Где сейчас заказ *">
-          <select value={common.stage} onChange={(e) => setCommon({ ...common, stage: e.target.value })} className={inputCls}>
-            {ORDER_CREATE_STAGES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-          <p className="mt-1 text-xs text-slate-500">
-            По умолчанию — Разработка. Если заказ уже шьётся или едет — поставь нужный этап.
+        {/* Этап руками не выбирается («Гант первичен», Алёна 05.07): заказ сам
+            встанет на этап по датам таймлайна — где стоит «сегодня». */}
+        <div className="md:col-span-1 flex items-end">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Этап заказа определится сам — по датам на таймлайне выше (где сегодня, там и заказ).
           </p>
-        </Field>
+        </div>
       </Section>
 
       {error && <div className="rounded-lg bg-red-50 dark:bg-red-400/10 p-3 text-sm text-red-700 dark:text-red-300">{error}</div>}
