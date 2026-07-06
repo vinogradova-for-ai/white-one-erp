@@ -221,6 +221,7 @@ export default async function PackagingDetailPage({ params }: { params: Promise<
                 <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Тираж</th>
                 <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">На единицу</th>
                 <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Всего</th>
+                <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Списано</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Статус</th>
               </tr>
             </thead>
@@ -242,6 +243,15 @@ export default async function PackagingDetailPage({ params }: { params: Promise<
                   <td className="px-3 py-2 text-right">{Number(u.quantityPerUnit)}</td>
                   <td className="px-3 py-2 text-right font-semibold">
                     {Math.ceil(qty * Number(u.quantityPerUnit)).toLocaleString("ru-RU")}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    {u.consumedQty != null ? (
+                      <span className="font-medium text-emerald-700 dark:text-emerald-300">
+                        −{u.consumedQty.toLocaleString("ru-RU")}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
                   </td>
                   <td className="px-3 py-2">
                     <span className={`inline-block rounded px-2 py-0.5 text-xs ${ORDER_STATUS_COLORS[u.order.status]}`}>
