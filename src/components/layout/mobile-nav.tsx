@@ -16,6 +16,7 @@ const TABS = [
 ];
 
 const MORE_LINKS = [
+  { href: "/planning", label: "Планирование", icon: "🧭" },
   { href: "/stats", label: "Статистика", icon: "▤" },
   { href: "/packaging", label: "Упаковка", icon: "▯" },
   { href: "/variants", label: "Цветомодели", icon: "◎" },

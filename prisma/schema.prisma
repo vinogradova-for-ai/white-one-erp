@@ -192,6 +192,7 @@ model User {
   paidPayments      Payment[]            @relation("PaymentPayer")
   createdPayouts    FactoryPayout[]      @relation("PayoutCreator")
   ownedPackagingItems PackagingItem[]    @relation("PackagingOwner")
+  ownedBrandPlans   BrandPlan[]          @relation("BrandPlanOwner")
   packagingStatusLogs PackagingItemStatusLog[] @relation("PackagingStatusActor")
   ownedPackagingOrders PackagingOrder[]  @relation("PackagingOrderOwner")
   ownedPlans          MonthlyPlan[]      @relation("PlanOwner")
@@ -422,6 +423,10 @@ model ProductModel {
   statusLogs  ProductModelStatusLog[]
   packagingItems   ModelPackaging[]
   samples     Sample[]
+
+  // Фасон разрабатывается в рамках плана-направления («Планирование»)
+  brandPlanId String?
+  brandPlan   BrandPlan? @relation(fields: [brandPlanId], references: [id])
 
   @@index([status])
   @@index([ownerId])
@@ -768,6 +773,47 @@ model OrderStatusLog {
 // Ключ — (yearMonth, ownerId, category). Категория опциональна:
 // при null — это «общий план ответственного на месяц».
 // plannedRevenue остаётся для исторических данных, но новые планы её не пишут.
+// ======================================================
+// BRAND PLAN — «Планирование»: направления развития бренда
+// ======================================================
+// «К весне пиджачная группа: ~5 фасонов по ~55 ¥, тестовая партия N шт,
+// бюджет теста не больше X ₽». Задаёт продактам рамку: сколько моделей и
+// потолок денег. Факт = привязанные фасоны + стоимость их заказов
+// (orderTotalCost, как на /stats) против бюджета. Не удаляем — статус CANCELLED.
+model BrandPlan {
+  id     String          @id @default(cuid())
+  name   String                                        // «Пиджачная группа — весна 2027»
+  status BrandPlanStatus @default(IDEA)
+
+  season     String?                                   // как у заказов, строкой
+  targetDate DateTime?                                 // к какому сроку запуститься
+
+  plannedModelsCount   Int?                            // сколько фасонов задумано
+  plannedUnitsPerModel Int?                            // тестовая партия на фасон, шт
+  targetUnitPriceCny   Decimal? @db.Decimal(12, 2)     // примерная закупка за единицу, ¥
+  cnyRubRate           Decimal? @db.Decimal(10, 4)
+  budgetRub            Decimal? @db.Decimal(14, 2)     // потолок затрат на направление, ₽
+
+  notes   String?
+  ownerId String?
+  owner   User?   @relation("BrandPlanOwner", fields: [ownerId], references: [id])
+
+  models ProductModel[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+enum BrandPlanStatus {
+  IDEA        // прикидываем, идём или нет
+  APPROVED    // решили: идём
+  IN_PROGRESS // продакты работают
+  DONE        // запущено
+  CANCELLED   // решили не идти (не удаляем)
+}
+
 model MonthlyPlan {
   id                String   @id @default(cuid())
   yearMonth         Int

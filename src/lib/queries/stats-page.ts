@@ -160,8 +160,8 @@ export function orderTotalCost(
   }, 0);
 }
 
-// Поля фасона для resolveModelCost — единый select.
-const MODEL_COST_SELECT = {
+// Поля фасона для resolveModelCost — единый select (переиспользует и /planning).
+export const MODEL_COST_SELECT = {
   fullCost: true,
   purchasePriceRub: true,
   purchasePriceCny: true,

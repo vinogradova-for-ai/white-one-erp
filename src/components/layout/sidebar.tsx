@@ -8,6 +8,7 @@ import { SidebarNav } from "./sidebar-nav";
 // «Главный» = /dashboard (чек-лист задач по 7 типам, подвкладки по PM).
 const NAV = [
   { href: "/dashboard", label: "Главный", icon: "✦" },
+  { href: "/planning", label: "Планирование", icon: "🧭" },
   { href: "/models", label: "Фасоны", icon: "⬢" },
   { href: "/models/kanban", label: "Канбан фасонов", icon: "▦" },
   { href: "/models/board", label: "Доска фасонов", icon: "▢" },
