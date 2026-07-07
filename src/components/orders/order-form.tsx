@@ -514,6 +514,15 @@ export function OrderForm({
       {model && (
         <Section id="sec-lines" title={`Позиции (${lines.length}) · ${totalQty} шт`}>
           <div className="md:col-span-2 space-y-3">
+            {model.variants.length === 0 && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-300">
+                У этого фасона пока нет цветомоделей — он ещё в разработке. Чтобы заказать,{" "}
+                <a href={`/models/${model.id}`} className="font-medium underline" target="_blank" rel="noreferrer">
+                  добавь цвет в карточке фасона
+                </a>{" "}
+                и вернись сюда.
+              </div>
+            )}
             {lines.map((line, idx) => {
               const variant = model.variants.find((v) => v.id === line.variantId);
               const sizeSum = Object.values(line.sizeDistribution).reduce((a, b) => a + b, 0);

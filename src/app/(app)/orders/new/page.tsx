@@ -15,7 +15,10 @@ export default async function NewOrderPage({
     prisma.productModel.findMany({
       where: {
         deletedAt: null,
-        variants: { some: { deletedAt: null } },
+        // Показываем и фасоны на этапе разработки (без цветомоделей) — заказ на
+        // них тоже создают (правка Алёны 07.07); форма подскажет добавить цвет.
+        // Снятые с разработки (activated=false) не предлагаем.
+        activated: true,
       },
       orderBy: { name: "asc" },
       take: 500,
