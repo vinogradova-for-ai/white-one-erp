@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ORDER_TYPE_LABELS, DELIVERY_METHOD_LABELS } from "@/lib/constants";
 import { OrderTimeline } from "@/components/orders/order-timeline";
+import { CnyHelper } from "@/components/orders/cny-helper";
 import type { DeliveryMethod } from "@prisma/client";
 
 type Option = { id: string; name: string };
@@ -28,6 +29,7 @@ export function OrderEditForm({
   order,
   factories,
   users,
+  defaultCnyRate,
 }: {
   order: {
     id: string;
@@ -47,6 +49,7 @@ export function OrderEditForm({
   };
   factories: Option[];
   users: Option[];
+  defaultCnyRate?: number | null;
 }) {
   const router = useRouter();
   const [common, setCommon] = useState({
@@ -238,6 +241,15 @@ export function OrderEditForm({
                 className="h-11 w-28 rounded border border-slate-300 bg-white px-2 text-right text-sm"
               />
               <span className="text-xs text-slate-500">₽</span>
+              <CnyHelper
+                defaultRate={defaultCnyRate}
+                onApply={(rub, note) =>
+                  updatePayment(idx, {
+                    amount: rub,
+                    label: p.label ? `${p.label} (${note})` : note,
+                  })
+                }
+              />
               <input
                 value={p.label}
                 onChange={(e) => updatePayment(idx, { label: e.target.value })}

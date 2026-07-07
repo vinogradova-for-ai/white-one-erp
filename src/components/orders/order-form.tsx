@@ -37,6 +37,9 @@ type PackagingItem = {
 type ModelOption = {
   id: string;
   name: string;
+  // Дата старта разработки фасона (ISO yyyy-mm-dd) — наследуется в плашку
+  // «Разработка» таймлайна заказа, чтобы заказ не начинал разработку заново.
+  devStartIso?: string;
   photoUrl: string | null;
   countryOfOrigin: string | null;
   preferredFactoryId: string | null;
@@ -784,6 +787,7 @@ export function OrderForm({
             onChange={setTimeline}
             initial={timeline}
             deliveryMethod={(common.deliveryMethod || null) as DeliveryMethod | null}
+            devStartIso={model?.devStartIso}
           />
         </div>
       )}

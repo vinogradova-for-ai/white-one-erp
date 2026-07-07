@@ -54,7 +54,9 @@ function addDays(iso: string, days: number): string {
 
 // Авто-расчёт таймлайна фикс. длительностями (не пропорциями). Логика та же,
 // что была: раскрутка от прибытия (1-е число launchMonth) назад.
-function calcTimeline(launchMonth: string, deliveryMethod?: DeliveryMethod | null): Timeline {
+// devStartIso — старт разработки фасона: плашка «Разработка» заказа наследует
+// его (фасон в работе уже N дней), а не стартует заново с сегодня.
+function calcTimeline(launchMonth: string, deliveryMethod?: DeliveryMethod | null, devStartIso?: string): Timeline {
   const [y, m] = launchMonth.split("-").map(Number);
   const empty: Timeline = {
     decisionDate: "", handedToFactoryDate: "", readyAtFactoryDate: "", qcDate: "", arrivalPlannedDate: "",
@@ -63,6 +65,8 @@ function calcTimeline(launchMonth: string, deliveryMethod?: DeliveryMethod | nul
   const t0 = new Date();
   t0.setHours(0, 0, 0, 0);
   const t0Iso = toISO(t0);
+  // «Разработка» начинается со старта разработки фасона, если он в прошлом.
+  const decisionIso = devStartIso && devStartIso < t0Iso ? devStartIso : t0Iso;
   const arrivalIso = toISO(new Date(Date.UTC(y, m - 1, 1)));
   const deliveryDays = deliveryMethod ? DELIVERY_DURATION_DAYS[deliveryMethod] : 0;
   const qcIso = addDays(arrivalIso, -deliveryDays);
@@ -72,7 +76,7 @@ function calcTimeline(launchMonth: string, deliveryMethod?: DeliveryMethod | nul
   const tentativeDecisionIso = addDays(handedIso, -AUTO_PREP_DAYS);
   if (daysBetween(t0Iso, tentativeDecisionIso) < 0) {
     return {
-      decisionDate: t0Iso,
+      decisionDate: decisionIso,
       handedToFactoryDate: addDays(t0Iso, AUTO_PREP_DAYS),
       readyAtFactoryDate: readyIso,
       qcDate: qcIso,
@@ -83,7 +87,7 @@ function calcTimeline(launchMonth: string, deliveryMethod?: DeliveryMethod | nul
     handedIso = addDays(t0Iso, AUTO_PREP_DAYS);
   }
   return {
-    decisionDate: t0Iso,
+    decisionDate: decisionIso,
     handedToFactoryDate: handedIso,
     readyAtFactoryDate: readyIso,
     qcDate: qcIso,
@@ -97,11 +101,13 @@ export function OrderTimeline({
   initial,
   onChange,
   deliveryMethod,
+  devStartIso,
 }: {
   launchMonth: string;
   initial: Timeline;
   onChange: (t: Timeline) => void;
   deliveryMethod?: DeliveryMethod | null;
+  devStartIso?: string;
 }) {
   const hasSavedDates = !!(
     initial.decisionDate || initial.handedToFactoryDate ||
@@ -111,13 +117,13 @@ export function OrderTimeline({
 
   useEffect(() => {
     if (touched) return;
-    onChange(calcTimeline(launchMonth, deliveryMethod));
+    onChange(calcTimeline(launchMonth, deliveryMethod, devStartIso));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [launchMonth, deliveryMethod]);
+  }, [launchMonth, deliveryMethod, devStartIso]);
 
   function resetAuto() {
     setTouched(false);
-    onChange(calcTimeline(launchMonth, deliveryMethod));
+    onChange(calcTimeline(launchMonth, deliveryMethod, devStartIso));
   }
 
   // Старт цепочки = decisionDate. Пусто — сегодня.

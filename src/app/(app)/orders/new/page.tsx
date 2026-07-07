@@ -22,6 +22,7 @@ export default async function NewOrderPage({
       select: {
         id: true,
         name: true,
+        createdAt: true,
         photoUrls: true,
         countryOfOrigin: true,
         preferredFactoryId: true,
@@ -96,6 +97,9 @@ export default async function NewOrderPage({
           models={models.map((m) => ({
             id: m.id,
             name: m.name,
+            // Старт разработки фасона: заказ наследует его в плашку «Разработка»,
+            // а не начинает разработку заново с сегодня (правка Алёны 07.07).
+            devStartIso: m.createdAt.toISOString().slice(0, 10),
             photoUrl: m.photoUrls[0] ?? null,
             countryOfOrigin: m.countryOfOrigin ?? null,
             preferredFactoryId: m.preferredFactoryId,

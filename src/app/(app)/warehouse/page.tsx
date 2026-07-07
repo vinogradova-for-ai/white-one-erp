@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ORDER_STATUS_LABELS, PACKAGING_TYPE_ICONS } from "@/lib/constants";
+import { formatDate } from "@/lib/format";
 import { ExportButton } from "./export-button";
+import { StatusTiles } from "./status-tiles";
 
 // Окно «Склад» — выгрузка для внешней системы управления загрузкой склада.
 // Считаем заказы, которые ещё ожидаются на складе или уже там (не отгружены в WB).
@@ -18,7 +20,15 @@ const PENDING_STATUSES = [
 export default async function WarehousePage() {
   const orders = await prisma.order.findMany({
     where: { deletedAt: null, status: { in: [...PENDING_STATUSES] } },
-    select: { status: true, arrivalPlannedDate: true },
+    orderBy: { arrivalPlannedDate: "asc" },
+    select: {
+      id: true,
+      orderNumber: true,
+      status: true,
+      arrivalPlannedDate: true,
+      productModel: { select: { name: true } },
+      lines: { select: { quantity: true } },
+    },
   });
 
   // Склад упаковки — та же математика, что на /packaging: остаток, в пути
@@ -60,10 +70,22 @@ export default async function WarehousePage() {
   });
 
   const total = orders.length;
-  const byStatus = orders.reduce<Record<string, number>>((acc, o) => {
-    acc[o.status] = (acc[o.status] ?? 0) + 1;
-    return acc;
-  }, {});
+  // Плитки статусов: клик раскрывает заказы внутри (правка Алёны 07.07)
+  const tiles = PENDING_STATUSES.map((s) => {
+    const inStatus = orders.filter((o) => o.status === s);
+    return {
+      status: s,
+      label: ORDER_STATUS_LABELS[s],
+      count: inStatus.length,
+      orders: inStatus.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        modelName: o.productModel.name,
+        qty: o.lines.reduce((a, l) => a + l.quantity, 0),
+        arrival: o.arrivalPlannedDate ? formatDate(o.arrivalPlannedDate) : null,
+      })),
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -86,19 +108,7 @@ export default async function WarehousePage() {
           <ExportButton />
         </div>
 
-        {total > 0 && (
-          <div className="mt-5 grid gap-2 sm:grid-cols-2 md:grid-cols-4">
-            {PENDING_STATUSES.map((s) => (
-              <div
-                key={s}
-                className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
-              >
-                <span className="text-slate-600">{ORDER_STATUS_LABELS[s]}</span>
-                <span className="font-semibold text-slate-900">{byStatus[s] ?? 0}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        {total > 0 && <StatusTiles tiles={tiles} />}
       </div>
 
       {packagingRows.length > 0 && (
