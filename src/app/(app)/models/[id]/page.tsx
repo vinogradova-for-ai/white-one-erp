@@ -15,6 +15,7 @@ import { colorHexFromName, isLightColor } from "@/lib/color-map";
 import { DeleteButton } from "@/components/common/delete-button";
 import { ModelWorkToggle } from "@/components/models/model-work-toggle";
 import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
+import { syncModelOrderStatusesForward } from "@/server/sync-order-status";
 import { CommentsThread } from "@/components/comments/comments-thread";
 import { SamplesSection } from "@/components/models/samples-section";
 import { ModelStageBadge } from "@/components/models/model-stage-badge";
@@ -26,6 +27,8 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
   const { id } = await params;
   // Авто-синк упаковки фасона → открытые заказы (идемпотентно).
   await syncModelPackagingToOrders(id);
+  // Авто-статусы заказов по таймлайну — чтобы бейджи в списке «Заказы» не отставали.
+  await syncModelOrderStatusesForward(id);
   const session = await auth();
   const sessionUser = session?.user as { id?: string; role?: string } | undefined;
   const currentUserId = sessionUser?.id;
