@@ -1,6 +1,8 @@
 import { buildHonestSignRows } from "./build-rows";
 import { HonestSignTable } from "./honest-sign-table";
 import { ExportButton } from "./export-button";
+import { ChzFilesPanel } from "./chz-files-panel";
+import { CHZ_BY_CATEGORY } from "@/lib/chz";
 
 // Вкладка «Честный знак» — витрина справочника для ВЭД / WB-менеджеров.
 // Одна строка = цветомодель × размер по всем активным фасонам.
@@ -25,6 +27,11 @@ export default async function HonestSignPage() {
         </div>
         <ExportButton />
       </div>
+
+      {/* Генератор файлов ЧЗ: категории берём только те, где есть строки И шаблон */}
+      <ChzFilesPanel
+        categories={Array.from(new Set(rows.map((r) => r.category))).filter((c) => CHZ_BY_CATEGORY[c])}
+      />
 
       <HonestSignTable rows={rows} />
     </div>
