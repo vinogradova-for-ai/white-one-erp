@@ -423,6 +423,7 @@ model ProductModel {
   statusLogs  ProductModelStatusLog[]
   packagingItems   ModelPackaging[]
   samples     Sample[]
+  regulatoryDocs RegulatoryDoc[] @relation("ModelRegulatoryDocs")
 
   // Фасон разрабатывается в рамках плана-направления («Планирование»)
   brandPlanId String?
@@ -495,11 +496,41 @@ model ProductVariant {
 
   orderLines OrderLine[] @relation("VariantOrderLines")
   statusLogs ProductVariantStatusLog[]
+  gtins      VariantGtin[]
 
   @@index([productModelId])
   @@index([sku])
   @@index([status])
   @@index([deletedAt])
+}
+
+// GTIN Честного знака на цветомодель×размер. Присваивается ЧЗ после загрузки
+// IMPORT_K3; принимаем обратно выгрузкой (тот же файл с заполненным «Кодом
+// товара») на вкладке «Честный знак». Нужен для IMPORT_RD (декларации).
+model VariantGtin {
+  id        String   @id @default(cuid())
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  size      String
+  gtin      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([variantId, size])
+  @@index([variantId])
+}
+
+// Разрешительный документ (декларация/сертификат соответствия) для ЧЗ.
+// Одна декларация покрывает несколько фасонов; из неё собирается IMPORT_RD.
+model RegulatoryDoc {
+  id        String   @id @default(cuid())
+  kind      String   @default("DECLARATION")   // DECLARATION (id ЧЗ 23557) | CERTIFICATE (23561)
+  number    String                              // «ЕАЭС N RU Д-RU.РА03.В.01124/25»
+  date      DateTime @db.Date                   // дата регистрации
+  comment   String?
+  models    ProductModel[] @relation("ModelRegulatoryDocs")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ======================================================
