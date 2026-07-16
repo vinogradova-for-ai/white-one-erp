@@ -18,12 +18,28 @@ function dayN(d: Date): number {
   return Math.floor(d.getTime() / DAY);
 }
 
-export default async function ShipmentsTimelinePage() {
+export default async function ShipmentsTimelinePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ show?: string }>;
+}) {
+  const { show: showParam } = await searchParams;
+  // По умолчанию — только активные (едут/черновики); приехавшие не забивают график (Алёна 17.07).
+  const show = showParam === "done" || showParam === "all" ? showParam : "active";
+
   const all = await loadShipmentsWithPreview();
-  // На графике только карго с датой выезда; свежие сверху не нужны — сортируем по выезду.
-  const rows = all
+  const withDate = all
     .filter((s) => s.departDate != null)
     .sort((a, b) => a.departDate!.getTime() - b.departDate!.getTime());
+
+  const isDone = (s: (typeof withDate)[number]) => s.status === "ARRIVED" || s.status === "RECEIVED";
+  const counts = {
+    active: withDate.filter((s) => !isDone(s)).length,
+    done: withDate.filter(isDone).length,
+    all: withDate.length,
+  };
+  const rows =
+    show === "all" ? withDate : show === "done" ? withDate.filter(isDone) : withDate.filter((s) => !isDone(s));
 
   const today = dayN(new Date());
 
@@ -50,8 +66,29 @@ export default async function ShipmentsTimelinePage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Карго · график</h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Полоса = от выезда до прибытия (зелёные приехали, синие едут, жёлтые опаздывают)
+            Полоса = от выезда до прибытия (синие едут, жёлтые опаздывают, зелёные приехали)
           </p>
+          <div className="mt-2 flex gap-1.5">
+            {(
+              [
+                ["active", `Едут (${counts.active})`],
+                ["done", `Приехали (${counts.done})`],
+                ["all", `Все (${counts.all})`],
+              ] as const
+            ).map(([key, label]) => (
+              <Link
+                key={key}
+                href={key === "active" ? "/shipments/timeline" : `/shipments/timeline?show=${key}`}
+                className={`rounded-full px-3 py-1 text-xs font-medium ${
+                  show === key
+                    ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+                }`}
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
         </div>
         <div className="ml-auto flex gap-1 rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800">
           <Link href="/shipments" className="rounded-md px-3 py-1 text-sm text-slate-600 hover:bg-white dark:text-slate-400 dark:hover:bg-slate-700">
@@ -68,7 +105,9 @@ export default async function ShipmentsTimelinePage() {
 
       {rows.length === 0 ? (
         <div className="rounded-2xl bg-white p-8 text-center text-sm text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-          Нет карго с датой выезда — заполните даты в карточках карго.
+          {show === "active"
+            ? "Сейчас ничего не едет — все карго приехали. Переключись на «Приехали» или «Все»."
+            : "Нет карго с датой выезда — заполните даты в карточках карго."}
         </div>
       ) : (
         <div className="overflow-x-auto rounded-2xl bg-white p-4 dark:bg-slate-900">
