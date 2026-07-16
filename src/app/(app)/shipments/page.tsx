@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
 import { formatDate, formatNumber } from "@/lib/format";
+import { loadShipmentsWithPreview } from "@/server/cargo-preview";
+import { CargoContentCell } from "@/components/shipments/cargo-content-cell";
 import { SHIPMENT_STATUS_LABELS, SHIPMENT_STATUS_COLORS } from "@/lib/constants";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/rbac";
@@ -16,21 +17,7 @@ export default async function ShipmentsPage() {
   const role = (session?.user as { role?: string } | undefined)?.role as Role | undefined;
   const canManage = role ? can(role, "shipment.manage") : false;
 
-  const shipments = await prisma.shipment.findMany({
-    where: { deletedAt: null },
-    orderBy: [{ createdAt: "desc" }],
-    take: 200,
-    include: {
-      createdBy: { select: { name: true } },
-      batches: {
-        select: {
-          orderId: true,
-          items: { select: { plannedQty: true } },
-        },
-      },
-      packagingOrders: { select: { id: true } },
-    },
-  });
+  const shipments = await loadShipmentsWithPreview();
 
   return (
     <div className="space-y-4">
@@ -47,6 +34,12 @@ export default async function ShipmentsPage() {
             <span className="rounded-md bg-white px-3 py-1 text-sm font-medium text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100">
               Карго
             </span>
+            <Link
+              href="/shipments/timeline"
+              className="rounded-md px-3 py-1 text-sm text-slate-600 hover:bg-white dark:text-slate-400 dark:hover:bg-slate-700"
+            >
+              График
+            </Link>
             <Link
               href="/incoming"
               className="rounded-md px-3 py-1 text-sm text-slate-600 hover:bg-white dark:text-slate-400 dark:hover:bg-slate-700"
@@ -66,7 +59,7 @@ export default async function ShipmentsPage() {
         {/* Мобилка: список карточек вместо широкой таблицы (маркер: shipments-mobile-card) */}
         <div className="space-y-2 md:hidden">
           {shipments.map((s) => {
-            const orders = new Set(s.batches.map((b) => b.orderId)).size;
+            const orders = s.batches.length;
             const units = s.batches.reduce(
               (a, b) => a + b.items.reduce((x, i) => x + i.plannedQty, 0),
               0,
@@ -80,12 +73,19 @@ export default async function ShipmentsPage() {
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="font-medium text-slate-900 dark:text-slate-100">{s.number}</div>
-                    {s.cargoNumber && <div className="font-mono text-[11px] text-slate-500 dark:text-slate-400">{s.cargoNumber}</div>}
+                    <div className="truncate font-medium text-slate-900 dark:text-slate-100">{s.preview.title}</div>
+                    <div className="font-mono text-[11px] text-slate-400 dark:text-slate-500">
+                      {s.number}
+                      {s.cargoNumber ? ` · ${s.cargoNumber}` : ""}
+                    </div>
                   </div>
                   <span className={`shrink-0 rounded-lg px-2 py-0.5 text-xs font-medium ${SHIPMENT_STATUS_COLORS[s.status]}`}>
                     {SHIPMENT_STATUS_LABELS[s.status]}
                   </span>
+                </div>
+
+                <div className="mt-2">
+                  <CargoContentCell preview={s.preview} compact />
                 </div>
 
                 <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-slate-700 dark:text-slate-300">
@@ -131,7 +131,7 @@ export default async function ShipmentsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100 text-left text-xs uppercase tracking-wide text-slate-400 dark:border-slate-800">
-                <th className="px-4 py-3 font-medium">Номер / карго</th>
+                <th className="px-4 py-3 font-medium">Карго</th>
                 <th className="px-4 py-3 font-medium">Статус</th>
                 <th className="px-4 py-3 font-medium">Внутри</th>
                 <th className="px-4 py-3 font-medium text-right">Мест · вес</th>
@@ -142,32 +142,26 @@ export default async function ShipmentsPage() {
             </thead>
             <tbody>
               {shipments.map((s) => {
-                const orders = new Set(s.batches.map((b) => b.orderId)).size;
-                const units = s.batches.reduce(
-                  (a, b) => a + b.items.reduce((x, i) => x + i.plannedQty, 0),
-                  0,
-                );
-                const pkgCount = s.packagingOrders.length;
                 return (
                   <ClickableRow
                     key={s.id}
                     href={`/shipments/${s.id}`}
                     className="border-b border-slate-50 last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
                   >
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-slate-900 dark:text-slate-100">{s.number}</div>
-                      {s.cargoNumber && <div className="font-mono text-[11px] text-slate-500">{s.cargoNumber}</div>}
+                    <td className="max-w-[220px] px-4 py-3">
+                      <div className="truncate font-medium text-slate-900 dark:text-slate-100">{s.preview.title}</div>
+                      <div className="font-mono text-[11px] text-slate-400 dark:text-slate-500">
+                        {s.number}
+                        {s.cargoNumber ? ` · ${s.cargoNumber}` : ""}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`rounded-lg px-2 py-0.5 text-xs font-medium ${SHIPMENT_STATUS_COLORS[s.status]}`}>
                         {SHIPMENT_STATUS_LABELS[s.status]}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
-                      {orders > 0 && <span>{orders} зак. · {formatNumber(units)} шт</span>}
-                      {orders > 0 && pkgCount > 0 && <span className="text-slate-300"> · </span>}
-                      {pkgCount > 0 && <span>📦 {pkgCount}</span>}
-                      {orders === 0 && pkgCount === 0 && "—"}
+                    <td className="max-w-[280px] px-4 py-3">
+                      <CargoContentCell preview={s.preview} />
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums text-slate-700 dark:text-slate-300">
                       {s.placesCount != null || s.weightKg != null
