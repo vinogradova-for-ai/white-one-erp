@@ -55,9 +55,12 @@ export async function getCbrRate(code: "USD" | "CNY", onDate?: Date): Promise<nu
 
 /** Пробует дату и до 7 дней назад (выходные/праздники), зеркало → ЦБ. */
 async function fetchRatesWithFallback(date: Date): Promise<Record<string, number> | null> {
+  const todayUtc = dayUtc(new Date()).getTime();
   for (let back = 0; back <= 7; back++) {
     const d = new Date(date.getTime() - back * 86_400_000);
-    const fromMirror = await fetchMirror(d, back === 0);
+    // «Сегодняшний» урл зеркала — ТОЛЬКО если дата реально сегодня, иначе архив
+    // (баг 16.07: для майской даты уезжал сегодняшний курс).
+    const fromMirror = await fetchMirror(d, dayUtc(d).getTime() === todayUtc);
     if (fromMirror) return fromMirror;
     const fromCbr = await fetchCbrXml(d);
     if (fromCbr) return fromCbr;
