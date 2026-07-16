@@ -197,6 +197,7 @@ model User {
   ownedPackagingOrders PackagingOrder[]  @relation("PackagingOrderOwner")
   ownedPlans          MonthlyPlan[]      @relation("PlanOwner")
   createdShipments    Shipment[]         @relation("ShipmentCreator")
+  createdChinaQcs     ChinaQc[]          @relation("ChinaQcCreator")
 
   @@index([role])
   @@index([isActive])
@@ -504,6 +505,28 @@ model ProductVariant {
   @@index([deletedAt])
 }
 
+// ОТК Китай — выездная проверка качества на фабрике (Алёна 16.07: «заводим
+// ОТК, у него есть стоимость и заказ; работает как доставка — прикрепляем,
+// стоимость ложится в себестоимость»). Курс фиксируется на дату ОТК.
+model ChinaQc {
+  id          String    @id @default(cuid())
+  orderId     String
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  date        DateTime  @db.Date
+  amount      Decimal   @db.Decimal(12, 2)
+  currency    String    @default("CNY")            // CNY | USD | RUB
+  rubRate     Decimal?  @db.Decimal(12, 4)          // ₽ за единицу валюты на дату (RUB = 1)
+  comment     String?
+  createdById String
+  createdBy   User      @relation("ChinaQcCreator", fields: [createdById], references: [id])
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([orderId])
+  @@index([deletedAt])
+}
+
 // GTIN Честного знака на цветомодель×размер. Присваивается ЧЗ после загрузки
 // IMPORT_K3; принимаем обратно выгрузкой (тот же файл с заполненным «Кодом
 // товара») на вкладке «Честный знак». Нужен для IMPORT_RD (декларации).
@@ -601,6 +624,7 @@ model Order {
   packagingItems OrderPackaging[]
   payments Payment[]
   batches  OrderBatch[]
+  chinaQcs ChinaQc[]
 
   @@index([orderNumber])
   @@index([productModelId])

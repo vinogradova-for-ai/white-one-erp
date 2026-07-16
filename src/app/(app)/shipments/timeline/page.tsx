@@ -10,6 +10,8 @@ import { loadShipmentsWithPreview } from "@/server/cargo-preview";
  * даты правятся в карточке карго.
  */
 
+export const dynamic = "force-dynamic"; // живые данные, не билд-снапшот
+
 const DAY = 86_400_000;
 
 function dayN(d: Date): number {
