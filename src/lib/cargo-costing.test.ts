@@ -94,6 +94,22 @@ describe("computeCargoAllocation", () => {
     expect(a.linesWithoutWeight).toEqual(["x"]);
   });
 
+  it("единственная строка без веса берёт вес всей накладной", () => {
+    const a = computeCargoAllocation({
+      money: { amountUsdt: 100 },
+      rate: 100,
+      rateIsFixed: true,
+      waybillWeightKg: 4385,
+      lines: [
+        { key: "b1", kind: "batch", label: "палаццо", qty: 5000, autoWeightKg: null, overrideWeightKg: null },
+      ],
+    });
+    expect(a.lines[0].effectiveWeightKg).toBe(4385);
+    expect(a.lines[0].amountRub).toBe(10000);
+    expect(a.lines[0].perUnitRub).toBe(2);
+    expect(a.linesWithoutWeight).toEqual([]);
+  });
+
   it("qty=0 — рубли на строку есть, ₽/шт нет", () => {
     const a = computeCargoAllocation({
       money: { amountUsdt: 10 },

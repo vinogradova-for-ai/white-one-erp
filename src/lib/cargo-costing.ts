@@ -79,8 +79,18 @@ export function computeCargoAllocation(opts: {
   const totalRub = round2(totalUsd * opts.rate);
 
   const withWeight = opts.lines.map((l) => {
-    const effectiveWeightKg =
+    let effectiveWeightKg =
       l.overrideWeightKg != null ? l.overrideWeightKg : l.autoWeightKg;
+    // Единственная строка в карго без веса штуки: её вес = вес всей накладной
+    // (он известен с накладной) — раскидка честно работает без справочника.
+    if (
+      effectiveWeightKg == null &&
+      opts.lines.length === 1 &&
+      opts.waybillWeightKg != null &&
+      opts.waybillWeightKg > 0
+    ) {
+      effectiveWeightKg = opts.waybillWeightKg;
+    }
     return { ...l, effectiveWeightKg };
   });
 

@@ -187,6 +187,13 @@ export const CURRENCY_LABELS: Record<Currency, string> = {
  */
 export const DEFAULT_CNY_RUB_RATE = 13.5;
 
+/**
+ * Фикс-ставка работы склада в Китае, ₽ за штуку (Алёна 16.07.2026: «работа
+ * склада в Китае фикс 26 рублей»). Слагаемое тестовой модели себестоимости
+ * на листе «Себестоимость»; жёсткий факт остаётся в финсервисе .fin3.
+ */
+export const CHINA_WAREHOUSE_FEE_RUB = 26;
+
 export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
   DELAY: "Задержка",
   INCOMING_DELIVERY: "Скоро приедет товар",
