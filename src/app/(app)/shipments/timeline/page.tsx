@@ -4,10 +4,11 @@ import { SHIPMENT_STATUS_LABELS } from "@/lib/constants";
 import { loadShipmentsWithPreview } from "@/server/cargo-preview";
 
 /**
- * График карго (Алёна 16.07): все доставки стартовали и приехали в разное
- * время — простая гант-визуализация: полоса от выезда до прибытия (факт,
- * иначе план, иначе сегодня), линия «сегодня». Без drag — только смотреть;
- * даты правятся в карточке карго.
+ * График карго (Алёна 16-17.07): полоса = от выезда до прибытия (факт, иначе
+ * план, иначе сегодня). Оформление как у большого Ганта (/gantt-v2): недельная
+ * шкала по понедельникам, вертикальная сетка, начало месяца жирнее, линия
+ * «сегодня». По умолчанию видны только едущие; чипы Едут/Приехали/Все.
+ * Без drag — даты правятся в карточке карго.
  */
 
 export const dynamic = "force-dynamic"; // живые данные, не билд-снапшот
@@ -18,13 +19,18 @@ function dayN(d: Date): number {
   return Math.floor(d.getTime() / DAY);
 }
 
+function fmtDM(dn: number): string {
+  const d = new Date(dn * DAY);
+  return `${String(d.getUTCDate()).padStart(2, "0")}.${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
 export default async function ShipmentsTimelinePage({
   searchParams,
 }: {
   searchParams: Promise<{ show?: string }>;
 }) {
   const { show: showParam } = await searchParams;
-  // По умолчанию — только активные (едут/черновики); приехавшие не забивают график (Алёна 17.07).
+  // По умолчанию — только активные (едут/черновики); приехавшие не забивают график.
   const show = showParam === "done" || showParam === "all" ? showParam : "active";
 
   const all = await loadShipmentsWithPreview();
@@ -42,15 +48,25 @@ export default async function ShipmentsTimelinePage({
     show === "all" ? withDate : show === "done" ? withDate.filter(isDone) : withDate.filter((s) => !isDone(s));
 
   const today = dayN(new Date());
-
-  const ends = rows.map((s) =>
-    dayN(s.arrivalActualDate ?? s.arriveDate ?? new Date()),
-  );
+  const ends = rows.map((s) => dayN(s.arrivalActualDate ?? s.arriveDate ?? new Date()));
   const starts = rows.map((s) => dayN(s.departDate!));
-  const min = Math.min(...starts, today) - 2;
-  const max = Math.max(...ends, today) + 2;
+  const min = Math.min(...(starts.length ? starts : [today]), today) - 3;
+  const max = Math.max(...(ends.length ? ends : [today]), today) + 3;
   const span = Math.max(1, max - min);
   const pct = (d: number) => ((d - min) / span) * 100;
+
+  // Недельные метки по понедельникам (как в /gantt-v2), начало месяца — жирнее.
+  const weekMarks: Array<{ dn: number; pct: number; label: string; isMonthStart: boolean }> = [];
+  {
+    const start = new Date(min * DAY);
+    const offset = (start.getUTCDay() + 6) % 7;
+    let cur = min - offset;
+    if (cur < min) cur += 7;
+    for (; cur <= max; cur += 7) {
+      const d = new Date(cur * DAY);
+      weekMarks.push({ dn: cur, pct: pct(cur), label: fmtDM(cur), isMonthStart: d.getUTCDate() <= 7 });
+    }
+  }
 
   const barColor = (status: string, late: boolean) => {
     if (status === "ARRIVED" || status === "RECEIVED")
@@ -110,51 +126,93 @@ export default async function ShipmentsTimelinePage({
             : "Нет карго с датой выезда — заполните даты в карточках карго."}
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl bg-white p-4 dark:bg-slate-900">
-          <div className="min-w-[640px]">
-            {/* Шкала-шапка: сегодня */}
-            <div className="relative mb-2 h-5 border-b border-slate-100 dark:border-slate-800">
-              <div className="absolute top-0 h-full" style={{ left: `calc(240px + (100% - 240px) * ${pct(today) / 100})` }}>
-                <span className="rounded bg-rose-500 px-1 text-[10px] font-medium text-white">сегодня</span>
+        <div className="overflow-auto rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+          <div className="min-w-[900px]">
+            {/* Шкала сверху — как в большом Ганте */}
+            <div className="sticky top-0 z-20 grid grid-cols-[240px_1fr] border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+              <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Карго</div>
+              <div className="relative h-8">
+                {weekMarks.map((m) => (
+                  <div key={m.dn} className="absolute top-0 h-full text-[10px] text-slate-400" style={{ left: `${m.pct}%` }}>
+                    <div className={`h-full border-l ${m.isMonthStart ? "border-slate-400 dark:border-slate-500" : "border-slate-200 dark:border-slate-700"}`} />
+                    <div className={`absolute -translate-x-1/2 pt-1 ${m.isMonthStart ? "font-semibold text-slate-600 dark:text-slate-300" : ""}`} style={{ left: 0, top: 0 }}>
+                      {m.label}
+                    </div>
+                  </div>
+                ))}
+                {/* сегодня в шкале */}
+                <div className="absolute top-0 z-10 h-full" style={{ left: `${pct(today)}%` }}>
+                  <div className="h-full border-l-2 border-rose-400" />
+                  <span className="absolute -translate-x-1/2 rounded bg-rose-500 px-1 text-[10px] font-medium text-white" style={{ top: 0 }}>
+                    сегодня
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              {rows.map((s) => {
-                const start = dayN(s.departDate!);
-                const end = dayN(s.arrivalActualDate ?? s.arriveDate ?? new Date());
-                const late =
-                  !s.arrivalActualDate &&
-                  s.arriveDate != null &&
-                  dayN(s.arriveDate) < today &&
-                  s.status !== "ARRIVED" &&
-                  s.status !== "RECEIVED";
-                const left = pct(start);
-                const width = Math.max(1.5, pct(Math.max(end, start + 1)) - left);
-                return (
-                  <Link key={s.id} href={`/shipments/${s.id}`} className="group flex items-center gap-0 rounded-lg py-0.5 hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                    <div className="w-[240px] shrink-0 pr-3">
-                      <div className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">{s.preview.title}</div>
-                      <div className="truncate font-mono text-[10px] text-slate-400">
-                        {s.cargoNumber ?? s.number} · {formatDate(s.departDate!)} → {s.arrivalActualDate ? formatDate(s.arrivalActualDate) : s.arriveDate ? formatDate(s.arriveDate) : "?"}
-                      </div>
+            {/* Строки */}
+            {rows.map((s) => {
+              const start = dayN(s.departDate!);
+              const end = dayN(s.arrivalActualDate ?? s.arriveDate ?? new Date());
+              const late =
+                !s.arrivalActualDate &&
+                s.arriveDate != null &&
+                dayN(s.arriveDate) < today &&
+                s.status !== "ARRIVED" &&
+                s.status !== "RECEIVED";
+              const left = pct(start);
+              const width = Math.max(1.2, pct(Math.max(end, start + 1)) - left);
+              return (
+                <Link
+                  key={s.id}
+                  href={`/shipments/${s.id}`}
+                  className="grid grid-cols-[240px_1fr] border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
+                >
+                  <div className="min-w-0 px-3 py-1.5">
+                    <div className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">{s.preview.title}</div>
+                    <div className="truncate font-mono text-[10px] text-slate-400">
+                      {s.cargoNumber ?? s.number} · {formatDate(s.departDate!)} → {s.arrivalActualDate ? formatDate(s.arrivalActualDate) : s.arriveDate ? formatDate(s.arriveDate) : "?"}
                     </div>
-                    <div className="relative h-6 flex-1">
-                      {/* линия сегодня */}
-                      <div className="absolute inset-y-0 w-px bg-rose-300 dark:bg-rose-500/50" style={{ left: `${pct(today)}%` }} />
+                  </div>
+                  <div className="relative h-11">
+                    {/* сетка недель в строке */}
+                    {weekMarks.map((m) => (
                       <div
-                        className={`absolute inset-y-1 rounded-full ${barColor(s.status, late)}`}
-                        style={{ left: `${left}%`, width: `${width}%` }}
-                        title={`${SHIPMENT_STATUS_LABELS[s.status]}${late ? " · опаздывает" : ""}`}
+                        key={m.dn}
+                        className={`absolute inset-y-0 border-l ${m.isMonthStart ? "border-slate-200 dark:border-slate-700" : "border-slate-100 dark:border-slate-800"}`}
+                        style={{ left: `${m.pct}%` }}
                       />
+                    ))}
+                    {/* линия сегодня */}
+                    <div className="absolute inset-y-0 border-l-2 border-rose-300 dark:border-rose-500/60" style={{ left: `${pct(today)}%` }} />
+                    {/* полоса с датами по краям */}
+                    <div
+                      className={`absolute inset-y-2.5 rounded-full ${barColor(s.status, late)}`}
+                      style={{ left: `${left}%`, width: `${width}%` }}
+                      title={`${SHIPMENT_STATUS_LABELS[s.status]}${late ? " · опаздывает" : ""}: ${formatDate(s.departDate!)} → ${s.arrivalActualDate ? formatDate(s.arrivalActualDate) : s.arriveDate ? formatDate(s.arriveDate) : "?"}`}
+                    >
+                      <span className="absolute -left-1 top-1/2 -translate-x-full -translate-y-1/2 text-[10px] tabular-nums text-slate-400">
+                        {fmtDM(start)}
+                      </span>
+                      <span className="absolute -right-1 top-1/2 -translate-y-1/2 translate-x-full text-[10px] tabular-nums text-slate-400">
+                        {fmtDM(end)}
+                      </span>
                     </div>
-                  </Link>
-                );
-              })}
-            </div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </div>
       )}
+
+      {/* Легенда — как в большом Ганте */}
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-blue-500 align-middle" />едет</span>
+        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-amber-500 align-middle" />опаздывает</span>
+        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-emerald-500/70 align-middle" />приехало</span>
+        <span><span className="mr-1 inline-block h-2 w-4 rounded-sm bg-slate-400 align-middle" />черновик</span>
+      </div>
     </div>
   );
 }
