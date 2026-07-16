@@ -11,7 +11,9 @@ import { ShipmentAddOrder } from "@/components/shipments/shipment-add-order";
 import { ShipmentBatchCard } from "@/components/shipments/shipment-batch-card";
 import { ShipmentDeleteButton } from "@/components/shipments/shipment-delete-button";
 import { ShipmentCargoPanel } from "@/components/shipments/shipment-cargo-panel";
+import { ShipmentCostAllocation } from "@/components/shipments/shipment-cost-allocation";
 import { ShipmentPackagingSection } from "@/components/shipments/shipment-packaging-section";
+import { buildCargoAllocation } from "@/server/cargo-allocation";
 import { PACKAGING_ORDER_STATUS_LABELS, PACKAGING_ORDER_STATUS_COLORS } from "@/lib/packaging-orders";
 
 export default async function ShipmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -99,6 +101,13 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
   );
   const ordersCount = new Set(shipment.batches.map((b) => b.order.id)).size;
 
+  // Раскидка стоимости карго по весу (если на накладной есть деньги).
+  const allocation = await buildCargoAllocation(shipment.id);
+  const lineHrefs = new Map<string, string>([
+    ...shipment.batches.map((b) => [`batch:${b.id}`, `/orders/${b.order.id}`] as const),
+    ...shipment.packagingOrders.map((p) => [`pkg:${p.id}`, `/packaging-orders/${p.id}`] as const),
+  ]);
+
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -129,16 +138,56 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
         <ShipmentCargoPanel
           shipmentId={shipment.id}
           canManage={canManage}
+          usdRubRate={shipment.usdRubRate != null ? String(shipment.usdRubRate) : null}
           initial={{
             cargoNumber: shipment.cargoNumber ?? "",
             placesCount: shipment.placesCount != null ? String(shipment.placesCount) : "",
             weightKg: shipment.weightKg != null ? String(shipment.weightKg) : "",
+            freightUsd: shipment.freightUsd != null ? String(shipment.freightUsd) : "",
+            insuranceUsd: shipment.insuranceUsd != null ? String(shipment.insuranceUsd) : "",
+            packingFeeUsd: shipment.packingFeeUsd != null ? String(shipment.packingFeeUsd) : "",
             amountUsdt: shipment.amountUsdt != null ? String(shipment.amountUsdt) : "",
             cargoPaidAt: shipment.cargoPaidAt ? shipment.cargoPaidAt.toISOString().slice(0, 10) : "",
             arrivalActualDate: shipment.arrivalActualDate ? shipment.arrivalActualDate.toISOString().slice(0, 10) : "",
+            waybillPhotoUrls: shipment.waybillPhotoUrls,
           }}
         />
       </section>
+
+      {/* Раскидка стоимости карго по весу содержимого → себестоимость */}
+      {allocation && allocation.lines.length > 0 ? (
+        <section>
+          <h2 className="mb-2 text-base font-semibold text-slate-900 dark:text-slate-100">
+            Раскидка стоимости по весу
+          </h2>
+          <ShipmentCostAllocation
+            canManage={canManage}
+            rows={allocation.lines.map((l) => ({
+              key: l.key,
+              kind: l.kind,
+              label: l.label,
+              href: lineHrefs.get(l.key) ?? "#",
+              qty: l.qty,
+              autoWeightKg: l.autoWeightKg,
+              overrideWeightKg: l.overrideWeightKg,
+              effectiveWeightKg: l.effectiveWeightKg,
+              amountRub: l.amountRub,
+              perUnitRub: l.perUnitRub,
+            }))}
+            summary={{
+              totalUsd: allocation.totalUsd,
+              rate: allocation.rate,
+              rateIsFixed: allocation.rateIsFixed,
+              totalRub: allocation.totalRub,
+              sumLinesWeightKg: allocation.sumLinesWeightKg,
+              waybillWeightKg: allocation.waybillWeightKg,
+              weightMismatchKg: allocation.weightMismatchKg,
+              hasLinesWithoutWeight: allocation.linesWithoutWeight.length > 0,
+            }}
+            missingWeights={allocation.missingWeights.map((m) => ({ label: m.label, href: m.href }))}
+          />
+        </section>
+      ) : null}
 
       {/* Упаковка едет тем же карго */}
       <ShipmentPackagingSection

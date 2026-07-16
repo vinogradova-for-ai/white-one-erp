@@ -35,6 +35,7 @@ export default async function EditPackagingPage({ params }: { params: Promise<{ 
             unitPriceCny: item.unitPriceCny?.toString() ?? "",
             priceCurrency: (item.priceCurrency as "RUB" | "CNY" | null) ?? "RUB",
             cnyRubRate: item.cnyRubRate?.toString() ?? "",
+            weightG: item.weightG != null ? String(item.weightG) : "",
             ownerId: item.ownerId ?? "",
           }}
         />

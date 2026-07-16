@@ -24,6 +24,7 @@ export default async function EditVariantPage({ params }: { params: Promise<{ id
             colorName: variant.colorName,
             fabricColorCode: variant.fabricColorCode ?? "",
             photoUrls: variant.photoUrls,
+            weightG: variant.weightG != null ? String(variant.weightG) : "",
           }}
         />
       </div>

@@ -109,6 +109,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       if (data.ownerId !== undefined) writeData.ownerId = data.ownerId;
       if (data.notes !== undefined) writeData.notes = data.notes || null;
       if (data.status !== undefined) writeData.status = newStatus;
+      if (data.weightKgOverride !== undefined) writeData.weightKgOverride = data.weightKgOverride;
 
       const updatedOrder = await tx.packagingOrder.update({
         where: { id },

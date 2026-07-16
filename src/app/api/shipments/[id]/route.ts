@@ -4,6 +4,7 @@ import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { shipmentUpdateSchema } from "@/lib/validators/shipment";
 import { logAudit } from "@/server/audit";
+import { getCbrRate } from "@/server/currency-rates";
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
@@ -15,6 +16,27 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const existing = await prisma.shipment.findFirst({ where: { id, deletedAt: null } });
     if (!existing) {
       return NextResponse.json({ error: { code: "not_found", message: "Поставка не найдена" } }, { status: 404 });
+    }
+
+    // Фиксация курса в момент оплаты карго (Алёна 16.07): поставили дату
+    // оплаты — курс USD ЦБ этого дня замирает в usdRubRate; сняли оплату —
+    // фиксация снимается, раскидка снова считается по курсу «на сегодня».
+    let usdRubRatePatch: { usdRubRate: number | null } | Record<string, never> = {};
+    if (data.cargoPaidAt !== undefined) {
+      const nextPaidAt = data.cargoPaidAt ? new Date(data.cargoPaidAt) : null;
+      if (nextPaidAt == null) {
+        usdRubRatePatch = { usdRubRate: null };
+      } else if (
+        existing.cargoPaidAt?.getTime() !== nextPaidAt.getTime() ||
+        existing.usdRubRate == null
+      ) {
+        try {
+          usdRubRatePatch = { usdRubRate: await getCbrRate("USD", nextPaidAt) };
+        } catch {
+          // ЦБ недоступен — сохранение не роняем; курс зафиксируется при
+          // следующем сохранении оплаты, до тех пор раскидка «предварительная».
+        }
+      }
     }
 
     const shipment = await prisma.shipment.update({
@@ -31,6 +53,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         ...(data.amountUsdt !== undefined ? { amountUsdt: data.amountUsdt } : {}),
         ...(data.cargoPaidAt !== undefined ? { cargoPaidAt: data.cargoPaidAt ? new Date(data.cargoPaidAt) : null } : {}),
         ...(data.arrivalActualDate !== undefined ? { arrivalActualDate: data.arrivalActualDate ? new Date(data.arrivalActualDate) : null } : {}),
+        // Деньги накладной раздельно + фото накладной + курс оплаты
+        ...(data.freightUsd !== undefined ? { freightUsd: data.freightUsd } : {}),
+        ...(data.insuranceUsd !== undefined ? { insuranceUsd: data.insuranceUsd } : {}),
+        ...(data.packingFeeUsd !== undefined ? { packingFeeUsd: data.packingFeeUsd } : {}),
+        ...(data.waybillPhotoUrls !== undefined ? { waybillPhotoUrls: data.waybillPhotoUrls } : {}),
+        ...usdRubRatePatch,
       },
     });
 
