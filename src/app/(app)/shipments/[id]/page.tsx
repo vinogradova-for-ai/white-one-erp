@@ -143,10 +143,17 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
             cargoNumber: shipment.cargoNumber ?? "",
             placesCount: shipment.placesCount != null ? String(shipment.placesCount) : "",
             weightKg: shipment.weightKg != null ? String(shipment.weightKg) : "",
-            freightUsd: shipment.freightUsd != null ? String(shipment.freightUsd) : "",
-            insuranceUsd: shipment.insuranceUsd != null ? String(shipment.insuranceUsd) : "",
-            packingFeeUsd: shipment.packingFeeUsd != null ? String(shipment.packingFeeUsd) : "",
-            amountUsdt: shipment.amountUsdt != null ? String(shipment.amountUsdt) : "",
+            // Итог: сам amountUsdt, а если когда-то были разнесены компоненты — их сумма.
+            amountUsdt:
+              shipment.amountUsdt != null
+                ? String(shipment.amountUsdt)
+                : shipment.freightUsd != null || shipment.insuranceUsd != null || shipment.packingFeeUsd != null
+                  ? String(
+                      Number(shipment.freightUsd ?? 0) +
+                        Number(shipment.insuranceUsd ?? 0) +
+                        Number(shipment.packingFeeUsd ?? 0),
+                    )
+                  : "",
             cargoPaidAt: shipment.cargoPaidAt ? shipment.cargoPaidAt.toISOString().slice(0, 10) : "",
             arrivalActualDate: shipment.arrivalActualDate ? shipment.arrivalActualDate.toISOString().slice(0, 10) : "",
             waybillPhotoUrls: shipment.waybillPhotoUrls,
