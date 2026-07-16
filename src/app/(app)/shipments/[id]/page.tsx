@@ -14,6 +14,8 @@ import { ShipmentCargoPanel } from "@/components/shipments/shipment-cargo-panel"
 import { ShipmentCostAllocation } from "@/components/shipments/shipment-cost-allocation";
 import { ShipmentPackagingSection } from "@/components/shipments/shipment-packaging-section";
 import { buildCargoAllocation } from "@/server/cargo-allocation";
+import { buildCargoPreview } from "@/server/cargo-preview";
+import { CargoContentCell } from "@/components/shipments/cargo-content-cell";
 import { PACKAGING_ORDER_STATUS_LABELS, PACKAGING_ORDER_STATUS_COLORS } from "@/lib/packaging-orders";
 
 export default async function ShipmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -34,7 +36,7 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
             select: {
               id: true,
               orderNumber: true,
-              productModel: { select: { name: true } },
+              productModel: { select: { name: true, artikulBase: true, photoUrls: true } },
               batches: { select: { id: true } },
             },
           },
@@ -43,7 +45,14 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
       },
       packagingOrders: {
         orderBy: { orderedDate: "asc" },
-        include: { lines: { select: { packagingItem: { select: { name: true } } } } },
+        include: {
+          lines: {
+            select: {
+              quantity: true,
+              packagingItem: { select: { name: true, photoUrl: true } },
+            },
+          },
+        },
       },
     },
   });
@@ -100,6 +109,7 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
     0,
   );
   const ordersCount = new Set(shipment.batches.map((b) => b.order.id)).size;
+  const preview = buildCargoPreview(shipment);
 
   // Раскидка стоимости карго по весу (если на накладной есть деньги).
   const allocation = await buildCargoAllocation(shipment.id);
@@ -115,12 +125,20 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
           <Link href="/shipments" className="text-xs text-slate-400 hover:text-slate-600">
             ← Карго
           </Link>
-          <h1 className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">{shipment.number}</h1>
+          {/* Человеческое имя карго = что внутри (Алёна 17.07); номера — мелко */}
+          <h1 className="mt-1 text-2xl font-semibold text-slate-900 dark:text-slate-100">{preview.title}</h1>
+          <p className="font-mono text-xs text-slate-400 dark:text-slate-500">
+            {shipment.number}
+            {shipment.cargoNumber ? ` · ${shipment.cargoNumber}` : ""}
+          </p>
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Заказов: {ordersCount} · штук: {totalUnits}
             {shipment.departDate ? ` · выезд ${formatDate(shipment.departDate)}` : ""}
             {shipment.arriveDate ? ` · прибытие ${formatDate(shipment.arriveDate)}` : ""}
           </p>
+          <div className="mt-2">
+            <CargoContentCell preview={preview} />
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <span className={`rounded-lg px-2.5 py-1 text-sm font-medium ${SHIPMENT_STATUS_COLORS[shipment.status]}`}>
