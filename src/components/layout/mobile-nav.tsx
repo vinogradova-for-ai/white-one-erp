@@ -22,6 +22,7 @@ const MORE_LINKS = [
   { href: "/variants", label: "Цветомодели", icon: "◎" },
   { href: "/packaging-orders", label: "Заказы упаковки", icon: "▥" },
   { href: "/data-gaps", label: "Дыры в данных", icon: "⚠" },
+  { href: "/costing", label: "Себестоимость", icon: "₽" },
   { href: "/payments", label: "Платежи", icon: "₽" },
   { href: "/shipments", label: "Карго", icon: "▣" },
   { href: "/incoming", label: "Заказы в пути", icon: "▤" },
