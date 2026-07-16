@@ -4,6 +4,8 @@ import { buildModelCosting } from "@/server/model-costing";
 // Лист «Себестоимость» — тестовая модель полной себестоимости (жёсткий факт —
 // в финсервисе .fin3). Смотреть можно всем ролям; правится всё в карточках
 // (закуп — фасон, цены упаковки — упаковка, веса — цветомодели, деньги — карго).
+export const dynamic = "force-dynamic"; // живые данные, не билд-снапшот
+
 export default async function CostingPage() {
   const { rows, rateNote } = await buildModelCosting();
 
@@ -17,7 +19,7 @@ export default async function CostingPage() {
       <div>
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Себестоимость</h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Тестовая модель: закуп + упаковка + доставка (карго по весу) + склад Китай.
+          Тестовая модель: закуп + упаковка + доставка (карго по весу) + ОТК Китай + склад Китай.
           Жёсткий факт — в финсервисе; сойдутся цифры — включим интеграцию.
         </p>
         {rateNote && (
@@ -39,6 +41,7 @@ export default async function CostingPage() {
               <th className="px-4 py-3 text-right font-medium">Закуп</th>
               <th className="px-4 py-3 text-right font-medium">Упаковка</th>
               <th className="px-4 py-3 text-right font-medium">Доставка</th>
+              <th className="px-4 py-3 text-right font-medium">ОТК Китай</th>
               <th className="px-4 py-3 text-right font-medium">Склад Китай</th>
               <th className="px-4 py-3 text-right font-medium">Итого ₽/шт</th>
               <th className="px-4 py-3 font-medium">Не хватает</th>
@@ -70,6 +73,7 @@ export default async function CostingPage() {
                     <span className="block text-[10px] text-slate-400">по {r.cargoUnits.toLocaleString("ru-RU")} шт</span>
                   )}
                 </td>
+                <td className="px-4 py-2 text-right tabular-nums text-slate-800 dark:text-slate-200">{fmt(r.qcRub)}</td>
                 <td className="px-4 py-2 text-right tabular-nums text-slate-400" title="Фикс-ставка (настройка)">
                   {fmt(r.warehouseRub)}
                 </td>

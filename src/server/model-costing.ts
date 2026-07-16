@@ -29,6 +29,7 @@ export type ModelCostingRow = {
   packagingRub: number | null;
   cargoRub: number | null;   // средневзвешенная доля доставки ₽/шт по прибывшим раскидкам
   cargoUnits: number;        // на скольких штуках посчитана доставка
+  qcRub: number | null;      // ОТК Китай ₽/шт (по заказам с проверками)
   warehouseRub: number;      // фикс
   totalRub: number | null;   // сумма имеющегося (закуп обязателен)
   missing: string[];         // «закуп», «цена упаковки», «вес штуки», «карго не ехал»
@@ -88,6 +89,29 @@ export async function buildModelCosting(): Promise<{
   });
   const batchToModel = new Map(batches.map((b) => [b.id, b.order.productModelId]));
 
+  // ── ОТК Китай: суммы проверок и штуки заказов с проверками, на фасон ──
+  const qcOrders = await prisma.order.findMany({
+    where: { deletedAt: null, chinaQcs: { some: { deletedAt: null } } },
+    select: {
+      productModelId: true,
+      lines: { select: { quantity: true } },
+      chinaQcs: { where: { deletedAt: null }, select: { amount: true, rubRate: true } },
+    },
+  });
+  const qcByModel = new Map<string, { rub: number; units: number }>();
+  for (const o of qcOrders) {
+    const units = o.lines.reduce((a, l) => a + l.quantity, 0);
+    const rub = o.chinaQcs.reduce(
+      (a, q) => a + (q.rubRate != null ? Number(q.amount) * Number(q.rubRate) : 0),
+      0,
+    );
+    if (units <= 0 || rub <= 0) continue;
+    const acc = qcByModel.get(o.productModelId) ?? { rub: 0, units: 0 };
+    acc.rub += rub;
+    acc.units += units;
+    qcByModel.set(o.productModelId, acc);
+  }
+
   const cargoByModel = new Map<string, { rub: number; units: number }>();
   let anyPreliminaryRate = false;
 
@@ -140,6 +164,9 @@ export async function buildModelCosting(): Promise<{
     const cargoRub = cargo && cargo.units > 0 ? round2(cargo.rub / cargo.units) : null;
     if (cargoRub == null) missing.push("карго не ехал");
 
+    const qc = qcByModel.get(m.id);
+    const qcRub = qc && qc.units > 0 ? round2(qc.rub / qc.units) : null;
+
     const hasWeight = m.variants.some((v) => v.weightG != null && v.weightG > 0);
     if (!hasWeight) missing.push("вес штуки");
 
@@ -149,6 +176,7 @@ export async function buildModelCosting(): Promise<{
             purchaseRub +
               (packagingRub ?? 0) +
               (cargoRub ?? 0) +
+              (qcRub ?? 0) +
               CHINA_WAREHOUSE_FEE_RUB,
           )
         : null;
@@ -163,6 +191,7 @@ export async function buildModelCosting(): Promise<{
       packagingRub,
       cargoRub,
       cargoUnits: cargo?.units ?? 0,
+      qcRub,
       warehouseRub: CHINA_WAREHOUSE_FEE_RUB,
       totalRub,
       missing,

@@ -14,6 +14,7 @@ import { OrderLinesSection } from "@/components/orders/order-lines-section";
 import { OrderTimelineEditor } from "@/components/orders/order-timeline-editor";
 import { OrderStatusChanger } from "@/components/orders/order-status-changer";
 import { OrderBatchesSection } from "@/components/orders/order-batches-section";
+import { ChinaQcSection } from "@/components/orders/china-qc-section";
 import { CommentsThread } from "@/components/comments/comments-thread";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/rbac";
@@ -47,6 +48,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   // Кнопка «Оплачен» у просроченного платежа — права как на /payments.
   const canMarkPaid = sessionUser?.role
     ? can(sessionUser.role as Role, "payment.markPaid")
+    : false;
+  // Удаление записей (в т.ч. ОТК) — только OWNER/DIRECTOR (закон кабинета).
+  const canDeleteRecords = sessionUser?.role
+    ? can(sessionUser.role as Role, "order.delete")
     : false;
   // Авто-синк упаковки фасона. Если у фасона есть привязанная упаковка,
   // которая по какой-то причине не «протекла» в этот заказ — она
@@ -107,6 +112,10 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           shipment: { select: { id: true, number: true, status: true } },
           items: { orderBy: [{ colorName: "asc" }, { size: "asc" }] },
         },
+      },
+      chinaQcs: {
+        where: { deletedAt: null },
+        orderBy: { date: "asc" },
       },
     },
   });
@@ -318,6 +327,24 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               factQty: i.factQty,
               defectQty: i.defectQty,
             })),
+          }))}
+        />
+      </section>
+
+      {/* ОТК Китай — стоимость проверки ложится в себестоимость */}
+      <section>
+        <h2 className="mb-3 text-base font-semibold text-slate-900">ОТК Китай</h2>
+        <ChinaQcSection
+          orderId={order.id}
+          canManage={canEditOrder}
+          canDelete={canDeleteRecords}
+          items={order.chinaQcs.map((q) => ({
+            id: q.id,
+            date: q.date.toISOString(),
+            amount: q.amount.toString(),
+            currency: q.currency,
+            rubRate: q.rubRate != null ? q.rubRate.toString() : null,
+            comment: q.comment,
           }))}
         />
       </section>
