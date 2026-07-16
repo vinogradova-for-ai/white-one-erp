@@ -1,21 +1,43 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 /**
- * Панель «Файлы для Честного знака» (Алёна 16.07):
- *  1) IMPORT_K3 по категории: предпросмотр (с дырами КРАСНЫМ до скачивания) → файл;
- *  2) приём GTIN из выгрузки ЧЗ (тот же файл с заполненным «Кодом товара»);
- *  3) декларации соответствия → IMPORT_RD.
- * Доступно всем ролям.
+ * «Честный знак» — путь человека по шагам (Алёна 17.07: «выбираем категорию,
+ * тыкаем товары, предпросмотр, скачиваем файл — вот и всё»):
+ *  1) категория → 2) галочки на фасонах → 3) предпросмотр КАК В ФАЙЛЕ
+ *  (столбцы шаблона, GTIN пустой — его присвоит ЧЗ) → 4) скачать IMPORT_K3 →
+ *  5) вернуть выгрузку ЧЗ с GTIN → 6) справочник деклараций → IMPORT_RD.
+ * Предпросмотр собирается сам при выборе; скачивание доступно сразу.
  */
+
+type PreviewRow = {
+  modelId: string;
+  tnvedShort: string;
+  categoryCode: string;
+  isKit: string;
+  fullName: string;
+  brand: string;
+  artikul: string;
+  productKind: string;
+  chzColor: string;
+  gender: string;
+  sizeSystem: string;
+  size: string;
+  composition: string;
+  tnvedFull: string;
+  techReg: string;
+  status: string;
+};
 
 type K3Preview = {
   category: string;
-  ok: Array<{ fullName: string; chzColor: string; size: string; artikul: string; modelId: string }>;
+  ok: PreviewRow[];
   problems: Array<{ modelId: string; modelName: string; sku: string; size: string; error: string }>;
 };
+
+export type ChzModelOption = { id: string; name: string; rows: number };
 
 type RegDoc = {
   id: string;
@@ -30,38 +52,102 @@ const inputCls =
 const btnCls =
   "inline-flex h-11 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900";
 
-export function ChzFilesPanel({ categories }: { categories: string[] }) {
+// Колонки предпросмотра = колонки шаблона IMPORT_K3, в том же порядке.
+const FILE_COLUMNS: Array<{ label: string; cell: (r: PreviewRow) => string }> = [
+  { label: "Код товара (GTIN)", cell: () => "" },
+  { label: "Код ТНВЭД", cell: (r) => r.tnvedShort },
+  { label: "Код категории", cell: (r) => r.categoryCode },
+  { label: "Комплект", cell: (r) => r.isKit },
+  { label: "Полное наименование", cell: (r) => r.fullName },
+  { label: "Товарный знак", cell: (r) => r.brand },
+  { label: "Артикул", cell: (r) => r.artikul },
+  { label: "Вид товара", cell: (r) => r.productKind },
+  { label: "Цвет", cell: (r) => r.chzColor },
+  { label: "Целевой пол", cell: (r) => r.gender },
+  { label: "Размерная система", cell: (r) => r.sizeSystem },
+  { label: "Размер", cell: (r) => r.size },
+  { label: "Состав", cell: (r) => r.composition },
+  { label: "Код ТНВЭД (полный)", cell: (r) => r.tnvedFull },
+  { label: "Техрегламент", cell: (r) => r.techReg },
+  { label: "Статус", cell: (r) => r.status },
+];
+
+function StepTitle({ n, children }: { n: number; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold text-white dark:bg-slate-100 dark:text-slate-900">
+        {n}
+      </span>
+      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{children}</span>
+    </div>
+  );
+}
+
+export function ChzFilesPanel({
+  categories,
+  modelsByCategory,
+}: {
+  categories: string[];
+  modelsByCategory: Record<string, ChzModelOption[]>;
+}) {
   const [category, setCategory] = useState(categories[0] ?? "");
+  // Отмеченные фасоны. При смене категории — все включены.
+  const [picked, setPicked] = useState<Set<string>>(
+    () => new Set((modelsByCategory[categories[0] ?? ""] ?? []).map((m) => m.id)),
+  );
   const [preview, setPreview] = useState<K3Preview | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showAllRows, setShowAllRows] = useState(false);
+
+  const models = useMemo(() => modelsByCategory[category] ?? [], [modelsByCategory, category]);
+  const pickedIds = useMemo(
+    () => models.filter((m) => picked.has(m.id)).map((m) => m.id),
+    [models, picked],
+  );
+  const allPicked = pickedIds.length === models.length;
+
+  function switchCategory(next: string) {
+    setCategory(next);
+    setPicked(new Set((modelsByCategory[next] ?? []).map((m) => m.id)));
+    setPreview(null);
+    setShowAllRows(false);
+  }
+
+  // Предпросмотр собирается сам: выбрала категорию/товары — таблица обновилась.
+  useEffect(() => {
+    if (!category || pickedIds.length === 0) {
+      setPreview(null);
+      return;
+    }
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      setBusy(true);
+      try {
+        const idsParam = allPicked ? "" : `&modelIds=${pickedIds.join(",")}`;
+        const res = await fetch(
+          `/api/chz/k3?category=${encodeURIComponent(category)}&preview=1${idsParam}`,
+          { signal: ctrl.signal },
+        );
+        if (res.ok) setPreview(await res.json());
+      } catch {
+        // отменённый запрос / сеть — предпросмотр просто не обновился
+      } finally {
+        setBusy(false);
+      }
+    }, 350);
+    return () => {
+      ctrl.abort();
+      clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category, pickedIds.join(",")]);
+
+  const downloadHref =
+    `/api/chz/k3?category=${encodeURIComponent(category)}` +
+    (allPicked ? "" : `&modelIds=${pickedIds.join(",")}`);
 
   const [gtinReport, setGtinReport] = useState<{ saved: number; unmatched: Array<{ artikul: string; size: string }> } | null>(null);
   const [gtinBusy, setGtinBusy] = useState(false);
-
-  const [docs, setDocs] = useState<RegDoc[]>([]);
-  const [docForm, setDocForm] = useState({ kind: "DECLARATION", number: "", date: "", cats: [] as string[] });
-  const [docBusy, setDocBusy] = useState(false);
-  const [rdInfo, setRdInfo] = useState<Record<string, { gtins: number; missing: number }>>({});
-
-  async function loadDocs() {
-    const res = await fetch("/api/chz/regdocs");
-    if (res.ok) setDocs((await res.json()).docs);
-  }
-  useEffect(() => {
-    void loadDocs();
-  }, []);
-
-  async function loadPreview() {
-    setBusy(true);
-    setPreview(null);
-    try {
-      const res = await fetch(`/api/chz/k3?category=${encodeURIComponent(category)}&preview=1`);
-      if (res.ok) setPreview(await res.json());
-      else alert((await res.json())?.error?.message ?? "Не получилось собрать предпросмотр");
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function uploadGtins(file: File) {
     setGtinBusy(true);
@@ -77,114 +163,158 @@ export function ChzFilesPanel({ categories }: { categories: string[] }) {
     }
   }
 
-  async function createDoc() {
-    setDocBusy(true);
-    try {
-      const res = await fetch("/api/chz/regdocs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind: docForm.kind,
-          number: docForm.number,
-          date: docForm.date,
-          categories: docForm.cats,
-        }),
-      });
-      if (!res.ok) {
-        alert((await res.json())?.error?.message ?? "Не получилось сохранить документ");
-        return;
-      }
-      setDocForm({ kind: "DECLARATION", number: "", date: "", cats: [] });
-      await loadDocs();
-    } finally {
-      setDocBusy(false);
-    }
-  }
-
-  async function checkRd(docId: string) {
-    const res = await fetch(`/api/chz/rd?docId=${docId}&preview=1`);
-    if (res.ok) {
-      const j = await res.json();
-      setRdInfo((p) => ({ ...p, [docId]: { gtins: j.gtins.length, missing: j.missing.length } }));
-    }
-  }
+  const shownRows = preview ? (showAllRows ? preview.ok : preview.ok.slice(0, 12)) : [];
 
   return (
-    <div className="space-y-4 rounded-2xl bg-white p-4 dark:bg-slate-900">
-      <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Файлы для Честного знака</h2>
+    <div className="space-y-5 rounded-2xl bg-white p-4 dark:bg-slate-900">
+      <div>
+        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+          Загрузка карточек в «Честный знак»
+        </h2>
+        <p className="mt-0.5 text-xs text-slate-500">
+          Выбери категорию → отметь товары → проверь таблицу → скачай файл и загрузи его в
+          Нацкаталог ЧЗ. GTIN мы не заполняем — его присвоит ЧЗ, потом верни выгрузку сюда (шаг 5).
+        </p>
+      </div>
 
-      {/* 1. IMPORT_K3 */}
-      <div className="space-y-3">
+      {/* Шаг 1. Категория */}
+      <div className="space-y-2">
+        <StepTitle n={1}>Категория</StepTitle>
+        <select value={category} onChange={(e) => switchCategory(e.target.value)} className={inputCls}>
+          {categories.map((c) => (
+            <option key={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Шаг 2. Товары галочками */}
+      <div className="space-y-2">
+        <StepTitle n={2}>Какие товары выгружаем</StepTitle>
         <div className="flex flex-wrap items-center gap-2">
-          <select value={category} onChange={(e) => { setCategory(e.target.value); setPreview(null); }} className={inputCls}>
-            {categories.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-          <button type="button" onClick={loadPreview} disabled={busy || !category} className={btnCls}>
-            {busy ? "Собираю…" : "Предпросмотр"}
+          <button
+            type="button"
+            onClick={() => setPicked(allPicked ? new Set() : new Set(models.map((m) => m.id)))}
+            className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            {allPicked ? "Снять все" : "Выбрать все"}
           </button>
+          <span className="text-xs text-slate-400">
+            отмечено {pickedIds.length} из {models.length}
+          </span>
+        </div>
+        <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+          {models.map((m) => (
+            <label
+              key={m.id}
+              className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+              <input
+                type="checkbox"
+                checked={picked.has(m.id)}
+                onChange={(e) => {
+                  setPicked((p) => {
+                    const next = new Set(p);
+                    if (e.target.checked) next.add(m.id);
+                    else next.delete(m.id);
+                    return next;
+                  });
+                }}
+                className="h-4 w-4 accent-slate-900"
+              />
+              <span className="min-w-0 flex-1 truncate text-slate-800 dark:text-slate-200">{m.name}</span>
+              <span className="shrink-0 text-xs text-slate-400">{m.rows} строк</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Шаг 3. Предпросмотр как в файле + скачать */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <StepTitle n={3}>Проверь и скачай файл</StepTitle>
           {preview && preview.ok.length > 0 && (
-            <a href={`/api/chz/k3?category=${encodeURIComponent(category)}`} className={btnCls}>
+            <a href={downloadHref} className={btnCls}>
               ⬇ Скачать IMPORT_K3 ({preview.ok.length} строк)
             </a>
           )}
+          {busy && <span className="text-xs text-slate-400">собираю…</span>}
         </div>
 
-        {preview && (
-          <div className="space-y-2">
-            {preview.problems.length > 0 && (
-              <div className="rounded-lg bg-rose-50 p-3 text-sm dark:bg-rose-400/10">
-                <div className="font-medium text-rose-700 dark:text-rose-300">
-                  Не попадут в файл — {preview.problems.length} строк, заполни в карточках:
-                </div>
-                <ul className="mt-1 space-y-0.5">
-                  {dedupeProblems(preview.problems).map((p, i) => (
-                    <li key={i} className="text-rose-600 dark:text-rose-300">
-                      <Link href={`/models/${p.modelId}`} className="underline">{p.modelName}</Link>
-                      {" — "}{p.error}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {preview.ok.length > 0 && (
-              <div className="overflow-x-auto rounded-lg border border-slate-100 dark:border-slate-800">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 text-left text-slate-400 dark:bg-slate-800/60">
-                      <th className="px-2 py-1.5 font-medium">Полное наименование</th>
-                      <th className="px-2 py-1.5 font-medium">Артикул</th>
-                      <th className="px-2 py-1.5 font-medium">Цвет ЧЗ</th>
-                      <th className="px-2 py-1.5 font-medium">Размер</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preview.ok.slice(0, 8).map((r, i) => (
-                      <tr key={i} className="border-t border-slate-50 dark:border-slate-800">
-                        <td className="px-2 py-1 text-slate-700 dark:text-slate-300">{r.fullName}</td>
-                        <td className="px-2 py-1 font-mono text-slate-500">{r.artikul}</td>
-                        <td className="px-2 py-1">{r.chzColor}</td>
-                        <td className="px-2 py-1">{r.size}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {preview.ok.length > 8 && (
-                  <div className="px-2 py-1.5 text-[11px] text-slate-400">…и ещё {preview.ok.length - 8} строк в файле</div>
-                )}
-              </div>
-            )}
+        {preview && preview.problems.length > 0 && (
+          <div className="rounded-lg bg-rose-50 p-3 text-sm dark:bg-rose-400/10">
+            <div className="font-medium text-rose-700 dark:text-rose-300">
+              Не попадут в файл — {preview.problems.length} строк, заполни в карточках:
+            </div>
+            <ul className="mt-1 space-y-0.5">
+              {dedupeProblems(preview.problems).map((p, i) => (
+                <li key={i} className="text-rose-600 dark:text-rose-300">
+                  <Link href={`/models/${p.modelId}`} className="underline">{p.modelName}</Link>
+                  {" — "}{p.error}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
+
+        {preview && preview.ok.length > 0 ? (
+          <div className="overflow-x-auto rounded-lg border border-slate-100 dark:border-slate-800">
+            {/* Столбцы — один в один как в шаблоне ЧЗ, порядок не меняем */}
+            <table className="w-full min-w-[1100px] text-xs">
+              <thead>
+                <tr className="bg-slate-50 text-left text-slate-400 dark:bg-slate-800/60">
+                  {FILE_COLUMNS.map((c) => (
+                    <th key={c.label} className="whitespace-nowrap px-2 py-1.5 font-medium">
+                      {c.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {shownRows.map((r, i) => (
+                  <tr key={i} className="border-t border-slate-50 dark:border-slate-800">
+                    {FILE_COLUMNS.map((c) => (
+                      <td key={c.label} className="max-w-[280px] truncate px-2 py-1 text-slate-700 dark:text-slate-300" title={c.cell(r)}>
+                        {c.label.startsWith("Код товара") ? (
+                          <span className="italic text-slate-300 dark:text-slate-600">присвоит ЧЗ</span>
+                        ) : (
+                          c.cell(r)
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {preview.ok.length > shownRows.length && (
+              <button
+                type="button"
+                onClick={() => setShowAllRows(true)}
+                className="w-full px-2 py-1.5 text-left text-[11px] text-slate-500 underline"
+              >
+                показать все {preview.ok.length} строк
+              </button>
+            )}
+          </div>
+        ) : !busy && pickedIds.length > 0 && preview ? (
+          <p className="text-sm text-slate-500">Ни одной готовой строки — сначала закрой красные дыры выше.</p>
+        ) : null}
       </div>
 
-      {/* 2. GTIN из выгрузки ЧЗ */}
-      <div className="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
-        <div className="text-sm font-medium text-slate-800 dark:text-slate-200">GTIN из выгрузки ЧЗ</div>
+      {/* Шаг 4. Загрузка в ЧЗ — руками на их сайте */}
+      <div className="space-y-1">
+        <StepTitle n={4}>Загрузи файл в ЧЗ</StepTitle>
         <p className="text-xs text-slate-500">
-          После загрузки K3 в ЧЗ выгрузи оттуда файл с присвоенными «Кодами товара» и закинь его сюда —
-          GTIN лягут на цветомодели и понадобятся для декларации.
+          В кабинете «Честного знака» (Национальный каталог) → Импорт → выбери скачанный файл.
+          ЧЗ создаст карточки-черновики и присвоит каждой GTIN.
+        </p>
+      </div>
+
+      {/* Шаг 5. Вернуть GTIN */}
+      <div className="space-y-2">
+        <StepTitle n={5}>Верни выгрузку ЧЗ с GTIN</StepTitle>
+        <p className="text-xs text-slate-500">
+          Когда ЧЗ присвоит «Коды товара», выгрузи оттуда файл и закинь сюда — GTIN лягут на
+          цветомодели, без них не собрать файл деклараций.
         </p>
         <label className={`${btnCls} cursor-pointer`}>
           {gtinBusy ? "Разбираю…" : "📎 Загрузить выгрузку ЧЗ"}
@@ -209,80 +339,6 @@ export function ChzFilesPanel({ categories }: { categories: string[] }) {
               </span>
             )}
           </div>
-        )}
-      </div>
-
-      {/* 3. Декларации → IMPORT_RD */}
-      <div className="space-y-2 border-t border-slate-100 pt-3 dark:border-slate-800">
-        <div className="text-sm font-medium text-slate-800 dark:text-slate-200">Декларации соответствия (IMPORT_RD)</div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select value={docForm.kind} onChange={(e) => setDocForm((p) => ({ ...p, kind: e.target.value }))} className={inputCls}>
-            <option value="DECLARATION">Декларация</option>
-            <option value="CERTIFICATE">Сертификат</option>
-          </select>
-          <input
-            value={docForm.number}
-            onChange={(e) => setDocForm((p) => ({ ...p, number: e.target.value }))}
-            placeholder="ЕАЭС N RU Д-RU.РА03.В.01124/25"
-            className={`${inputCls} w-72`}
-          />
-          <input type="date" value={docForm.date} onChange={(e) => setDocForm((p) => ({ ...p, date: e.target.value }))} className={inputCls} />
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {categories.map((c) => {
-            const on = docForm.cats.includes(c);
-            return (
-              <button
-                key={c}
-                type="button"
-                onClick={() =>
-                  setDocForm((p) => ({ ...p, cats: on ? p.cats.filter((x) => x !== c) : [...p.cats, c] }))
-                }
-                className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                  on
-                    ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                    : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-                }`}
-              >
-                {c}
-              </button>
-            );
-          })}
-          <button
-            type="button"
-            onClick={createDoc}
-            disabled={docBusy || !docForm.number || !docForm.date || docForm.cats.length === 0}
-            className={btnCls}
-          >
-            {docBusy ? "Сохраняю…" : "+ Документ"}
-          </button>
-        </div>
-
-        {docs.length > 0 && (
-          <ul className="divide-y divide-slate-100 rounded-lg border border-slate-100 dark:divide-slate-800 dark:border-slate-800">
-            {docs.map((d) => (
-              <li key={d.id} className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
-                <span className="font-medium text-slate-800 dark:text-slate-200">{d.number}</span>
-                <span className="text-xs text-slate-400">{d.date.slice(0, 10)} · фасонов: {d.models.length}</span>
-                {rdInfo[d.id] && (
-                  <span className="text-xs">
-                    <span className="text-emerald-700 dark:text-emerald-300">GTIN: {rdInfo[d.id].gtins}</span>
-                    {rdInfo[d.id].missing > 0 && (
-                      <span className="ml-1 text-rose-600 dark:text-rose-300">без GTIN: {rdInfo[d.id].missing}</span>
-                    )}
-                  </span>
-                )}
-                <span className="ml-auto flex items-center gap-2">
-                  <button type="button" onClick={() => void checkRd(d.id)} className="text-xs text-slate-500 underline">
-                    проверить GTIN
-                  </button>
-                  <a href={`/api/chz/rd?docId=${d.id}`} className="text-xs font-medium text-slate-900 underline dark:text-slate-100">
-                    ⬇ IMPORT_RD
-                  </a>
-                </span>
-              </li>
-            ))}
-          </ul>
         )}
       </div>
     </div>
