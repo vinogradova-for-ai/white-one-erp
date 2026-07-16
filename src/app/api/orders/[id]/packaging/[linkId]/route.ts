@@ -19,7 +19,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const updated = await prisma.orderPackaging.update({
       where: { id: linkId },
       data: {
-        ...(data.quantityPerUnit !== undefined && { quantityPerUnit: Number(data.quantityPerUnit) }),
+        ...(data.quantityPerUnit !== undefined && {
+          quantityPerUnit: Number(data.quantityPerUnit),
+          // Ручная правка количества в заказе — строка больше не зеркалится
+          // с комплектом фасона (иначе синк перезапишет её при следующем открытии).
+          syncedFromModel: false,
+        }),
         ...(data.notes !== undefined && { notes: data.notes }),
       },
     });

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
-import { assertCan } from "@/lib/rbac";
+import { assertCan, can } from "@/lib/rbac";
 import { packagingOrderUpdateSchema } from "@/lib/validators/packaging-order";
+import { planPackagingPayments } from "@/lib/payments/reconcile-packaging-payments";
 import { logAudit } from "@/server/audit";
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -114,12 +115,44 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         data: writeData,
       });
 
-      // Если пришёл график платежей — заменяем существующие
+      // График платежей: сохраняем историю оплат (аудит, зона упаковки).
+      // Обновляем существующие по id (PAID сохраняют paidAt/paidById), новые
+      // создаём, убранные удаляем ТОЛЬКО если не оплачены. Смена флага «Оплачено»
+      // — только с правом payment.markPaid (иначе обход правила через этот роут).
       if (data.payments) {
-        await tx.payment.deleteMany({ where: { packagingOrderId: id } });
-        if (data.payments.length > 0) {
+        const existing = await tx.payment.findMany({
+          where: { packagingOrderId: id, type: "PACKAGING" },
+          select: { id: true, status: true },
+        });
+        const canMarkPaid = can(session.user.role, "payment.markPaid");
+        const plan = planPackagingPayments(
+          data.payments,
+          existing.map((e) => ({ id: e.id, status: e.status as "PENDING" | "PAID" })),
+          canMarkPaid,
+        );
+
+        if (plan.toDeleteIds.length > 0) {
+          await tx.payment.deleteMany({ where: { id: { in: plan.toDeleteIds } } });
+        }
+        for (const u of plan.toUpdate) {
+          await tx.payment.update({
+            where: { id: u.id },
+            data: {
+              plannedDate: new Date(u.plannedDate),
+              amount: u.amount,
+              label: u.label,
+              // Флаг оплаты трогаем только если разрешено (setPaid определён).
+              ...(u.setPaid === true
+                ? { status: "PAID" as const, paidAt: new Date(), paidById: session.user.id }
+                : u.setPaid === false
+                ? { status: "PENDING" as const, paidAt: null, paidById: null }
+                : {}),
+            },
+          });
+        }
+        if (plan.toCreate.length > 0) {
           await tx.payment.createMany({
-            data: data.payments.map((p) => ({
+            data: plan.toCreate.map((p) => ({
               type: "PACKAGING" as const,
               status: p.paid ? "PAID" as const : "PENDING" as const,
               paidAt: p.paid ? new Date() : null,

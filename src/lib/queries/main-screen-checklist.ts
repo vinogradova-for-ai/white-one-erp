@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { moscowTodayStart } from "@/lib/dates";
+import { paymentTargetLabel } from "@/lib/payments/display-name";
 
 /**
  * Чек-лист «Главного» экрана. Семь типов задач, привязанных к фасонам и заказам.
@@ -34,6 +36,9 @@ export type ChecklistTask = {
   kind:
     | "order-sample"
     | "approve-sample"
+    // Образцы-сущности (Sample): точные задачи по конкретному образцу
+    | "sample-verdict"       // образец получен — дайте вердикт (ок/на доработку)
+    | "sample-stuck"         // образец заказан/едет слишком долго — дёрните фабрику
     | "size-chart"
     | "start-production"
     | "order-qc"
@@ -45,10 +50,16 @@ export type ChecklistTask = {
     | "pkg-approve"          // образец заказан, не утверждён
     | "pkg-launch"           // утверждено, не запущено в производство
     // Заказы упаковки в пути
-    | "pkg-check-delivery";  // PackagingOrder со статусом IN_PRODUCTION/IN_TRANSIT, ожидаемая дата близка/прошла
+    | "pkg-check-delivery"   // PackagingOrder со статусом IN_PRODUCTION/IN_TRANSIT, ожидаемая дата близка/прошла
+    // Деньги: плановый платёж просрочен или скоро — отметить оплату/перенести срок
+    | "payment-due";
   /** Возраст задачи в днях (для разработки — `today - model.updatedAt`).
    *  Используется визуально (старение рамки) и для счётчика «в разработке >30 дн». */
   ageInDays: number | null;
+  /** Только для kind=payment-due: id и плановая дата платежа —
+   *  чтобы кнопки «Оплачено» и «＋7 дней» работали прямо с главной. */
+  paymentId?: string;
+  paymentPlannedDate?: string; // ISO yyyy-mm-dd
   /** Превышен ли SLA для задач разработки. true → попадает в «Сейчас» как красная. */
   slaBreached: boolean;
 };
@@ -110,13 +121,6 @@ const MODEL_STATUS_RU: Record<string, string> = {
   IN_PRODUCTION: "в производстве",
 };
 
-function moscowToday(): Date {
-  const now = new Date();
-  const moscow = new Date(now.getTime() + (3 * 60 - now.getTimezoneOffset()) * 60_000);
-  moscow.setUTCHours(0, 0, 0, 0);
-  return moscow;
-}
-
 function daysFromToday(target: Date | null, today: Date): number | null {
   if (!target) return null;
   return Math.round((target.getTime() - today.getTime()) / DAY);
@@ -139,9 +143,9 @@ function urgencyOf(days: number | null): TaskUrgency {
 }
 
 export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
-  const today = moscowToday();
+  const today = moscowTodayStart();
 
-  const [models, orders, packagingItems, packagingOrders] = await Promise.all([
+  const [models, orders, packagingItems, packagingOrders, duePayments, samples] = await Promise.all([
     prisma.productModel.findMany({
       where: { deletedAt: null, activated: true },
       include: {
@@ -174,6 +178,45 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
       where: { status: { in: ["IN_PRODUCTION", "IN_TRANSIT"] } },
       include: {
         owner: { select: { id: true, name: true } },
+      },
+    }),
+    // Плановые платежи: просроченные + ближайшие 7 дней. Просроченный и не
+    // отмеченный платёж = вкладка «Платежи» врёт про долги фабрикам.
+    prisma.payment.findMany({
+      where: {
+        status: "PENDING",
+        plannedDate: { lt: new Date(today.getTime() + 8 * DAY) },
+      },
+      include: {
+        order: {
+          select: {
+            orderNumber: true,
+            productModel: { select: { name: true } },
+            owner: { select: { id: true, name: true } },
+          },
+        },
+        packagingItem: { select: { name: true } },
+        packagingOrder: {
+          select: {
+            orderNumber: true,
+            supplierName: true,
+            lines: { select: { packagingItem: { select: { name: true } } } },
+          },
+        },
+        createdBy: { select: { id: true, name: true } },
+      },
+    }),
+    // Образцы в работе: получен без вердикта / заказан-едет слишком долго.
+    prisma.sample.findMany({
+      where: {
+        deletedAt: null,
+        status: { in: ["ORDERED", "IN_TRANSIT", "RECEIVED"] },
+        productModel: { deletedAt: null },
+      },
+      include: {
+        productModel: {
+          select: { id: true, name: true, ownerId: true, owner: { select: { id: true, name: true } } },
+        },
       },
     }),
   ]);
@@ -246,6 +289,86 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
     }
   }
 
+  // === Платежи — просроченные и ближайшие ===
+  // Владелец задачи: ответственный по заказу; для упаковки — кто завёл платёж.
+  for (const p of duePayments) {
+    const owner = p.order?.owner ?? p.createdBy;
+    if (!owner) continue;
+    const target = paymentTargetLabel(p);
+    const amount = `${Math.round(Number(p.amount)).toLocaleString("ru-RU")} ${p.currency === "CNY" ? "¥" : "₽"}`;
+    const days = daysFromToday(p.plannedDate, today);
+    const text =
+      days !== null && days < 0
+        ? `Оплата просрочена ${-days} дн — отметьте или перенесите срок · ${p.label} · ${amount} · ${target}`
+        : `Оплата через ${days} дн · ${p.label} · ${amount} · ${target}`;
+    tasks.push({
+      id: `payment-due:${p.id}`,
+      ownerId: owner.id,
+      ownerName: owner.name,
+      text,
+      href: "/payments",
+      daysToDeadline: days,
+      urgency: urgencyOf(days),
+      updatedAt: p.updatedAt,
+      kind: "payment-due",
+      ageInDays: null,
+      slaBreached: days !== null && days < 0,
+      paymentId: p.id,
+      paymentPlannedDate: p.plannedDate.toISOString().slice(0, 10),
+    });
+  }
+
+  // === Образцы (Sample) — точные задачи по конкретному образцу ===
+  // «Получен — дайте вердикт»: дедлайн = получен + 2 дн.
+  // «Завис»: заказан/едет дольше 14 дн — дёрните фабрику (без дедлайна, но overdue).
+  const SAMPLE_VERDICT_SLA_DAYS = 2;
+  const SAMPLE_STUCK_DAYS = 14;
+  for (const s of samples) {
+    const m = s.productModel;
+    if (!m.ownerId || !m.owner) continue;
+    const name = s.label ? `${m.name} (${s.label})` : m.name;
+    const href = `/models/${m.id}`;
+
+    if (s.status === "RECEIVED") {
+      const received = s.receivedDate ?? s.updatedAt;
+      const deadline = new Date(received.getTime() + SAMPLE_VERDICT_SLA_DAYS * DAY);
+      const days = daysFromToday(deadline, today);
+      const age = Math.max(0, Math.round((today.getTime() - received.getTime()) / DAY));
+      tasks.push({
+        id: `sample-verdict:${s.id}`,
+        ownerId: m.ownerId,
+        ownerName: m.owner.name,
+        text: `Дайте вердикт по образцу · ${name} · получен ${age} дн назад`,
+        href,
+        daysToDeadline: days,
+        urgency: urgencyOf(days),
+        updatedAt: s.updatedAt,
+        kind: "sample-verdict",
+        ageInDays: age,
+        slaBreached: days !== null && days < 0,
+      });
+    } else {
+      // ORDERED / IN_TRANSIT
+      const since = s.orderedDate ?? s.createdAt;
+      const age = Math.max(0, Math.round((today.getTime() - since.getTime()) / DAY));
+      if (age <= SAMPLE_STUCK_DAYS) continue;
+      const statusRu = s.status === "ORDERED" ? "заказан" : "едет";
+      tasks.push({
+        id: `sample-stuck:${s.id}`,
+        ownerId: m.ownerId,
+        ownerName: m.owner.name,
+        text: `Образец завис (${statusRu} ${age} дн) — дёрните фабрику · ${name}`,
+        href,
+        daysToDeadline: null,
+        urgency: "overdue",
+        updatedAt: s.updatedAt,
+        kind: "sample-stuck",
+        ageInDays: age,
+        slaBreached: true,
+      });
+    }
+  }
+
   for (const o of orders) {
     if (!o.ownerId || !o.owner) continue;
     const title = `${o.orderNumber} · ${o.productModel.name}`;
@@ -273,7 +396,11 @@ export async function getMainScreenChecklist(): Promise<ChecklistTask[]> {
       }
     }
 
-    if ((o.status === "QC" || o.status === "READY_SHIP") && o.qcDate) {
+    // Показываем «Примите ОТК» ТОЛЬКО пока заказ в статусе QC и ждёт приёмки.
+    // Галка ставит IN_TRANSIT (READY_SHIP выпилен 04.07: ОТК принят = отгружаем) —
+    // и задача больше не возвращается. Раньше условие включало READY_SHIP → закрытая
+    // задача воскресала после revalidate и висела красной до IN_TRANSIT.
+    if (o.status === "QC" && o.qcDate) {
       const days = daysFromToday(o.qcDate, today);
       if (days !== null && days <= URGENCY_WINDOW_DAYS) {
         tasks.push({

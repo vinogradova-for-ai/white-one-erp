@@ -92,10 +92,11 @@ export function CheckableRow({ task, ageBorder }: { task: ChecklistTask; ageBord
     <li className={ageBorder}>
       <div
         className={`flex items-start gap-3 px-4 py-3 text-sm ${
-          done ? "bg-emerald-50/60" : "hover:bg-slate-50"
+          done ? "bg-emerald-50/60 dark:bg-emerald-400/10" : "hover:bg-slate-50"
         }`}
       >
-        <label className="mt-0.5 inline-flex shrink-0 cursor-pointer select-none">
+        {/* Тач-мишень чекбокса ≥44px: сам бокс 20px, но обёртка -m-2 p-2 расширяет зону нажатия. */}
+        <label className="-m-2 -mt-1.5 inline-flex shrink-0 cursor-pointer select-none p-2">
           <input
             type="checkbox"
             checked={picking || done}
@@ -110,7 +111,7 @@ export function CheckableRow({ task, ageBorder }: { task: ChecklistTask; ageBord
           {done ? (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-slate-400 line-through">{task.text}</span>
-              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300">
                 ✓ {doneLabel}
               </span>
             </div>
@@ -126,13 +127,13 @@ export function CheckableRow({ task, ageBorder }: { task: ChecklistTask; ageBord
                 extraDaysAgo={showExtraDays}
                 overdueLabel={overdueDays > 0 ? `просрочено на ${overdueDays} дн` : null}
               />
-              {error && <div className="text-xs text-red-600">{error}</div>}
+              {error && <div className="text-xs text-red-600 dark:text-red-300">{error}</div>}
             </div>
           ) : (
             <Link
               href={task.href}
               className={`block ${
-                task.urgency === "overdue" ? "font-medium text-red-700" : "text-slate-800"
+                task.urgency === "overdue" ? "font-medium text-red-700 dark:text-red-300" : "text-slate-800"
               }`}
             >
               {task.text}
@@ -174,7 +175,7 @@ function DatePicker({
     <div className="flex flex-col gap-2">
       <div className="flex items-baseline gap-2 text-xs text-slate-500">
         <span>Когда фактически?</span>
-        {overdueLabel && <span className="text-red-600">{overdueLabel}</span>}
+        {overdueLabel && <span className="text-red-600 dark:text-red-300">{overdueLabel}</span>}
       </div>
       <div className="flex flex-wrap gap-1.5">
         {buttons.map((b) => (
@@ -183,7 +184,7 @@ function DatePicker({
             type="button"
             disabled={pending}
             onClick={() => onPick(b.iso, `${b.label} (${formatDM(b.iso)})`)}
-            className={`rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-50 ${
+            className={`inline-flex min-h-[44px] items-center rounded-lg border px-3 text-xs disabled:opacity-50 ${
               b.emphasis
                 ? "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700"
                 : "border-slate-300 bg-white text-slate-700 hover:border-slate-400"
@@ -196,7 +197,7 @@ function DatePicker({
           type="button"
           disabled={pending}
           onClick={onCancel}
-          className="rounded-lg border border-transparent px-2.5 py-1.5 text-xs text-slate-500 hover:text-slate-700 disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center rounded-lg border border-transparent px-3 text-xs text-slate-500 hover:text-slate-700 disabled:opacity-50"
         >
           Отмена
         </button>

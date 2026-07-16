@@ -149,6 +149,22 @@ html.dark .bg-pink-50\/40 { background-color: rgba(255, 55, 95, 0.04) !important
 html.dark .border-pink-200 { border-color: rgba(255, 55, 95, 0.22) !important; }
 html.dark .text-pink-700 { color: #ff6482 !important; }
 
+/* Светлый «канвас» (.light-canvas) — зона, которая остаётся светлой и в тёмной
+   теме (доска раскладки: флэты красятся в цвет ткани, чёрное на тёмном не видно).
+   Возвращаем внутри неё исходные светлые значения поверх dark-слоя. */
+html.dark .light-canvas .bg-white { background-color: #ffffff !important; }
+html.dark .light-canvas .bg-white\/60 { background-color: rgb(255 255 255 / 0.6) !important; }
+html.dark .light-canvas .hover\:bg-slate-100:hover { background-color: #f1f5f9 !important; }
+html.dark .light-canvas .text-slate-900 { color: #0f172a !important; }
+html.dark .light-canvas .text-slate-800 { color: #1e293b !important; }
+html.dark .light-canvas .text-slate-700 { color: #334155 !important; }
+html.dark .light-canvas .text-slate-600 { color: #475569 !important; }
+html.dark .light-canvas .text-slate-500 { color: #64748b !important; }
+html.dark .light-canvas .text-slate-400 { color: #94a3b8 !important; }
+html.dark .light-canvas .text-slate-300 { color: #cbd5e1 !important; }
+html.dark .light-canvas .border-slate-200 { border-color: #e2e8f0 !important; }
+html.dark .light-canvas .border-slate-300 { border-color: #cbd5e1 !important; }
+
 /* iOS: не зумить input'ы */
 input, textarea, select {
   font-size: 16px;
@@ -183,4 +199,55 @@ section:target {
   height: 100%;
   width: auto;
   display: block;
+}
+
+/* ===== Мобильные утилиты ===== */
+
+/* Safe-area: отступ снизу под домашнюю полосу iPhone (нижнее меню, sticky-кнопки). */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.mb-safe {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+/* Sticky-панель сохранения внизу длинных форм: базовый отступ + safe-area. */
+.pb-safe-4 {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem);
+}
+
+/* Горизонтальный скролл внутри блока с намёком-затуханием справа.
+   Оборачиваем широкую таблицу: <div class="scroll-x-hint"><div class="overflow-x-auto">…</div></div> */
+.scroll-x-hint {
+  position: relative;
+}
+.scroll-x-hint::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 24px;
+  pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--background));
+}
+
+/* Скрыть скроллбар у горизонтальных лент фильтров/пилюль (визуально чище на тач). */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Увеличенная тач-мишень для мелких иконок-кнопок (◀▶, ✕): невидимый ≥44px hit-area,
+   визуал не растёт. Применять на кнопку с position: relative. */
+.tap-target::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
 }

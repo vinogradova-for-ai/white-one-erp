@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CATEGORIES, BRAND_LABELS } from "@/lib/constants";
+import { CATEGORIES, BRAND_LABELS, DEFAULT_CNY_RUB_RATE } from "@/lib/constants";
 import { Brand } from "@prisma/client";
 import { DropzonePhotos } from "@/components/common/dropzone-photos";
 import { SizeGridPicker } from "@/components/common/size-grid-picker";
+import { FormProgressNav } from "@/components/common/form-progress-nav";
 
 type Option = { id: string; name: string; country?: string };
 type SizeGridOption = { id: string; name: string; sizes: string[] };
@@ -24,6 +25,7 @@ export function ModelEditForm({
     subcategory: string;
     sizeGridId: string;
     countryOfOrigin: string;
+    tnvedCode: string;
     preferredFactoryId: string;
     developmentType: "OWN" | "REPEAT";
     isRepeat: boolean;
@@ -92,6 +94,7 @@ export function ModelEditForm({
         category: form.category,
         subcategory: form.subcategory || null,
         countryOfOrigin: form.countryOfOrigin,
+        tnvedCode: form.tnvedCode || null,
         preferredFactoryId: form.preferredFactoryId || null,
         sizeGridId: form.sizeGridId || null,
         developmentType: form.developmentType,
@@ -139,9 +142,20 @@ export function ModelEditForm({
     }
   }
 
+  // §4 UX-аудита: якоря-прогресс по секциям (закон «длинная форма с прогрессом»).
+  const navSections = [
+    { id: "mesec-main", title: "Основное", filled: form.name.trim().length > 0 },
+    { id: "mesec-production", title: "Производство", filled: !!form.preferredFactoryId && !!form.sizeGridId },
+    { id: "mesec-cost", title: "Себестоимость", filled: !!(form.purchasePriceRub || form.purchasePriceCny) },
+    { id: "mesec-fabric", title: "Ткань", filled: !!(form.fabricName.trim() || form.fabricComposition.trim()) },
+    { id: "mesec-photos", title: "Фото", filled: form.photoUrls.length > 0 },
+    { id: "mesec-docs", title: "Документация", filled: form.patternsUrl.trim().length > 0 },
+  ];
+
   return (
     <form id="model-edit-form" onSubmit={onSubmit} className="space-y-6">
-      <Section title="Основное">
+      <FormProgressNav sections={navSections} />
+      <Section id="mesec-main" title="Основное">
         <Field label="Название *" full>
           <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputCls} />
         </Field>
@@ -168,7 +182,7 @@ export function ModelEditForm({
         </Field>
       </Section>
 
-      <Section title="Производство">
+      <Section id="mesec-production" title="Производство">
         <Field label="Страна *">
           <select value={form.countryOfOrigin} onChange={(e) => setForm({ ...form, countryOfOrigin: e.target.value })} className={inputCls}>
             <option>Россия</option>
@@ -179,8 +193,28 @@ export function ModelEditForm({
         <Field label="Фабрика (по умолчанию)">
           <select value={form.preferredFactoryId} onChange={(e) => setForm({ ...form, preferredFactoryId: e.target.value })} className={inputCls}>
             <option value="">—</option>
-            {factories.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            <optgroup label={form.countryOfOrigin}>
+              {factories.filter((f) => f.country === form.countryOfOrigin).map((f) => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </optgroup>
+            {factories.some((f) => f.country !== form.countryOfOrigin) && (
+              <optgroup label="Другие страны">
+                {factories.filter((f) => f.country !== form.countryOfOrigin).map((f) => (
+                  <option key={f.id} value={f.id}>{f.name} · {f.country}</option>
+                ))}
+              </optgroup>
+            )}
           </select>
+          {(() => {
+            // П6: фабрика не из страны производства — подсветка, не тихая подмена.
+            const sel = factories.find((f) => f.id === form.preferredFactoryId);
+            return sel && sel.country && sel.country !== form.countryOfOrigin ? (
+              <span className="mt-1 block text-xs font-medium text-amber-700 dark:text-amber-300">
+                ⚠ Фабрика «{sel.name}» из {sel.country}, а страна производства — {form.countryOfOrigin}. Проверьте.
+              </span>
+            ) : null;
+          })()}
           <span className="mt-1 block text-xs text-slate-500">
             Предлагается при создании заказов, в каждом заказе можно поменять.
           </span>
@@ -194,11 +228,12 @@ export function ModelEditForm({
         </Field>
       </Section>
 
-      <Section title="Себестоимость">
+      <Section id="mesec-cost" title="Себестоимость">
         <Field label="Цена за единицу" full>
           <div className="flex items-stretch gap-2">
             <input
               type="number"
+              inputMode="decimal"
               step="0.01"
               value={form.purchasePriceRub || form.purchasePriceCny}
               onChange={(e) => {
@@ -219,8 +254,17 @@ export function ModelEditForm({
                 const cur = e.target.value;
                 // Переключение валюты: переносим текущее число в другое поле.
                 const num = form.purchasePriceRub || form.purchasePriceCny;
-                if (cur === "CNY") setForm({ ...form, purchasePriceCny: num, purchasePriceRub: "" });
-                else setForm({ ...form, purchasePriceRub: num, purchasePriceCny: "" });
+                if (cur === "CNY") {
+                  // Переходим в юани — подставляем дефолтный курс, если ещё не задан.
+                  setForm({
+                    ...form,
+                    purchasePriceCny: num,
+                    purchasePriceRub: "",
+                    cnyRubRate: form.cnyRubRate || String(DEFAULT_CNY_RUB_RATE),
+                  });
+                } else {
+                  setForm({ ...form, purchasePriceRub: num, purchasePriceCny: "" });
+                }
               }}
               className={inputCls}
               style={{ flexBasis: "5.5rem", flexGrow: 0 }}
@@ -233,9 +277,38 @@ export function ModelEditForm({
             Закупочная цена у фабрики. При создании заказа автоматически подтянется в стоимость единицы (можно поправить под конкретный заказ).
           </span>
         </Field>
+
+        {/* Курс ¥→₽ — виден только когда цена в юанях. Аудит п.8: раньше курс
+            был зашит 13.5 и невидим, теперь его вводит человек и он хранится
+            в фасоне. Пересчёт в ₽ показываем сразу. */}
+        {form.purchasePriceCny ? (
+          <Field label="Курс ¥→₽" full>
+            <div className="flex items-stretch gap-2">
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.0001"
+                value={form.cnyRubRate}
+                onChange={(e) => setForm({ ...form, cnyRubRate: e.target.value })}
+                className={`${inputCls} flex-1`}
+                placeholder={String(DEFAULT_CNY_RUB_RATE)}
+              />
+            </div>
+            <span className="mt-1 block text-xs text-slate-500">
+              {(() => {
+                const cny = Number(form.purchasePriceCny);
+                const rate = Number(form.cnyRubRate);
+                if (cny > 0 && rate > 0) {
+                  return `≈ ${(cny * rate).toLocaleString("ru-RU", { maximumFractionDigits: 0 })} ₽ за единицу по этому курсу.`;
+                }
+                return `Дефолт ${DEFAULT_CNY_RUB_RATE}. Введите фактический курс — по нему считается себестоимость в ₽.`;
+              })()}
+            </span>
+          </Field>
+        ) : null}
       </Section>
 
-      <Section title="Ткань (опционально)">
+      <Section id="mesec-fabric" title="Ткань (опционально)">
         <Field label="Название ткани">
           <input value={form.fabricName} onChange={(e) => setForm({ ...form, fabricName: e.target.value })} className={inputCls} placeholder="Диагональ" />
         </Field>
@@ -244,13 +317,37 @@ export function ModelEditForm({
         </Field>
       </Section>
 
-      <Section title="Фото фасона">
+      {/* Маркировка «Честный знак» — свёрнутый необязательный блок.
+          Состав и страна берутся из полей выше; здесь — только ТНВЭД,
+          которого раньше не было ни в БД, ни в форме («поле-фантом» из аудита).
+          Всё это уходит на вкладку «Честный знак» для копирования в Нацкаталог. */}
+      <details className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+        <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Маркировка / ЧЗ (опционально)
+        </summary>
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <Field label="Код ТНВЭД ЕАЭС">
+            <input
+              value={form.tnvedCode}
+              onChange={(e) => setForm({ ...form, tnvedCode: e.target.value })}
+              className={inputCls}
+              placeholder="6201400000"
+            />
+            <span className="mt-1 block text-xs text-slate-500">
+              10-значный код ТН ВЭД для карточки в Национальном каталоге «Честный знак».
+              Общий для всех цветов фасона. Состав и страна берутся из полей выше.
+            </span>
+          </Field>
+        </div>
+      </details>
+
+      <Section id="mesec-photos" title="Фото фасона">
         <div className="md:col-span-2">
           <DropzonePhotos value={form.photoUrls} onChange={(urls) => setForm({ ...form, photoUrls: urls })} />
         </div>
       </Section>
 
-      <Section title="Документация (Google Drive / Яндекс.Диск)">
+      <Section id="mesec-docs" title="Документация (Google Drive / Яндекс.Диск)">
         <Field label="Ссылка на папку с материалами" full>
           <input
             type="url"
@@ -271,16 +368,16 @@ export function ModelEditForm({
           approvedDate/productionStartDate/plannedLaunchMonth остаются в БД
           и в payload (значения сохраняются как есть, без UI). */}
 
-      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-400/10 dark:text-red-300">{error}</div>}
     </form>
   );
 }
 
-const inputCls = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
+const inputCls = "min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, id }: { title: string; children: React.ReactNode; id?: string }) {
   return (
-    <fieldset className="space-y-3">
+    <fieldset id={id} className="space-y-3 scroll-mt-24">
       <legend className="text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</legend>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{children}</div>
     </fieldset>

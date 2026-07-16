@@ -13,7 +13,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
     prisma.order.findFirst({
       where: { id, deletedAt: null },
       include: {
-        productModel: { select: { name: true, fullCost: true } },
+        productModel: { select: { name: true, fullCost: true, cnyRubRate: true } },
         lines: {
           select: { quantity: true, snapshotFullCost: true, productVariant: { select: { colorName: true } } },
           orderBy: { createdAt: "asc" },
@@ -25,7 +25,8 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
         },
       },
     }),
-    prisma.factory.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    // П6: в форме заказа на пошив — только швейные фабрики.
+    prisma.factory.findMany({ where: { isActive: true, kind: "SEWING" }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.user.findMany({
       where: { isActive: true },
       select: { id: true, name: true },
@@ -61,6 +62,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
       </div>
       <div className="rounded-2xl border border-slate-200 bg-white p-6">
         <OrderEditForm
+          defaultCnyRate={order.productModel.cnyRubRate != null ? Number(order.productModel.cnyRubRate) : null}
           order={{
             id: order.id,
             orderType: order.orderType,

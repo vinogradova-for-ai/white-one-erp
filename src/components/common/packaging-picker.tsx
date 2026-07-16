@@ -116,7 +116,7 @@ export function PackagingPicker({ value, options, onChange, placeholder = "â€” Ğ
         ref={btnRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-sm hover:border-slate-400"
+        className="flex min-h-[44px] w-full items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-sm hover:border-slate-400 sm:min-h-0"
       >
         {current ? (
           <PackagingRow option={current} />
@@ -150,7 +150,7 @@ export function PackagingPicker({ value, options, onChange, placeholder = "â€” Ğ
                 onChange(o.id);
                 setOpen(false);
               }}
-              className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
+              className={`flex min-h-[44px] w-full items-center gap-2 px-3 py-2 text-left text-sm sm:min-h-0 ${
                 o.id === value ? "bg-slate-100" : "hover:bg-slate-50"
               }`}
             >

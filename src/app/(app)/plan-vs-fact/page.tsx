@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { yearMonthToLabel } from "@/lib/format";
+import { LAUNCHED_ORDER_STATUSES } from "@/lib/order-stage";
+import { moscowYearMonth } from "@/lib/dates";
 
 /**
  * План/Факт — НЕ продажи и НЕ рубли (Алёна).
@@ -15,6 +17,7 @@ export default async function PlanVsFactPage({
 }) {
   const sp = await searchParams;
   const year = Number(sp.year ?? new Date().getFullYear());
+  const currentYm = moscowYearMonth(); // текущий месяц по МСК (YYYYMM)
 
   const [plans, orders, users] = await Promise.all([
     prisma.monthlyPlan.findMany({
@@ -25,6 +28,10 @@ export default async function PlanVsFactPage({
       where: {
         deletedAt: null,
         launchMonth: { gte: year * 100 + 1, lte: year * 100 + 12 },
+        // Факт = только РЕАЛЬНО запущенные заказы (пошив начался и дальше).
+        // Заказ в PREPARATION/FABRIC_ORDERED ещё не выпущен — иначе прогресс
+        // к цели завышался незапущенными заказами (аудит блок ④).
+        status: { in: [...LAUNCHED_ORDER_STATUSES] },
       },
       select: {
         launchMonth: true,
@@ -109,18 +116,26 @@ export default async function PlanVsFactPage({
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">План / Факт выпуска {year}</h1>
+          <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">План / Факт выпуска {year}</h1>
           <p className="text-sm text-slate-500">
             Сколько фасонов и штук выпустил каждый ответственный относительно плана.
             Факт = заказы по месяцу запуска (launchMonth).
           </p>
         </div>
-        <Link
-          href="/admin/plans"
-          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-        >
-          Редактировать план →
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/seasons"
+            className="flex h-10 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+          >
+            Цели →
+          </Link>
+          <Link
+            href="/admin/plans"
+            className="flex h-10 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+          >
+            Редактировать план →
+          </Link>
+        </div>
       </div>
 
       <div className="flex items-center gap-2 text-sm">
@@ -129,8 +144,8 @@ export default async function PlanVsFactPage({
           <Link
             key={y}
             href={`/plan-vs-fact?year=${y}`}
-            className={`rounded-full px-3 py-1 text-xs font-medium ${
-              y === year ? "bg-slate-900 text-white" : "bg-white text-slate-700 border border-slate-300"
+            className={`inline-flex min-h-[40px] items-center rounded-full px-4 text-sm font-medium ${
+              y === year ? "bg-slate-900 text-white" : "border border-slate-300 bg-white text-slate-700"
             }`}
           >
             {y}
@@ -147,126 +162,203 @@ export default async function PlanVsFactPage({
           .
         </div>
       ) : (
-        <div className="space-y-4">
-          {sortedMonths.map((ym) => {
-            const arr = byMonth.get(ym) ?? [];
-            const totalPlanModels = arr.reduce((s, r) => s + r.planModels, 0);
-            const totalPlanUnits = arr.reduce((s, r) => s + r.planUnits, 0);
-            const totalFactModels = arr.reduce((s, r) => s + r.factModels, 0);
-            const totalFactUnits = arr.reduce((s, r) => s + r.factUnits, 0);
-            return (
-              <div key={ym} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-                <div className="flex items-baseline justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2">
-                  <div className="text-sm font-semibold capitalize text-slate-900">
-                    {yearMonthToLabel(ym)}
+        (() => {
+          // §4 UX-аудита: текущий месяц — первым и раскрытым, будущие — следом,
+          // прошлые — свёрнуты в строки с итогом (ближайший прошлый сверху).
+          const current = sortedMonths.filter((ym) => ym === currentYm);
+          const future = sortedMonths.filter((ym) => ym > currentYm);
+          const past = sortedMonths.filter((ym) => ym < currentYm).reverse();
+          return (
+            <div className="space-y-4">
+              {[...current, ...future].map((ym) => (
+                <MonthCard key={ym} ym={ym} arr={byMonth.get(ym) ?? []} currentYm={currentYm} />
+              ))}
+              {past.length > 0 && (
+                <div className="space-y-2">
+                  <div className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Прошлые месяцы
                   </div>
-                  <div className="text-xs text-slate-500">
-                    Итого: фасонов <b className="text-slate-900">{totalFactModels}/{totalPlanModels || "—"}</b>{" · "}
-                    штук <b className="text-slate-900">{totalFactUnits.toLocaleString("ru-RU")}/{totalPlanUnits ? totalPlanUnits.toLocaleString("ru-RU") : "—"}</b>
-                  </div>
-                </div>
-                {/* Десктоп — таблица */}
-                <table className="hidden min-w-full text-sm md:table">
-                  <thead className="bg-white">
-                    <tr>
-                      <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase text-slate-500">Ответственный</th>
-                      <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase text-slate-500">Фасоны (факт/план)</th>
-                      <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase text-slate-500">Штуки (факт/план)</th>
-                      <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase text-slate-500">Статус</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {arr.map((r) => {
-                      const { status } = classifyRow(r);
-                      return (
-                        <tr key={`${r.ym}-${r.ownerId ?? "_"}`}>
-                          <td className="px-3 py-2 font-medium text-slate-900">{r.ownerName}</td>
-                          <td className="px-3 py-2 text-right text-slate-700">
-                            {r.factModels} / {r.planModels || "—"}
-                          </td>
-                          <td className="px-3 py-2 text-right text-slate-700">
-                            {r.factUnits.toLocaleString("ru-RU")} / {r.planUnits ? r.planUnits.toLocaleString("ru-RU") : "—"}
-                          </td>
-                          <td className="px-3 py-2">
-                            <StatusChip status={status} />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-
-                {/* Мобильный — карточки. Таблица из 4 колонок на 390px нечитаема. */}
-                <div className="divide-y divide-slate-100 md:hidden">
-                  {arr.map((r) => {
-                    const { status } = classifyRow(r);
-                    const unitsPct = r.planUnits > 0 ? Math.min(100, Math.round((r.factUnits / r.planUnits) * 100)) : 0;
-                    const modelsPct = r.planModels > 0 ? Math.min(100, Math.round((r.factModels / r.planModels) * 100)) : 0;
-                    const barCls =
-                      status === "ok" ? "bg-emerald-500"
-                      : status === "warning" ? "bg-amber-500"
-                      : status === "critical" ? "bg-red-500"
-                      : "bg-slate-300";
-                    return (
-                      <div key={`${r.ym}-${r.ownerId ?? "_"}-m`} className="px-3 py-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-sm font-semibold text-slate-900">{r.ownerName}</div>
-                          <StatusChip status={status} />
+                  {past.map((ym) => (
+                    <details key={ym} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                      <summary className="flex cursor-pointer list-none flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-4 py-3 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-slate-400 transition group-open:rotate-90">▸</span>
+                          <span className="text-sm font-semibold capitalize text-slate-900">{yearMonthToLabel(ym)}</span>
                         </div>
-                        <div className="mt-2 space-y-2 text-[12px]">
-                          <PlanFactRow
-                            label="Фасоны"
-                            fact={r.factModels}
-                            plan={r.planModels}
-                            pct={modelsPct}
-                            barCls={barCls}
-                          />
-                          <PlanFactRow
-                            label="Штуки"
-                            fact={r.factUnits}
-                            plan={r.planUnits}
-                            pct={unitsPct}
-                            barCls={barCls}
-                          />
-                        </div>
+                        <MonthTotals arr={byMonth.get(ym) ?? []} />
+                      </summary>
+                      <div className="border-t border-slate-100">
+                        <MonthBody ym={ym} arr={byMonth.get(ym) ?? []} currentYm={currentYm} />
                       </div>
-                    );
-                  })}
+                    </details>
+                  ))}
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              )}
+            </div>
+          );
+        })()
       )}
     </div>
   );
 }
 
-type RowStatus = "ok" | "warning" | "critical" | "no-plan";
-
-function classifyRow(r: {
+type PlanRowT = {
+  ym: number;
+  ownerId: string | null;
+  ownerName: string;
   planModels: number;
   planUnits: number;
   factModels: number;
   factUnits: number;
-}): { status: RowStatus } {
+};
+
+// Итоги месяца одной строкой — в шапке карточки и в summary свёрнутого месяца.
+function MonthTotals({ arr }: { arr: PlanRowT[] }) {
+  const totalPlanModels = arr.reduce((s, r) => s + r.planModels, 0);
+  const totalPlanUnits = arr.reduce((s, r) => s + r.planUnits, 0);
+  const totalFactModels = arr.reduce((s, r) => s + r.factModels, 0);
+  const totalFactUnits = arr.reduce((s, r) => s + r.factUnits, 0);
+  return (
+    <div className="text-xs text-slate-500">
+      Итого: фасонов <b className="text-slate-900">{totalFactModels}/{totalPlanModels || "—"}</b>{" · "}
+      штук <b className="text-slate-900">{totalFactUnits.toLocaleString("ru-RU")}/{totalPlanUnits ? totalPlanUnits.toLocaleString("ru-RU") : "—"}</b>
+    </div>
+  );
+}
+
+// Раскрытая карточка месяца (текущий и будущие).
+function MonthCard({ ym, arr, currentYm }: { ym: number; arr: PlanRowT[]; currentYm: number }) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <div className="flex items-baseline justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2">
+        <div className="text-sm font-semibold capitalize text-slate-900">
+          {yearMonthToLabel(ym)}
+          {ym === currentYm && <span className="ml-2 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-400/10 dark:text-blue-300">текущий</span>}
+        </div>
+        <MonthTotals arr={arr} />
+      </div>
+      <MonthBody ym={ym} arr={arr} currentYm={currentYm} />
+    </div>
+  );
+}
+
+// Тело месяца: десктоп-таблица + мобильные карточки.
+function MonthBody({ ym, arr, currentYm }: { ym: number; arr: PlanRowT[]; currentYm: number }) {
+  return (
+    <>
+      {/* Десктоп — таблица */}
+      <table className="hidden min-w-full text-sm md:table">
+        <thead className="bg-white">
+          <tr>
+            <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase text-slate-500">Ответственный</th>
+            <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase text-slate-500">Фасоны (факт/план)</th>
+            <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase text-slate-500">Штуки (факт/план)</th>
+            <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase text-slate-500">Статус</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {arr.map((r) => {
+            const { status } = classifyRow(r, ym, currentYm);
+            return (
+              <tr key={`${r.ym}-${r.ownerId ?? "_"}`}>
+                <td className="px-3 py-2 font-medium text-slate-900">{r.ownerName}</td>
+                <td className="px-3 py-2 text-right text-slate-700">
+                  {r.factModels} / {r.planModels || "—"}
+                </td>
+                <td className="px-3 py-2 text-right text-slate-700">
+                  {r.factUnits.toLocaleString("ru-RU")} / {r.planUnits ? r.planUnits.toLocaleString("ru-RU") : "—"}
+                </td>
+                <td className="px-3 py-2">
+                  <StatusChip status={status} />
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      {/* Мобильный — карточки. Таблица из 4 колонок на 390px нечитаема. */}
+      <div className="divide-y divide-slate-100 md:hidden">
+        {arr.map((r) => {
+          const { status } = classifyRow(r, ym, currentYm);
+          const unitsPct = r.planUnits > 0 ? Math.min(100, Math.round((r.factUnits / r.planUnits) * 100)) : 0;
+          const modelsPct = r.planModels > 0 ? Math.min(100, Math.round((r.factModels / r.planModels) * 100)) : 0;
+          const barCls =
+            status === "ok" ? "bg-emerald-500"
+            : status === "in-progress" ? "bg-blue-500"
+            : status === "warning" ? "bg-amber-500"
+            : status === "critical" ? "bg-red-500"
+            : "bg-slate-300";
+          return (
+            <div key={`${r.ym}-${r.ownerId ?? "_"}-m`} className="px-3 py-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-semibold text-slate-900">{r.ownerName}</div>
+                <StatusChip status={status} />
+              </div>
+              <div className="mt-2 space-y-2 text-[12px]">
+                <PlanFactRow
+                  label="Фасоны"
+                  fact={r.factModels}
+                  plan={r.planModels}
+                  pct={modelsPct}
+                  barCls={barCls}
+                />
+                <PlanFactRow
+                  label="Штуки"
+                  fact={r.factUnits}
+                  plan={r.planUnits}
+                  pct={unitsPct}
+                  barCls={barCls}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+type RowStatus = "ok" | "warning" | "critical" | "no-plan" | "in-progress" | "future";
+
+/**
+ * Статус строки план/факта С УЧЁТОМ месяца относительно текущего (по МСК):
+ *   — будущий месяц  → «future» (серый «запланировано») — недобор не вина;
+ *   — текущий месяц  → «in-progress» (нейтральный «идёт») при недоборе,
+ *                       «ok» если план уже закрыт — месяц ещё не кончился;
+ *   — прошедший месяц→ красный/жёлтый разрыв как раньше.
+ * Раньше статус считался только из gap'ов — текущий и будущие месяцы горели
+ * красным «без вины» (аудит блок ④).
+ */
+function classifyRow(
+  r: { planModels: number; planUnits: number; factModels: number; factUnits: number },
+  ym: number,
+  currentYm: number,
+): { status: RowStatus } {
+  const hasPlan = r.planModels > 0 || r.planUnits > 0;
+  if (!hasPlan) return { status: "no-plan" };
+
   const modelsGap = r.factModels - r.planModels;
   const unitsGap = r.factUnits - r.planUnits;
-  const hasPlan = r.planModels > 0 || r.planUnits > 0;
-  const status: RowStatus = !hasPlan
-    ? "no-plan"
-    : modelsGap >= 0 && unitsGap >= 0
-    ? "ok"
-    : r.planUnits > 0 && Math.abs(unitsGap / r.planUnits) > 0.2
-    ? "critical"
-    : "warning";
-  return { status };
+  const planMet = modelsGap >= 0 && unitsGap >= 0;
+
+  if (planMet) return { status: "ok" };
+
+  // План ещё не закрыт.
+  if (ym > currentYm) return { status: "future" };       // месяц не начался
+  if (ym === currentYm) return { status: "in-progress" }; // месяц идёт — не вина
+
+  // Прошедший месяц с недобором — реальный разрыв.
+  const critical = r.planUnits > 0 && Math.abs(unitsGap / r.planUnits) > 0.2;
+  return { status: critical ? "critical" : "warning" };
 }
 
 function StatusChip({ status }: { status: RowStatus }) {
-  if (status === "ok") return <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">✓ ОК</span>;
-  if (status === "warning") return <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">⚠ Нужно ещё</span>;
-  if (status === "critical") return <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">🔴 Разрыв</span>;
+  if (status === "ok") return <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300">✓ ОК</span>;
+  if (status === "in-progress") return <span className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-400/10 dark:text-blue-300">⏳ Идёт</span>;
+  if (status === "future") return <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">📅 Запланировано</span>;
+  if (status === "warning") return <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700 dark:bg-amber-400/10 dark:text-amber-300">⚠ Недобор</span>;
+  if (status === "critical") return <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700 dark:bg-red-400/10 dark:text-red-300">🔴 Разрыв</span>;
   return <span className="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">план не задан</span>;
 }
 

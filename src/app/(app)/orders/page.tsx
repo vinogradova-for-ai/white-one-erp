@@ -1,11 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_ORDER } from "@/lib/constants";
 import { resolveModelCost } from "@/lib/calculations/resolve-model-cost";
+import { orderLateDays } from "@/lib/order-auto-status";
 import {
   OrdersListClient,
   type OrdersListRow,
   type OrdersListFilterOptions,
 } from "@/components/orders/orders-list-client";
+import { ListCapNotice } from "@/components/common/list-cap-notice";
+
+// Потолок списка заказов (аудит блок ④): если пришло ровно столько — на UI
+// показываем полосу «показаны первые N». Пагинация — отдельной задачей.
+const ORDERS_CAP = 500;
 
 export default async function OrdersPage() {
   // Грузим все актуальные заказы (без фильтрации в where) — фильтрация
@@ -14,7 +20,7 @@ export default async function OrdersPage() {
   const orders = await prisma.order.findMany({
     where: { deletedAt: null },
     orderBy: [{ launchMonth: "asc" }, { createdAt: "asc" }],
-    take: 500,
+    take: ORDERS_CAP,
     include: {
       // Подтягиваем экономические поля фасона для fallback'а в сумме заказа
       // (тот же приоритет что в resolveModelCost, что и на /orders/[id]).
@@ -60,6 +66,14 @@ export default async function OrdersPage() {
       isDelayed: o.isDelayed,
       hasIssue: o.hasIssue,
       arrivalPlannedDate: o.arrivalPlannedDate ? o.arrivalPlannedDate.toISOString() : null,
+      // Опаздывает (план прибытия прошёл, факта нет) — подсветка без смены статуса (аудит п.6).
+      lateDays: orderLateDays({
+        readyAtFactoryDate: o.readyAtFactoryDate,
+        qcDate: o.qcDate,
+        arrivalPlannedDate: o.arrivalPlannedDate,
+        arrivalActualDate: o.arrivalActualDate,
+        status: o.status,
+      }),
       totalAmount,
       productModel: {
         name: o.productModel.name,
@@ -99,5 +113,10 @@ export default async function OrdersPage() {
       .map((s) => ({ value: s, label: ORDER_STATUS_LABELS[s], count: statusCount.get(s) ?? 0 })),
   };
 
-  return <OrdersListClient orders={rows} filterOptions={filterOptions} />;
+  return (
+    <div className="space-y-3">
+      <ListCapNotice shown={orders.length} cap={ORDERS_CAP} unit="заказов" />
+      <OrdersListClient orders={rows} filterOptions={filterOptions} />
+    </div>
+  );
 }

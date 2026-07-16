@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
     const factory = await prisma.factory.create({
       data: {
         name: data.name,
+        kind: data.kind ?? "SEWING",
         country: data.country,
         city: data.city ?? null,
         contactName: data.contactName ?? null,

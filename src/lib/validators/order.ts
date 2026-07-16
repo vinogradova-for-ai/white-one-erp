@@ -68,5 +68,8 @@ export const orderStatusChangeSchema = z.object({
     "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE",
   ]),
   comment: z.string().optional(),
+  // Дата события статуса (YYYY-MM-DD): например, когда заказ реально приехал
+  // на склад (перевод задним числом). Без неё дата статуса = сейчас.
+  dateIso: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 

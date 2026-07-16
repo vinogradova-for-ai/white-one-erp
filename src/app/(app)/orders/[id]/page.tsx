@@ -12,12 +12,22 @@ import { InlineCheckbox } from "@/components/common/inline-checkbox";
 import { OrderPackagingSection } from "@/components/orders/order-packaging-section";
 import { OrderLinesSection } from "@/components/orders/order-lines-section";
 import { OrderTimelineEditor } from "@/components/orders/order-timeline-editor";
+import { OrderStatusChanger } from "@/components/orders/order-status-changer";
+import { OrderBatchesSection } from "@/components/orders/order-batches-section";
 import { CommentsThread } from "@/components/comments/comments-thread";
 import { auth } from "@/lib/auth";
+import { can } from "@/lib/rbac";
+import type { Role } from "@prisma/client";
 import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
 import { backfillOrderEconomicsFromModel } from "@/server/backfill-order-economics";
 import { syncOrderStatusForward } from "@/server/sync-order-status";
+import { orderLateDays } from "@/lib/order-auto-status";
 import { resolveModelCost } from "@/lib/calculations/resolve-model-cost";
+import { getPaymentFactInfo } from "@/lib/payments/payout-queries";
+import { checkTermsMismatch } from "@/lib/payments/terms-mismatch";
+import { PaymentsTermsWarning } from "@/components/orders/payments-terms-warning";
+import { MarkPaidButton } from "@/components/payments/mark-paid-button";
+import { moscowTodayStart } from "@/lib/dates";
 
 export default async function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -25,6 +35,19 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
   const sessionUser = session?.user as { id?: string; role?: string } | undefined;
   const currentUserId = sessionUser?.id;
   const isAdmin = sessionUser?.role === "OWNER" || sessionUser?.role === "DIRECTOR";
+  // Смена статуса — PM и выше (RBAC). Read-only роли кнопку не видят;
+  // бэкенд-роут /api/orders/[id]/status всё равно перепроверяет право.
+  const canChangeStatus = sessionUser?.role
+    ? can(sessionUser.role as Role, "order.updateStatus")
+    : false;
+  // Пересчёт графика платежей — то же право, что редактирование заказа.
+  const canEditOrder = sessionUser?.role
+    ? can(sessionUser.role as Role, "order.update")
+    : false;
+  // Кнопка «Оплачен» у просроченного платежа — права как на /payments.
+  const canMarkPaid = sessionUser?.role
+    ? can(sessionUser.role as Role, "payment.markPaid")
+    : false;
   // Авто-синк упаковки фасона. Если у фасона есть привязанная упаковка,
   // которая по какой-то причине не «протекла» в этот заказ — она
   // подтянется при следующем открытии заказа. Идемпотентно.
@@ -78,6 +101,13 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         where: { type: "ORDER" },
         orderBy: { plannedDate: "asc" },
       },
+      batches: {
+        orderBy: { index: "asc" },
+        include: {
+          shipment: { select: { id: true, number: true, status: true } },
+          items: { orderBy: [{ colorName: "asc" }, { size: "asc" }] },
+        },
+      },
     },
   });
 
@@ -102,8 +132,27 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
     }),
   ]);
 
+  // Статус плановых платежей по ФАКТУ (разнесённые оплаты фабрикам).
+  const paymentFact = await getPaymentFactInfo(order.payments.map((p) => p.id));
+  // Сверка графика с условиями оплаты («30/70» в шапке vs фактические доли).
+  const termsCheck = checkTermsMismatch(
+    order.paymentTerms,
+    order.payments.map((p) => Number(p.amount)),
+  );
+  const planKopecks = order.payments.reduce((a, p) => a + Math.round(Number(p.amount) * 100), 0);
+  const paidKopecks = order.payments.reduce((a, p) => a + (paymentFact.get(p.id)?.allocatedKopecks ?? 0), 0);
+  const remainderKopecks = Math.max(0, planKopecks - paidKopecks);
+
   const sizes = order.productModel.sizeGrid?.sizes ?? [];
   const totalQty = order.lines.reduce((a, l) => a + l.quantity, 0);
+  // Опаздывает N дней: план прибытия прошёл, факта нет — подсветка без смены статуса (аудит п.6).
+  const lateDays = orderLateDays({
+    readyAtFactoryDate: order.readyAtFactoryDate,
+    qcDate: order.qcDate,
+    arrivalPlannedDate: order.arrivalPlannedDate,
+    arrivalActualDate: order.arrivalActualDate,
+    status: order.status,
+  });
   // Fallback на лету: если у линии не сохранён batchCost, ищем себестоимость
   // в фасоне через общий хелпер (тот же приоритет, что в форме и backfill).
   const modelFullCost = resolveModelCost(order.productModel) ?? 0;
@@ -124,7 +173,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <PhotoThumb url={modelPhoto} size={56} />
           <div className="min-w-0">
             <div className="font-mono text-[11px] uppercase tracking-wider text-slate-400">{order.orderNumber}</div>
-            <h1 className="mt-1 truncate text-2xl font-semibold tracking-tight text-slate-900">
+            <h1 className="mt-1 truncate text-xl font-semibold tracking-tight text-slate-900 md:text-2xl">
               <Link href={`/models/${order.productModel.id}`} className="hover:underline">
                 {order.productModel.name}
               </Link>
@@ -137,8 +186,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               <span>{order.lines.length} {order.lines.length === 1 ? "цвет" : "цвета"}</span>
               <span>·</span>
               <span>{formatNumber(totalQty)} шт</span>
-              {order.isDelayed && <span className="text-red-600">· задержка</span>}
-              {order.hasIssue && <span className="text-red-600">· проблема</span>}
+              {order.isDelayed && <span className="text-red-600 dark:text-red-300">· задержка</span>}
+              {order.hasIssue && <span className="text-red-600 dark:text-red-300">· проблема</span>}
             </div>
           </div>
         </div>
@@ -146,9 +195,17 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${ORDER_STATUS_COLORS[order.status]}`}>
             {ORDER_STATUS_LABELS[order.status]}
           </span>
+          {lateDays > 0 && (
+            <span className="rounded-full bg-amber-100 dark:bg-amber-400/10 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
+              опаздывает {lateDays} дн
+            </span>
+          )}
+          {canChangeStatus && (
+            <OrderStatusChanger orderId={order.id} currentStatus={order.status} />
+          )}
           <Link
             href={`/orders/${order.id}/edit`}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            className="flex h-10 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100"
           >
             Редактировать
           </Link>
@@ -186,9 +243,8 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </dl>
       </div>
 
-      {/* Позиции */}
+      {/* Позиции — заголовок с итогами рисует сама секция */}
       <section>
-        <h2 className="mb-3 text-base font-semibold text-slate-900">Позиции</h2>
         <OrderLinesSection
           orderId={order.id}
           sizes={sizes}
@@ -241,6 +297,31 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
         </div>
       </section>
 
+      {/* Партии и доставка */}
+      <section>
+        <h2 className="mb-3 text-base font-semibold text-slate-900">Партии и доставка</h2>
+        <OrderBatchesSection
+          canManage={canChangeStatus}
+          totalBatches={order.batches.length}
+          batches={order.batches.map((b) => ({
+            id: b.id,
+            index: b.index,
+            receivedAt: b.receivedAt ? b.receivedAt.toISOString() : null,
+            shipment: b.shipment
+              ? { id: b.shipment.id, number: b.shipment.number, status: b.shipment.status }
+              : null,
+            items: b.items.map((i) => ({
+              id: i.id,
+              colorName: i.colorName,
+              size: i.size,
+              plannedQty: i.plannedQty,
+              factQty: i.factQty,
+              defectQty: i.defectQty,
+            })),
+          }))}
+        />
+      </section>
+
       {/* График платежей */}
       <section>
         <h2 className="mb-3 text-base font-semibold text-slate-900">График платежей</h2>
@@ -250,25 +331,88 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
               <p className="text-sm text-slate-500">График ещё не задан.</p>
               <Link
                 href={`/orders/${order.id}/edit`}
-                className="inline-flex items-center rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+                className="inline-flex h-10 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800"
               >
                 Заполнить график платежей
               </Link>
             </div>
           ) : (
             <div className="space-y-1.5">
-              {order.payments.map((pp) => (
-                <div key={pp.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className={`inline-block h-2 w-2 rounded-full ${pp.status === "PAID" ? "bg-emerald-500" : "bg-amber-400"}`} />
-                    <span className="text-slate-900">{pp.label}</span>
-                    <span className="text-xs text-slate-500">· {formatDate(pp.plannedDate)}</span>
+              {termsCheck && !termsCheck.match && (
+                <PaymentsTermsWarning
+                  orderId={order.id}
+                  expectedLabel={termsCheck.expectedLabel}
+                  actualLabel={termsCheck.actualLabel}
+                  canRegenerate={canEditOrder}
+                  hasPaid={order.payments.some((p) => p.status === "PAID")}
+                />
+              )}
+              {order.payments.map((pp) => {
+                const fact = paymentFact.get(pp.id);
+                const st = fact?.status ?? (pp.status === "PAID" ? "legacy-paid" : "unpaid");
+                // §4: просроченный неоплаченный платёж — красным + «просрочен N дн» + кнопка «Оплачен».
+                const overdueDays =
+                  st === "unpaid" && pp.plannedDate < moscowTodayStart()
+                    ? Math.floor((moscowTodayStart().getTime() - pp.plannedDate.getTime()) / 86_400_000)
+                    : 0;
+                // Точка-индикатор: оплачен (в т.ч. legacy) — зелёный, частично — синий, нет — янтарный/красный.
+                const dot =
+                  st === "paid" || st === "legacy-paid" ? "bg-emerald-500" : st === "partial" ? "bg-blue-500" : overdueDays > 0 ? "bg-red-500" : "bg-amber-400";
+                const firstPayout = fact?.payouts[0];
+                let statusText: string;
+                if (st === "paid" && firstPayout) {
+                  statusText = `оплачен ${formatDate(firstPayout.date)}`;
+                } else if (st === "paid") {
+                  statusText = "оплачен";
+                } else if (st === "partial") {
+                  const paid = (fact?.allocatedKopecks ?? 0) / 100;
+                  statusText = `частично ${formatCurrency(paid)} из ${formatCurrency(Number(pp.amount))}`;
+                } else if (st === "legacy-paid") {
+                  statusText = "оплачен (старая запись)";
+                } else {
+                  statusText = "не оплачен";
+                }
+                return (
+                  <div
+                    key={pp.id}
+                    className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-1.5 text-sm ${
+                      overdueDays > 0
+                        ? "border-red-200 bg-red-50/50 dark:border-red-400/20 dark:bg-red-400/10"
+                        : "border-slate-200 bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${dot}`} />
+                      <span className="text-slate-900">{pp.label}</span>
+                      <span className="text-xs text-slate-500">· {formatDate(pp.plannedDate)}</span>
+                      {overdueDays > 0 ? (
+                        <span className="text-xs font-semibold text-red-600 dark:text-red-300">· просрочен {overdueDays} дн</span>
+                      ) : (
+                        <span className="text-xs text-slate-500">· {statusText}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-sm font-medium text-slate-900">{formatCurrency(Number(pp.amount))}</div>
+                      {overdueDays > 0 && canMarkPaid && <MarkPaidButton id={pp.id} />}
+                    </div>
                   </div>
-                  <div className="text-sm font-medium text-slate-900">{formatCurrency(Number(pp.amount))}</div>
+                );
+              })}
+              <div className="mt-2 grid grid-cols-3 gap-2 border-t border-slate-100 pt-2 text-center text-xs">
+                <div>
+                  <div className="text-slate-500">План</div>
+                  <div className="font-semibold text-slate-900">{formatCurrency(planKopecks / 100)}</div>
                 </div>
-              ))}
-              <div className="pt-1 text-right text-xs text-slate-500">
-                Сумма: {formatCurrency(order.payments.reduce((a, p) => a + Number(p.amount), 0))}
+                <div>
+                  <div className="text-slate-500">Оплачено</div>
+                  <div className="font-semibold text-emerald-700 dark:text-emerald-300">{formatCurrency(paidKopecks / 100)}</div>
+                </div>
+                <div>
+                  <div className="text-slate-500">Остаток</div>
+                  <div className={`font-semibold ${remainderKopecks > 0 ? "text-amber-700 dark:text-amber-300" : "text-slate-900"}`}>
+                    {formatCurrency(remainderKopecks / 100)}
+                  </div>
+                </div>
               </div>
             </div>
           )}

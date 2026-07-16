@@ -39,7 +39,7 @@ export function CommentsDrawer({
           </div>
           <Link
             href={`/models/${modelId}`}
-            className="rounded-lg px-2.5 py-1.5 text-xs text-blue-600 hover:bg-blue-50"
+            className="rounded-lg px-2.5 py-1.5 text-xs text-blue-600 hover:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-400/10"
             title="Открыть фасон целиком"
           >
             Открыть фасон ↗

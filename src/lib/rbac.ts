@@ -36,6 +36,10 @@ export type Action =
   | "payment.delete"
   // Packaging (упаковка + заказы упаковки): PM + ASSISTANT (Настя) + админы
   | "packaging.manage"
+  // Shipments (поставки + партии + приёмка): PM + ASSISTANT (Настя принимает) + админы.
+  // shipment.delete — мягкое удаление поставки, только OWNER/DIRECTOR.
+  | "shipment.manage"
+  | "shipment.delete"
   // Admin
   | "user.read"
   | "user.manage"
@@ -107,6 +111,13 @@ export function can(
     // Упаковка и заказы упаковки — PM + ASSISTANT (Настя) + админы
     case "packaging.manage":
       return PM.includes(role) || role === "ASSISTANT";
+
+    // Поставки/партии/приёмка — PM + ASSISTANT (Настя принимает) + админы
+    case "shipment.manage":
+      return PM.includes(role) || role === "ASSISTANT";
+    // Удаление поставки — только владелец/директор (админы вернули true выше)
+    case "shipment.delete":
+      return false;
 
     // Откат статуса — PM (полноценная работа) + админы
     case "product.rollbackStatus":

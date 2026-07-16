@@ -178,7 +178,7 @@ export function CommentsThread({
         onPaste={handlePaste}
         className={`space-y-2 rounded-2xl border-2 bg-white p-3 transition ${
           dropOver
-            ? "border-dashed border-emerald-500 bg-emerald-50/60"
+            ? "border-dashed border-emerald-500 bg-emerald-50/60 dark:bg-emerald-400/10"
             : "border-dashed border-slate-300"
         }`}
       >
@@ -190,23 +190,41 @@ export function CommentsThread({
           className="w-full resize-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:bg-white"
         />
 
-        {/* Подсказка DnD — постоянно видна. Алёна (memory): «Фото всегда drag-n-drop».
-            Поддерживаем три способа: дроп, paste из буфера (Cmd+V), клик 📎. */}
+        {/* Зона прикрепления фото. На десктопе — дроп/paste(⌘V)/клик (память
+            Алёны: «Фото всегда drag-n-drop»). На тач-устройствах (hover:none)
+            DnD и ⌘V недоступны — показываем внятную подсказку «Нажми…» и
+            крупную кнопку «📷 Фото» (сама зона тоже открывает выбор файла). */}
         <div
           onClick={() => fileInputRef.current?.click()}
-          className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-2.5 text-xs transition ${
+          className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-3 text-xs transition [@media(hover:none)]:py-4 ${
             dropOver
-              ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-              : "border-slate-300 bg-slate-50 text-slate-500 hover:border-slate-400 hover:text-slate-700"
+              ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-400/10 text-emerald-700 dark:text-emerald-300"
+              : "border-slate-300 bg-slate-50 text-slate-500 hover:border-slate-400 hover:text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-400"
           }`}
         >
-          <span className="text-base leading-none">📎</span>
-          <span>
-            {dropOver
-              ? "Отпустите файл здесь"
-              : uploading
-              ? "Загружаю…"
-              : "Перетащите фото, вставьте из буфера (⌘V) или нажмите"}
+          {/* Десктопная подсказка — прячется на тач-устройствах */}
+          <span className="flex items-center gap-2 [@media(hover:none)]:hidden">
+            <span className="text-base leading-none">📎</span>
+            <span>
+              {dropOver
+                ? "Отпустите файл здесь"
+                : uploading
+                ? "Загружаю…"
+                : "Перетащите фото, вставьте из буфера (⌘V) или нажмите"}
+            </span>
+          </span>
+
+          {/* Тач-режим: подсказка + заметная кнопка «📷 Фото» */}
+          <span className="hidden flex-col items-center gap-2 [@media(hover:none)]:flex">
+            <span className="text-slate-500 dark:text-slate-400">
+              {uploading ? "Загружаю…" : "Нажми, чтобы прикрепить фото"}
+            </span>
+            <span
+              className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-slate-900 px-5 text-sm font-medium text-white dark:bg-slate-100 dark:text-slate-900"
+              aria-hidden
+            >
+              <span className="text-base leading-none">📷</span> Фото
+            </span>
           </span>
         </div>
 
@@ -232,7 +250,7 @@ export function CommentsThread({
           </div>
         )}
 
-        {error && <div className="text-xs text-red-600">{error}</div>}
+        {error && <div className="text-xs text-red-600 dark:text-red-300">{error}</div>}
         <div className="flex items-center justify-end gap-2">
           <input
             ref={fileInputRef}
@@ -248,7 +266,7 @@ export function CommentsThread({
           <button
             type="submit"
             disabled={(!body.trim() && pendingPhotos.length === 0) || posting || uploading}
-            className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-40"
+            className="inline-flex min-h-[44px] items-center rounded-lg bg-slate-900 px-4 text-xs font-medium text-white disabled:opacity-40 sm:min-h-0 sm:px-3 sm:py-1.5"
           >
             {posting ? "Сохраняю…" : "Добавить"}
           </button>
@@ -282,7 +300,7 @@ export function CommentsThread({
                       <button
                         type="button"
                         onClick={() => remove(c.id)}
-                        className="text-slate-400 hover:text-red-600"
+                        className="text-slate-400 hover:text-red-600 dark:hover:text-red-300"
                         aria-label="Удалить"
                         title="Удалить"
                       >

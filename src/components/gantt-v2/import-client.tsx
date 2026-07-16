@@ -99,23 +99,23 @@ export function ImportClient() {
       </div>
 
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-300">
           {error}
         </div>
       )}
 
       {result && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300">
           <div className="font-semibold">
             Готово. Обновлено: {result.updated}
           </div>
           {result.notFound.length > 0 && (
-            <div className="mt-1 text-amber-800">
+            <div className="mt-1 text-amber-800 dark:text-amber-300">
               Не найдены: {result.notFound.join(", ")}
             </div>
           )}
           {result.errors.length > 0 && (
-            <div className="mt-1 text-red-800">
+            <div className="mt-1 text-red-800 dark:text-red-300">
               Ошибки: {result.errors.map((e) => `${e.orderNumber} — ${e.message}`).join("; ")}
             </div>
           )}

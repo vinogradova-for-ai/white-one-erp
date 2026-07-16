@@ -1,11 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
-import { ORDER_STATUS_ORDER } from "@/lib/constants";
+import { ORDER_STATUS_ORDER, ORDER_STATUS_LABELS } from "@/lib/constants";
 import { OrderStatus, PackagingOrderStatus, ProductModelStatus } from "@prisma/client";
 import { type KanbanCard, type KanbanColumn } from "@/components/models-kanban/board-client";
 import { KanbanFiltersClient, type KanbanFilterOptions } from "@/components/models-kanban/kanban-filters-client";
 import { colorHexFromName } from "@/lib/color-map";
-import { orderKanbanColumn } from "@/lib/order-stage";
+import { orderKanbanColumnByDates } from "@/lib/order-stage";
+import { moscowTodayIso } from "@/lib/dates";
+import { ListCapNotice } from "@/components/common/list-cap-notice";
+
+const KANBAN_MODELS_CAP = 500; // потолок канбана (аудит блок ④)
 
 // 8 колонок: 4 под-этапа Разработки + 3 этапа после заказа + Завершено.
 // Этапы Разработки видны ТОЛЬКО на канбане (не на Ганте) — детализация
@@ -31,23 +35,21 @@ function modelToColumn(status: ProductModelStatus, sizeChartReady: boolean): str
   return "production";
 }
 
-// PackagingOrder → колонка. У упаковки нет ОТК — пропускаем колонку qc.
-//   ORDERED        → production (только что заказали)
-//   IN_PRODUCTION  → production
-//   IN_TRANSIT     → delivery
-//   ARRIVED        → done
-//   CANCELLED      → не показываем
-const PKG_ORDER_STATUS_TO_COL: Partial<Record<PackagingOrderStatus, string>> = {
-  ORDERED: "production",
-  IN_PRODUCTION: "production",
-  IN_TRANSIT: "delivery",
-  ARRIVED: "done",
-};
-
-// Статус заказа → колонка канбана берётся из ЕДИНОГО маппера
-// `orderKanbanColumn` (lib/order-stage), общего с Гантом — чтобы карточка и
-// Гант не расходились. Для фазы «Разработка» он возвращает null: карточка
-// остаётся в колонке разработки по стадии фасона (modelToColumn).
+// ГАНТ ПЕРВИЧЕН (Алёна 05.07): колонка «после заказа» = позиция «сегодня» по
+// ДАТАМ Ганта, не по ручному статусу — девочки двигают Гант, статусы руками
+// не отмечают. Маппер orderKanbanColumnByDates (lib/order-stage).
+// Упаковка — так же по датам: производство до productionEndDate, дальше
+// доставка; «Завершено» — только по факту приёмки (ARRIVED).
+function pkgOrderColumn(
+  status: PackagingOrderStatus,
+  productionEndIso: string | null,
+  todayIso: string,
+): string | null {
+  if (status === "CANCELLED") return null;
+  if (status === "ARRIVED") return "done";
+  if (!productionEndIso || todayIso < productionEndIso) return "production";
+  return "delivery";
+}
 
 // Заказы, которые отделу продукта уже не нужны как живые — статусы «Завершено».
 const DONE_STATUSES: ReadonlyArray<OrderStatus> = [
@@ -68,12 +70,6 @@ function pickPalette(id: string): [string, string] {
 
 function isoDate(d: Date | null | undefined): string | null {
   return d ? d.toISOString().slice(0, 10) : null;
-}
-
-function moscowToday(): string {
-  const now = new Date();
-  const mskMs = now.getTime() + 3 * 60 * 60 * 1000;
-  return new Date(mskMs).toISOString().slice(0, 10);
 }
 
 function dayDiff(aIso: string, bIso: string): number {
@@ -132,7 +128,7 @@ function pickDeadline(col: string, model: { sampleDate: Date | null; approvedDat
 }
 
 export default async function ModelsKanbanPage() {
-  const todayIso = moscowToday();
+  const todayIso = moscowTodayIso();
   const session = await auth();
   const currentUserId = (session?.user as { id?: string } | undefined)?.id;
   const role = (session?.user as { role?: string } | undefined)?.role;
@@ -145,7 +141,7 @@ export default async function ModelsKanbanPage() {
     prisma.productModel.findMany({
     where: { deletedAt: null, activated: true },
     orderBy: { updatedAt: "desc" },
-    take: 500,
+    take: KANBAN_MODELS_CAP,
     select: {
       id: true, name: true, brand: true, category: true, subcategory: true,
       photoUrls: true, status: true, sizeChartReady: true, ownerId: true,
@@ -260,6 +256,11 @@ export default async function ModelsKanbanPage() {
         const diff = dayDiff(todayIso, deadline.iso);
         dlColor = diff < 0 ? "red" : diff <= 7 ? "amber" : "gray";
       }
+      // Бейдж точного статуса — только в «Завершено» (там 4 статуса: склад/
+      // упаковка/WB/продажа). В рабочих колонках колонка теперь считается по
+      // датам Ганта, а ручные статусы девочки не ведут — бейдж был бы шумом.
+      const ambiguous = order && column === "done";
+      const orderStatusLabel = ambiguous ? ORDER_STATUS_LABELS[order.status] : null;
       buckets[column].push({
         modelId: m.id,
         modelName: m.name,
@@ -275,6 +276,7 @@ export default async function ModelsKanbanPage() {
         qty,
         orderNumber: order?.orderNumber ?? null,
         orderId: order?.id ?? null,
+        orderStatusLabel,
         deadline,
         dlColor,
         colorChips,
@@ -287,14 +289,22 @@ export default async function ModelsKanbanPage() {
       pushCard("done", o);
     }
 
-    // Активная сторона: самый продвинутый из live-заказов определяет колонку.
-    // Колонку считает ЕДИНЫЙ маппер orderKanbanColumn (общий с Гантом):
-    //   • заказ в фазе «Разработка» (PREPARATION / FABRIC_ORDERED) → null →
-    //     карточка остаётся в колонке разработки по стадии фасона;
-    //   • Производство / ОТК / Доставка → соответствующая пост-заказная колонка.
-    // Если live-заказа нет — колонка по статусу фасона.
-    const liveOrder = mostAdvanced(liveOrders);
-    const postOrderCol = liveOrder ? orderKanbanColumn(liveOrder.status) : null;
+    // Активная сторона: колонка = самый продвинутый live-заказ ПО ДАТАМ Ганта
+    // (Гант первичен). null у всех → заказы ещё в разработке (или их нет) —
+    // карточка остаётся в колонке разработки по стадии фасона.
+    const COL_RANK: Record<string, number> = { production: 1, qc: 2, delivery: 3 };
+    let liveOrder: OrderForKanban | null = null;
+    let postOrderCol: "production" | "qc" | "delivery" | null = null;
+    for (const o of liveOrders) {
+      const col = orderKanbanColumnByDates(o, todayIso);
+      if (col && (postOrderCol === null || COL_RANK[col] > COL_RANK[postOrderCol])) {
+        postOrderCol = col;
+        liveOrder = o;
+      }
+    }
+    // Все live-заказы ещё в разработке — берём самый продвинутый по статусу
+    // только для подписи (№ заказа, дедлайн), колонку он не определяет.
+    if (!liveOrder) liveOrder = mostAdvanced(liveOrders);
     let liveColumn: string;
     if (!liveOrder || postOrderCol === null) {
       // Заказ ещё в Разработке (или его нет) — колонка по стадии фасона.
@@ -318,7 +328,7 @@ export default async function ModelsKanbanPage() {
   // PackagingItem в lines, заголовок = "📦 PKG-..." + название первой позиции.
   // Без цветочипов и без drag-n-drop.
   for (const po of packagingOrders) {
-    const col = PKG_ORDER_STATUS_TO_COL[po.status];
+    const col = pkgOrderColumn(po.status, isoDate(po.productionEndDate), todayIso);
     if (!col) continue;
     const firstLine = po.lines[0];
     const totalQty = po.lines.reduce((s, l) => s + l.quantity, 0);
@@ -393,6 +403,7 @@ export default async function ModelsKanbanPage() {
 
   return (
     <div className="space-y-3">
+      <ListCapNotice shown={models.length} cap={KANBAN_MODELS_CAP} unit="фасонов" />
       <KanbanFiltersClient
         columns={COLUMNS}
         buckets={buckets}

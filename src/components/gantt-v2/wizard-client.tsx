@@ -117,7 +117,7 @@ export function WizardClient({ items }: { items: WizardOrder[] }) {
       <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
         Активных заказов нет — нечего заполнять.
         <div className="mt-3">
-          <Link href="/gantt-v2" className="text-blue-600 hover:underline">← Вернуться в Гант</Link>
+          <Link href="/gantt-v2" className="text-blue-600 hover:underline dark:text-blue-300">← Вернуться в Гант</Link>
         </div>
       </div>
     );
@@ -125,10 +125,10 @@ export function WizardClient({ items }: { items: WizardOrder[] }) {
 
   if (done) {
     return (
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-8 text-center">
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-8 text-center dark:border-emerald-400/20 dark:bg-emerald-400/10">
         <div className="text-4xl mb-2">🎉</div>
-        <div className="text-base font-semibold text-emerald-900">Готово</div>
-        <div className="mt-2 text-sm text-emerald-800">
+        <div className="text-base font-semibold text-emerald-900 dark:text-emerald-300">Готово</div>
+        <div className="mt-2 text-sm text-emerald-800 dark:text-emerald-300">
           Сохранено: <b>{savedCount}</b> · Пропущено: <b>{skippedCount}</b> из {total}
         </div>
         <div className="mt-5 flex justify-center gap-2">
@@ -217,12 +217,12 @@ export function WizardClient({ items }: { items: WizardOrder[] }) {
                   onChange={(e) => setVals((v) => ({ ...v, [f.key]: e.target.value }))}
                   className={`mt-1 w-full rounded-lg border px-3 py-2 text-sm ${
                     violatesOrder
-                      ? "border-red-400 bg-red-50 focus:border-red-500"
+                      ? "border-red-400 bg-red-50 focus:border-red-500 dark:bg-red-400/10"
                       : "border-slate-300 bg-white focus:border-slate-500"
                   } focus:outline-none`}
                 />
                 {violatesOrder && (
-                  <div className="mt-1 text-[11px] text-red-600">
+                  <div className="mt-1 text-[11px] text-red-600 dark:text-red-300">
                     Раньше предыдущей даты — фазы пересекаются
                   </div>
                 )}
@@ -232,7 +232,7 @@ export function WizardClient({ items }: { items: WizardOrder[] }) {
         </div>
 
         {error && (
-          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">
+          <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-300">
             {error}
           </div>
         )}

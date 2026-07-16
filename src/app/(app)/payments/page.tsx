@@ -1,10 +1,19 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { Prisma, PaymentStatus, PaymentType } from "@prisma/client";
+import { Prisma, PaymentStatus, PaymentType, type Role } from "@prisma/client";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { PaymentRowActions } from "@/components/payments/payment-row-actions";
+import { moscowTodayIso, moscowTodayStart } from "@/lib/dates";
+import { PayoutsPanel, type PayoutListItem } from "@/components/payments/payouts-panel";
+import { auth } from "@/lib/auth";
+import { can } from "@/lib/rbac";
+import { toKopecks } from "@/lib/payments/allocate-payout";
+import { getOverdueDebt, formatOverdueDebt } from "@/lib/queries/overdue-debt";
+import { paymentTargetLabel } from "@/lib/payments/display-name";
+import { ListGroupTabs } from "@/components/payments/list-group-tabs";
+import { PaymentsBulkList, type PaymentListItem } from "@/components/payments/payments-bulk-list";
 
-type View = "calendar" | "list" | "archive";
+type View = "calendar" | "list" | "archive" | "payouts";
 
 const PAYMENT_INCLUDE = {
   order: {
@@ -21,7 +30,14 @@ const PAYMENT_INCLUDE = {
   },
   factory: { select: { name: true } },
   packagingItem: { select: { name: true } },
-  packagingOrder: { select: { id: true, orderNumber: true } },
+  packagingOrder: {
+    select: {
+      id: true,
+      orderNumber: true,
+      supplierName: true,
+      lines: { select: { packagingItem: { select: { name: true } } } },
+    },
+  },
 } satisfies Prisma.PaymentInclude;
 
 type PaymentWithRelations = Prisma.PaymentGetPayload<{ include: typeof PAYMENT_INCLUDE }>;
@@ -29,56 +45,155 @@ type PaymentWithRelations = Prisma.PaymentGetPayload<{ include: typeof PAYMENT_I
 export default async function PaymentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; month?: string; type?: string; q?: string }>;
+  searchParams: Promise<{ view?: string; month?: string; type?: string; q?: string; group?: string }>;
 }) {
   const sp = await searchParams;
-  const view: View = sp.view === "list" || sp.view === "archive" ? sp.view : "calendar";
+  const view: View =
+    sp.view === "list" || sp.view === "archive" || sp.view === "payouts" ? sp.view : "calendar";
+  // «Предстоящие»: по датам (дефолт) или по фабрикам (топ-12).
+  const listGroup: "date" | "factory" = sp.group === "factory" ? "factory" : "date";
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  // «Сегодня» по Москве (UTC+3), а не по локальной зоне сервера — иначе на
+  // Vercel (UTC) ночью 00:00–03:00 МСК месяц по умолчанию и просрочка съезжали.
+  const today = moscowTodayStart();
+  const todayStr = moscowTodayIso().slice(0, 7); // YYYY-MM
   const month = sp.month ?? todayStr;
   const typeFilter = sp.type === "ORDER" || sp.type === "PACKAGING" ? (sp.type as PaymentType) : null;
   const q = (sp.q ?? "").trim();
 
+  // Единая правда о долге (П1): все просроченные PENDING без нулевых,
+  // НЕ зависит от выбранного месяца — блок не исчезает при листании.
+  const overdueDebt = await getOverdueDebt(today);
+
   return (
     <div className="space-y-4">
       <div className="flex items-baseline justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-slate-900">Платежи</h1>
+        <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Платежи</h1>
         <Link
           href="/payments/new"
-          className="rounded-lg bg-slate-900 px-4 py-3 text-sm font-medium text-white hover:bg-slate-800 md:py-2"
+          className="flex h-11 shrink-0 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 active:bg-slate-800"
         >
-          + Создать платёж
+          + Создать
         </Link>
       </div>
 
       {/* Вкладки */}
-      <div className="flex flex-wrap items-center gap-1 border-b border-slate-200">
+      <div className="no-scrollbar -mx-4 flex items-center gap-1 overflow-x-auto border-b border-slate-200 px-4 md:mx-0 md:flex-wrap md:px-0">
         <Tab href={`/payments?view=calendar`} active={view === "calendar"} label="Календарь" />
         <Tab href={`/payments?view=list`} active={view === "list"} label="Предстоящие" />
         <Tab href={`/payments?view=archive`} active={view === "archive"} label="Архив" />
+        <Tab href={`/payments?view=payouts`} active={view === "payouts"} label="Оплаты" />
       </div>
 
-      {/* Фильтры по типу — общие для всех вкладок */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-xs uppercase tracking-wide text-slate-400 mr-1">Тип:</span>
+      {/* Фильтры по типу — общие для вкладок платежей (не для «Оплат») */}
+      {view !== "payouts" && (
+      <div className="no-scrollbar -mx-4 flex items-center gap-1.5 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
+        <span className="mr-1 shrink-0 text-xs uppercase tracking-wide text-slate-400">Тип:</span>
         <FilterPill href={hrefWith(sp, { view, type: null })} active={!typeFilter} label="Все" />
         <FilterPill href={hrefWith(sp, { view, type: "ORDER" })} active={typeFilter === "ORDER"} label="Фабрики" />
         <FilterPill href={hrefWith(sp, { view, type: "PACKAGING" })} active={typeFilter === "PACKAGING"} label="Упаковка" />
       </div>
+      )}
+
+      {/* Закреплённый блок долга — виден на всех вкладках планов, при любом месяце */}
+      {view !== "payouts" && overdueDebt.count > 0 && (
+        <Link
+          href="/payments?view=list"
+          className="flex flex-wrap items-baseline gap-x-2 gap-y-1 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm hover:bg-red-100 dark:border-red-400/30 dark:bg-red-400/10 dark:hover:bg-red-400/20"
+        >
+          <span className="font-semibold text-red-700 dark:text-red-300">
+            Просрочено ранее: {formatOverdueDebt(overdueDebt)}
+          </span>
+          <span className="text-xs text-red-600/80 dark:text-red-300/80">
+            все неоплаченные с датой раньше сегодня, за всё время →
+          </span>
+        </Link>
+      )}
 
       {view === "calendar" && (
         <CalendarView month={month} typeFilter={typeFilter} sp={sp} />
       )}
       {view === "list" && (
-        <ListView typeFilter={typeFilter} todayStart={today} />
+        <ListView
+          typeFilter={typeFilter}
+          todayStart={today}
+          group={listGroup}
+          hasExplicitGroupParam={sp.group === "factory" || sp.group === "date"}
+        />
       )}
       {view === "archive" && (
         <ArchiveView typeFilter={typeFilter} q={q} sp={sp} />
       )}
+      {view === "payouts" && <PayoutsView />}
     </div>
   );
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// VIEW: Оплаты — фактические переводы фабрикам с разнесением по плановым платежам
+// ──────────────────────────────────────────────────────────────────────────────
+async function PayoutsView() {
+  const session = await auth();
+  const role = (session?.user as { role?: Role } | undefined)?.role;
+  const canDelete = role ? can(role, "payment.delete") : false;
+  const canCreate = role ? can(role, "payment.markPaid") : false;
+
+  const [payouts, factories] = await Promise.all([
+    prisma.factoryPayout.findMany({
+      where: { deletedAt: null },
+      orderBy: { date: "desc" },
+      take: 300,
+      include: {
+        factory: { select: { name: true } },
+        createdBy: { select: { name: true } },
+        allocations: {
+          include: {
+            payment: {
+              select: {
+                type: true,
+                order: { select: { orderNumber: true, productModel: { select: { name: true } } } },
+                packagingOrder: { select: { orderNumber: true } },
+                packagingItem: { select: { name: true } },
+                supplierName: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.factory.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
+
+  const items: PayoutListItem[] = payouts.map((p) => {
+    const allocatedKopecks = p.allocations.reduce((a, x) => a + toKopecks(x.amount.toString()), 0);
+    const amountKopecks = toKopecks(p.amount.toString());
+    const leftoverKopecks = Math.max(0, amountKopecks - allocatedKopecks);
+    return {
+      id: p.id,
+      date: p.date.toISOString(),
+      factoryName: p.factory.name,
+      amount: p.amount.toString(),
+      currencyNote: p.currencyNote,
+      comment: p.comment,
+      createdByName: p.createdBy.name,
+      allocatedTotal: (allocatedKopecks / 100).toFixed(2),
+      leftover: (leftoverKopecks / 100).toFixed(2),
+      allocations: p.allocations.map((a) => {
+        const pm = a.payment;
+        const label =
+          pm.type === "ORDER"
+            ? `${pm.order?.orderNumber ?? "заказ"}${pm.order?.productModel.name ? " · " + pm.order.productModel.name : ""}`
+            : `${pm.packagingOrder?.orderNumber ?? pm.supplierName ?? "упаковка"}${pm.packagingItem?.name ? " · " + pm.packagingItem.name : ""}`;
+        return { id: a.id, paymentLabel: label, amount: a.amount.toString() };
+      }),
+    };
+  });
+
+  return <PayoutsPanel payouts={items} factories={factories} canDelete={canDelete} canCreate={canCreate} />;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -122,11 +237,8 @@ async function CalendarView({
   const total = payments.reduce((a, p) => a + Number(p.amount), 0);
   const paid = payments.filter((p) => p.status === "PAID").reduce((a, p) => a + Number(p.amount), 0);
   const pending = total - paid;
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const overdue = payments
-    .filter((p) => p.status === "PENDING" && p.plannedDate < todayStart)
-    .reduce((a, p) => a + Number(p.amount), 0);
+  // МСК-полночь (UTC-база) — согласуется с UTC-датами ячеек календаря ниже.
+  const todayStart = moscowTodayStart();
 
   const prevMonth = new Date(Date.UTC(y, m - 2, 1));
   const nextMonth = new Date(Date.UTC(y, m, 1));
@@ -140,33 +252,33 @@ async function CalendarView({
   }
   while (cells.length < 42) cells.push({ day: null, date: null });
 
-  const todayDay = todayStart.getMonth() + 1 === m && todayStart.getFullYear() === y
-    ? todayStart.getDate() : null;
+  const todayDay = todayStart.getUTCMonth() + 1 === m && todayStart.getUTCFullYear() === y
+    ? todayStart.getUTCDate() : null;
 
   return (
     <>
-      {/* Сводка */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Summary title="К оплате" value={formatCurrency(pending)} />
+      {/* Сводка месяца. Просрочка здесь НЕ показывается по месяцу —
+          единая цифра долга в красном блоке выше (П1: одна правда о долге). */}
+      <div className="grid grid-cols-3 gap-3">
+        <Summary title="К оплате в этом месяце" value={formatCurrency(pending)} />
         <Summary title="Оплачено" value={formatCurrency(paid)} muted />
         <Summary title="Всего" value={formatCurrency(total)} muted />
-        <Summary title="Просрочено" value={formatCurrency(overdue)} danger={overdue > 0} />
       </div>
 
-      {/* Навигация по месяцам */}
-      <div className="flex items-center justify-between">
+      {/* Навигация по месяцам — на мобиле у боковых кнопок только стрелка, чтобы влезало */}
+      <div className="flex items-center justify-between gap-2">
         <Link
           href={`/payments?view=calendar&month=${monthIso(prevMonth)}${typeFilter ? `&type=${typeFilter}` : ""}`}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+          className="flex h-10 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm hover:bg-slate-50 active:bg-slate-100"
         >
-          ◀ {formatMonthLabel(monthIso(prevMonth))}
+          ◀ <span className="hidden sm:inline">&nbsp;{formatMonthLabel(monthIso(prevMonth))}</span>
         </Link>
-        <div className="text-lg font-semibold text-slate-900">{formatMonthLabel(month)}</div>
+        <div className="text-base font-semibold text-slate-900 md:text-lg">{formatMonthLabel(month)}</div>
         <Link
           href={`/payments?view=calendar&month=${monthIso(nextMonth)}${typeFilter ? `&type=${typeFilter}` : ""}`}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:bg-slate-50"
+          className="flex h-10 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm hover:bg-slate-50 active:bg-slate-100"
         >
-          {formatMonthLabel(monthIso(nextMonth))} ▶
+          <span className="hidden sm:inline">{formatMonthLabel(monthIso(nextMonth))}&nbsp;</span> ▶
         </Link>
       </div>
 
@@ -194,11 +306,11 @@ async function CalendarView({
                 {c.day != null && (
                   <>
                     <div className={`mb-1 flex items-baseline justify-between gap-1 ${isPast ? "text-slate-400" : "text-slate-700"}`}>
-                      <span className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full text-sm font-semibold ${isToday ? "bg-blue-600 px-2 text-white shadow ring-2 ring-blue-300" : ""}`}>
+                      <span className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full text-sm font-semibold ${isToday ? "bg-blue-600 px-2 text-white shadow ring-2 ring-blue-300 dark:ring-blue-400/30" : ""}`}>
                         {c.day}
                       </span>
                       {sum > 0 && (
-                        <span className={`text-[11px] font-semibold ${isPast && dayPays.some((p) => p.status === "PENDING") ? "text-red-600" : "text-slate-600"}`}>
+                        <span className={`text-[11px] font-semibold ${isPast && dayPays.some((p) => p.status === "PENDING") ? "text-red-600 dark:text-red-300" : "text-slate-600"}`}>
                           {formatCurrency(sum)}
                         </span>
                       )}
@@ -270,7 +382,7 @@ function MobileMonthList({
           <div
             key={day}
             className={`overflow-hidden rounded-2xl border bg-white ${
-              isToday ? "border-blue-300 ring-1 ring-blue-200" : "border-slate-200"
+              isToday ? "border-blue-300 ring-1 ring-blue-200 dark:border-blue-400/20 dark:ring-blue-400/30" : "border-slate-200"
             }`}
           >
             <div className="flex items-baseline justify-between gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2">
@@ -285,9 +397,9 @@ function MobileMonthList({
                 <span className="text-xs uppercase tracking-wide text-slate-500">
                   {["пн", "вт", "ср", "чт", "пт", "сб", "вс"][dow]}
                 </span>
-                {isToday && <span className="text-xs font-medium text-blue-600">сегодня</span>}
+                {isToday && <span className="text-xs font-medium text-blue-600 dark:text-blue-300">сегодня</span>}
               </div>
-              <span className={`text-sm font-semibold tabular-nums ${hasPendingPast ? "text-red-600" : "text-slate-700"}`}>
+              <span className={`text-sm font-semibold tabular-nums ${hasPendingPast ? "text-red-600 dark:text-red-300" : "text-slate-700"}`}>
                 {formatCurrency(sum)}
               </span>
             </div>
@@ -307,17 +419,17 @@ function MobilePaymentRow({ p, isPast }: { p: PaymentWithRelations; isPast: bool
   const isPaid = p.status === "PAID";
   const isOverdue = !isPaid && isPast;
   const statusCls = isPaid
-    ? "bg-emerald-100 text-emerald-700"
+    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300"
     : isOverdue
-    ? "bg-red-100 text-red-700"
+    ? "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-300"
     : p.type === "ORDER"
-    ? "bg-blue-100 text-blue-700"
-    : "bg-amber-100 text-amber-800";
+    ? "bg-blue-100 text-blue-700 dark:bg-blue-400/10 dark:text-blue-300"
+    : "bg-amber-100 text-amber-800 dark:bg-amber-400/10 dark:text-amber-300";
   const statusLabel = isPaid ? "Оплачено" : isOverdue ? "Просрочено" : "К оплате";
   const subject = p.type === "ORDER"
-    ? (p.order?.productModel.name ?? p.factory?.name ?? "—")
-    : (p.packagingItem?.name ?? p.supplierName ?? "—");
-  const counterparty = p.type === "ORDER" ? p.factory?.name : p.supplierName;
+    ? (p.order?.productModel.name ?? p.factory?.name ?? p.label)
+    : paymentTargetLabel(p);
+  const counterparty = p.type === "ORDER" ? p.factory?.name : (p.supplierName ?? p.packagingOrder?.supplierName);
   return (
     <Link href={paymentTargetHref(p)} className="block px-3 py-2.5 active:bg-slate-50">
       <div className="flex items-baseline justify-between gap-2">
@@ -347,17 +459,17 @@ function CalendarChip({ p, isPast }: { p: PaymentWithRelations; isPast: boolean 
   const isPaid = p.status === "PAID";
   const isOverdue = !isPaid && isPast;
   const cls = isPaid
-    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-400/10 dark:text-emerald-300 dark:border-emerald-400/20"
     : isOverdue
-    ? "bg-red-50 text-red-700 border-red-200"
+    ? "bg-red-50 text-red-700 border-red-200 dark:bg-red-400/10 dark:text-red-300 dark:border-red-400/20"
     : p.type === "ORDER"
-    ? "bg-blue-50 text-blue-700 border-blue-200"
-    : "bg-amber-50 text-amber-800 border-amber-200";
-  // ЗА ЧТО плачу: для заказа — имя фасона, для упаковки — имя упаковки
+    ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-400/10 dark:text-blue-300 dark:border-blue-400/20"
+    : "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-400/10 dark:text-amber-300 dark:border-amber-400/20";
+  // ЗА ЧТО плачу: для заказа — имя фасона, для упаковки — PKG-номер · позиция · поставщик (П2)
   const subject = p.type === "ORDER"
-    ? (p.order?.productModel.name ?? p.factory?.name ?? "—")
-    : (p.packagingItem?.name ?? p.supplierName ?? "—");
-  const counterparty = p.type === "ORDER" ? p.factory?.name : p.supplierName;
+    ? (p.order?.productModel.name ?? p.factory?.name ?? p.label)
+    : paymentTargetLabel(p);
+  const counterparty = p.type === "ORDER" ? p.factory?.name : (p.supplierName ?? p.packagingOrder?.supplierName);
   return (
     <Link
       href={paymentTargetHref(p)}
@@ -376,23 +488,63 @@ function CalendarChip({ p, isPast }: { p: PaymentWithRelations; isPast: boolean 
 async function ListView({
   typeFilter,
   todayStart,
+  group,
+  hasExplicitGroupParam,
 }: {
   typeFilter: PaymentType | null;
   todayStart: Date;
+  group: "date" | "factory";
+  hasExplicitGroupParam: boolean;
 }) {
+  const session = await auth();
+  const role = (session?.user as { role?: Role } | undefined)?.role;
+  // Чекбоксы массовой отметки — только тем, кто вправе отмечать оплату.
+  const canMarkPaid = role ? can(role, "payment.markPaid") : false;
+
   const where: Prisma.PaymentWhereInput = {
     status: "PENDING",
     ...(typeFilter ? { type: typeFilter } : {}),
   };
-  const payments = await prisma.payment.findMany({
+  const allPayments = await prisma.payment.findMany({
     where,
     orderBy: { plannedDate: "asc" },
     take: 500,
     include: PAYMENT_INCLUDE,
   });
 
+  // Топ-7 UX-аудита (подтверждено Алёной): «просрочен 0 ₽» — это авто-платежи
+  // заказов без цены, они мусорят список. Скрываем, вместо них одна строка
+  // со ссылкой на «Дыры в данных», где цены и заполняются.
+  const zeroCount = allPayments.filter((p) => Number(p.amount) === 0).length;
+  const payments = allPayments.filter((p) => Number(p.amount) > 0);
+
   const total = payments.reduce((a, p) => a + Number(p.amount), 0);
   const overdue = payments.filter((p) => p.plannedDate < todayStart).reduce((a, p) => a + Number(p.amount), 0);
+
+  // Сериализация для клиентского списка с чекбоксами (§4 UX-аудита: массовая отметка).
+  const listItems: PaymentListItem[] = payments.map((p) => {
+    const subject =
+      p.type === "ORDER"
+        ? (p.order?.productModel.name ?? p.factory?.name ?? p.label)
+        : (p.packagingItem?.name ??
+            (p.packagingOrder?.lines?.map((l) => l.packagingItem.name).join(", ") || paymentTargetLabel(p)));
+    return {
+      id: p.id,
+      plannedDateIso: p.plannedDate.toISOString(),
+      amount: p.amount.toString(),
+      label: p.label,
+      type: p.type,
+      subject,
+      colorNames:
+        p.type === "ORDER" && p.order && p.order.lines.length > 0
+          ? p.order.lines.map((l) => l.productVariant.colorName).join(", ")
+          : null,
+      counterparty:
+        p.type === "ORDER" ? (p.factory?.name ?? null) : (p.supplierName ?? p.packagingOrder?.supplierName ?? null),
+      orderNumber: p.type === "ORDER" ? (p.order?.orderNumber ?? null) : (p.packagingOrder?.orderNumber ?? null),
+      href: paymentTargetHref(p),
+    };
+  });
 
   return (
     <>
@@ -402,16 +554,29 @@ async function ListView({
         <Summary title="Платежей" value={String(payments.length)} muted />
       </div>
 
+      {zeroCount > 0 && (
+        <Link
+          href="/data-gaps"
+          className="flex flex-wrap items-baseline gap-x-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 hover:bg-amber-100 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-300 dark:hover:bg-amber-400/20"
+        >
+          <span className="font-medium">{zeroCount} {pluralPayments(zeroCount)} без суммы — заполните цены заказов</span>
+          <span className="text-xs opacity-80">скрыты из списка · открыть «Дыры в данных» →</span>
+        </Link>
+      )}
+
+      <ListGroupTabs current={group} typeParam={typeFilter} hasExplicitParam={hasExplicitGroupParam} />
+
       {payments.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">
           Предстоящих платежей нет.
         </div>
       ) : (
-        <div className="space-y-2">
-          {payments.map((p) => (
-            <BigCard key={p.id} p={p} todayStart={todayStart} />
-          ))}
-        </div>
+        <PaymentsBulkList
+          items={listItems}
+          group={group}
+          canMarkPaid={canMarkPaid}
+          todayIso={moscowTodayIso().slice(0, 10)}
+        />
       )}
     </>
   );
@@ -452,8 +617,7 @@ async function ArchiveView({
   });
 
   const totalPaid = payments.reduce((a, p) => a + Number(p.amount), 0);
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  const todayStart = moscowTodayStart();
 
   return (
     <>
@@ -468,7 +632,7 @@ async function ArchiveView({
             name="q"
             defaultValue={q}
             placeholder="Поиск: контрагент, заказ, упаковка…"
-            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+            className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm"
           />
         </form>
       </div>
@@ -506,20 +670,20 @@ function BigCard({
   return (
     <div
       className={`flex flex-wrap items-center gap-3 rounded-2xl border bg-white p-4 ${
-        isOverdue ? "border-red-300 bg-red-50/40" : isPaid ? "border-emerald-200" : "border-slate-200"
+        isOverdue ? "border-red-300 bg-red-50/40 dark:border-red-400/20 dark:bg-red-400/10" : isPaid ? "border-emerald-200 dark:border-emerald-400/20" : "border-slate-200"
       }`}
     >
       {/* Дата */}
       <div className="min-w-[88px] text-left">
-        <div className={`text-3xl font-bold leading-none ${isOverdue ? "text-red-700" : "text-slate-900"}`}>
+        <div className={`text-3xl font-bold leading-none ${isOverdue ? "text-red-700 dark:text-red-300" : "text-slate-900"}`}>
           {String(p.plannedDate.getDate()).padStart(2, "0")}
         </div>
-        <div className={`text-xs uppercase ${isOverdue ? "text-red-600" : "text-slate-500"}`}>
+        <div className={`text-xs uppercase ${isOverdue ? "text-red-600 dark:text-red-300" : "text-slate-500"}`}>
           {monthShort(p.plannedDate)} {p.plannedDate.getFullYear()}
         </div>
-        {isOverdue && <div className="text-[10px] font-semibold text-red-600">просрочен</div>}
+        {isOverdue && <div className="text-[10px] font-semibold text-red-600 dark:text-red-300">просрочен</div>}
         {archived && p.paidAt && (
-          <div className="mt-1 text-[10px] text-emerald-700">опл. {formatDate(p.paidAt)}</div>
+          <div className="mt-1 text-[10px] text-emerald-700 dark:text-emerald-300">опл. {formatDate(p.paidAt)}</div>
         )}
       </div>
 
@@ -541,12 +705,14 @@ function BigCard({
               </span>
             )}
           </Link>
-        ) : p.type === "PACKAGING" && p.packagingItem ? (
+        ) : p.type === "PACKAGING" ? (
           <Link
             href={p.packagingOrder ? `/packaging-orders/${p.packagingOrder.id}` : `/payments/${p.id}/edit`}
             className="block text-base font-semibold text-slate-900 hover:underline"
           >
-            {p.packagingItem.name}
+            {/* П2: даже без привязки к позиции платёж подписан — PKG-номер · позиции · поставщик */}
+            {p.packagingItem?.name ??
+              (p.packagingOrder?.lines?.map((l) => l.packagingItem.name).join(", ") || paymentTargetLabel(p))}
           </Link>
         ) : (
           <div className="text-base font-semibold text-slate-700">{counterparty ?? "—"}</div>
@@ -555,7 +721,7 @@ function BigCard({
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
           <span
             className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-              p.type === "ORDER" ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"
+              p.type === "ORDER" ? "bg-blue-50 text-blue-700 dark:bg-blue-400/10 dark:text-blue-300" : "bg-amber-50 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300"
             }`}
           >
             {p.type === "ORDER" ? "Фабрика" : "Упаковка"}
@@ -581,11 +747,20 @@ function BigCard({
 // ──────────────────────────────────────────────────────────────────────────────
 // Хэлперы
 // ──────────────────────────────────────────────────────────────────────────────
+function pluralPayments(n: number): string {
+  const m100 = n % 100;
+  const m10 = n % 10;
+  if (m100 >= 11 && m100 <= 14) return "платежей";
+  if (m10 === 1) return "платёж";
+  if (m10 >= 2 && m10 <= 4) return "платежа";
+  return "платежей";
+}
+
 function Tab({ href, active, label }: { href: string; active: boolean; label: string }) {
   return (
     <Link
       href={href}
-      className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
+      className={`-mb-px inline-flex min-h-[44px] shrink-0 items-center border-b-2 px-4 text-sm font-medium ${
         active
           ? "border-slate-900 text-slate-900"
           : "border-transparent text-slate-500 hover:text-slate-700"
@@ -600,7 +775,7 @@ function FilterPill({ href, active, label }: { href: string; active: boolean; la
   return (
     <Link
       href={href}
-      className={`rounded-full px-3 py-1 text-xs font-medium ${
+      className={`inline-flex min-h-[36px] shrink-0 items-center rounded-full px-3 text-xs font-medium ${
         active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
       }`}
     >
@@ -623,17 +798,17 @@ function Summary({
   return (
     <div
       className={`rounded-xl border p-4 ${
-        danger ? "border-red-200 bg-red-50" : muted ? "border-slate-200 bg-slate-50" : "border-slate-200 bg-white"
+        danger ? "border-red-200 bg-red-50 dark:border-red-400/20 dark:bg-red-400/10" : muted ? "border-slate-200 bg-slate-50" : "border-slate-200 bg-white"
       }`}
     >
       <div className="text-xs text-slate-500">{title}</div>
-      <div className={`mt-1 text-xl font-semibold ${danger ? "text-red-700" : "text-slate-900"}`}>{value}</div>
+      <div className={`mt-1 text-xl font-semibold ${danger ? "text-red-700 dark:text-red-300" : "text-slate-900"}`}>{value}</div>
     </div>
   );
 }
 
 function hrefWith(
-  sp: { view?: string; type?: string; month?: string; q?: string },
+  sp: { view?: string; type?: string; month?: string; q?: string; group?: string },
   patch: { view?: string; type?: string | null; month?: string },
 ): string {
   const merged: Record<string, string> = {};
@@ -641,6 +816,7 @@ function hrefWith(
   if (sp.month) merged.month = sp.month;
   if (sp.type) merged.type = sp.type;
   if (sp.q) merged.q = sp.q;
+  if (sp.group) merged.group = sp.group;
   for (const [k, v] of Object.entries(patch)) {
     if (v === null) delete merged[k];
     else if (v !== undefined) merged[k] = v;

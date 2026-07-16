@@ -40,7 +40,7 @@ export function FillPlanButton() {
         type="button"
         onClick={onFill}
         disabled={pending}
-        className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+        className="flex h-10 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
       >
         {pending ? "…" : "✦ Заполнить дефолтный план"}
       </button>
@@ -48,7 +48,7 @@ export function FillPlanButton() {
         type="button"
         onClick={onClear}
         disabled={pending}
-        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-500 hover:border-red-300 hover:text-red-600 disabled:opacity-50"
+        className="flex h-10 items-center rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-500 hover:border-red-300 hover:text-red-600 disabled:opacity-50"
         title="Удалить только автосгенерированные (notes = …)"
       >
         Очистить

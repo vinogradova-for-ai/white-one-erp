@@ -4,8 +4,26 @@ import { PACKAGING_TYPE_LABELS, PACKAGING_TYPE_ICONS } from "@/lib/constants";
 import { PACKAGING_STATUS_LABELS, PACKAGING_STATUS_COLORS } from "@/lib/status-machine/packaging-statuses";
 import { PhotoThumb } from "@/components/common/photo-thumb";
 import { ClickableRow } from "@/components/common/clickable-row";
+import { ConsumeShippedButton } from "@/components/packaging/consume-shipped-button";
 
 export default async function PackagingListPage() {
+  // «Неучтённый расход» (правка №4): заказы отгружены, а упаковка не списана —
+  // склад на бумаге больше, чем в реальности. Списывается кнопкой ниже.
+  const unconsumedShipped = await prisma.orderPackaging.findMany({
+    where: {
+      consumedQty: null,
+      order: { deletedAt: null, status: { in: ["SHIPPED_WB", "ON_SALE"] } },
+    },
+    select: {
+      quantityPerUnit: true,
+      order: { select: { lines: { select: { quantity: true } } } },
+    },
+  });
+  const unconsumedQty = unconsumedShipped.reduce((s, u) => {
+    const orderQty = u.order.lines.reduce((a, l) => a + l.quantity, 0);
+    return s + Math.max(0, Math.ceil(orderQty * Number(u.quantityPerUnit)));
+  }, 0);
+
   const items = await prisma.packagingItem.findMany({
     orderBy: [{ isActive: "desc" }, { name: "asc" }],
     include: {
@@ -18,12 +36,13 @@ export default async function PackagingListPage() {
         },
         select: {
           quantityPerUnit: true,
+          consumedQty: true,
           order: { select: { lines: { select: { quantity: true } } } },
         },
       },
       packagingOrderLines: {
         where: { packagingOrder: { status: { notIn: ["ARRIVED", "CANCELLED"] } } },
-        select: { quantity: true },
+        select: { quantity: true, packagingOrder: { select: { status: true } } },
       },
     },
   });
@@ -31,14 +50,24 @@ export default async function PackagingListPage() {
   const rows = items.map((i) => {
     const required = i.orderUsages.reduce((sum, u) => {
       const orderQty = u.order.lines.reduce((a, l) => a + l.quantity, 0);
-      return sum + orderQty * Number(u.quantityPerUnit);
+      // Уже списанное со склада (заказ в «Упаковке») не считаем повторно:
+      // иначе одно и то же требование давит и на stock, и на потребность (№3).
+      const remaining = Math.max(0, Math.ceil(orderQty * Number(u.quantityPerUnit)) - (u.consumedQty ?? 0));
+      return sum + remaining;
     }, 0);
-    const inProduction = i.packagingOrderLines.reduce((a, l) => a + l.quantity, 0);
-    const available = i.stock + inProduction;
+    // Активные заказы упаковки делим: «в пути» (IN_TRANSIT) видно отдельно от производства.
+    const inTransit = i.packagingOrderLines
+      .filter((l) => l.packagingOrder.status === "IN_TRANSIT")
+      .reduce((a, l) => a + l.quantity, 0);
+    const inProduction = i.packagingOrderLines
+      .filter((l) => l.packagingOrder.status !== "IN_TRANSIT")
+      .reduce((a, l) => a + l.quantity, 0);
+    const available = i.stock + inProduction + inTransit;
     const shortage = Math.max(0, Math.ceil(required) - available);
     return {
       ...i,
       inProduction,
+      inTransit,
       required: Math.ceil(required),
       shortage,
       lowStock: i.minStock != null && i.stock < i.minStock,
@@ -52,41 +81,62 @@ export default async function PackagingListPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Упаковка</h1>
+          <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Упаковка</h1>
           <p className="text-sm text-slate-500">Активных: {activeCount} из {rows.length}</p>
         </div>
         <Link
           href="/packaging/new"
-          className="rounded-lg bg-slate-900 px-4 py-3 text-sm font-medium text-white hover:bg-slate-800 md:py-2"
+          className="flex h-11 shrink-0 items-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 active:bg-slate-800"
         >
-          + Добавить карточку
+          + Добавить
         </Link>
       </div>
 
+      {unconsumedQty > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-400/20 dark:bg-amber-400/10">
+          <div className="text-sm text-amber-900 dark:text-amber-300">
+            <span className="font-medium">
+              Не списано по отгруженным заказам: {unconsumedQty.toLocaleString("ru-RU")} шт
+            </span>{" "}
+            <span className="text-xs opacity-80">
+              ({unconsumedShipped.length} строк) — остатки на складе показаны с этим излишком
+            </span>
+          </div>
+          <ConsumeShippedButton totalQty={unconsumedQty} rows={unconsumedShipped.length} />
+        </div>
+      )}
+
       {shortageRows.length > 0 && (
-        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-400/20 dark:bg-amber-400/10">
           <div className="mb-2 flex items-baseline justify-between gap-2">
-            <div className="font-medium text-amber-900">
+            <div className="font-medium text-amber-900 dark:text-amber-300">
               Нужно запустить в производство: {shortageRows.length}
             </div>
             <Link
               href="/packaging-orders/new"
-              className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700"
+              className="inline-flex h-9 shrink-0 items-center rounded-lg bg-amber-600 px-3 text-xs font-medium text-white hover:bg-amber-700 active:bg-amber-700"
             >
               + Заказ упаковки
             </Link>
           </div>
-          <ul className="space-y-1 text-sm text-amber-900">
+          <ul className="space-y-1 text-sm text-amber-900 dark:text-amber-300">
             {shortageRows.map((r) => (
-              <li key={r.id} className="flex items-baseline justify-between gap-2">
+              <li key={r.id} className="flex flex-wrap items-center justify-between gap-2">
                 <Link href={`/packaging/${r.id}`} className="hover:underline">
                   {r.name}
                 </Link>
-                <span className="text-xs">
-                  нужно {r.required.toLocaleString("ru-RU")} шт · есть {(r.stock + r.inProduction).toLocaleString("ru-RU")} ·
-                  <span className="ml-1 font-semibold text-red-700">
+                <span className="flex items-center gap-2 text-xs">
+                  нужно {r.required.toLocaleString("ru-RU")} шт · есть {(r.stock + r.inProduction + r.inTransit).toLocaleString("ru-RU")} ·
+                  <span className="font-semibold text-red-700 dark:text-red-300">
                     дефицит {r.shortage.toLocaleString("ru-RU")}
                   </span>
+                  {/* Топ-13: заказ в один клик с предзаполненным количеством */}
+                  <Link
+                    href={`/packaging-orders/new?itemId=${r.id}&qty=${r.shortage}`}
+                    className="inline-flex min-h-[30px] items-center rounded-lg bg-slate-900 px-2.5 text-[11px] font-medium text-white hover:bg-slate-800"
+                  >
+                    Заказать
+                  </Link>
                 </span>
               </li>
             ))}
@@ -100,7 +150,7 @@ export default async function PackagingListPage() {
           <Link
             key={r.id}
             href={`/packaging/${r.id}`}
-            className={`block rounded-xl border bg-white p-3 active:bg-slate-50 ${r.shortage > 0 ? "border-red-200" : "border-slate-200"} ${r.isActive ? "" : "opacity-60"}`}
+            className={`block rounded-xl border bg-white p-3 active:bg-slate-50 ${r.shortage > 0 ? "border-red-200 dark:border-red-400/20" : "border-slate-200"} ${r.isActive ? "" : "opacity-60"}`}
           >
             <div className="flex items-center gap-3">
               {r.photoUrl ? (
@@ -118,23 +168,27 @@ export default async function PackagingListPage() {
                 </div>
               </div>
               {r.shortage > 0 ? (
-                <span className="shrink-0 rounded bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
-                  -{r.shortage.toLocaleString("ru-RU")}
+                <span className="shrink-0 rounded bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700 dark:bg-red-400/10 dark:text-red-300">
+                  дефицит {r.shortage.toLocaleString("ru-RU")}
                 </span>
               ) : (
-                <span className="shrink-0 text-[11px] text-emerald-600">✓ Хватает</span>
+                <span className="shrink-0 text-[11px] text-emerald-600 dark:text-emerald-300">✓ Хватает</span>
               )}
             </div>
-            <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+            <div className="mt-2 grid grid-cols-4 gap-2 text-[11px]">
               <div>
                 <div className="text-slate-400">Склад</div>
-                <div className={`font-semibold ${r.lowStock ? "text-amber-700" : "text-slate-900"}`}>
+                <div className={`font-semibold ${r.lowStock ? "text-amber-700 dark:text-amber-300" : "text-slate-900"}`}>
                   {r.stock.toLocaleString("ru-RU")}
                 </div>
               </div>
               <div>
                 <div className="text-slate-400">В произв.</div>
                 <div className="font-medium text-slate-900">{r.inProduction > 0 ? r.inProduction.toLocaleString("ru-RU") : "—"}</div>
+              </div>
+              <div>
+                <div className="text-slate-400">В пути</div>
+                <div className="font-medium text-slate-900">{r.inTransit > 0 ? r.inTransit.toLocaleString("ru-RU") : "—"}</div>
               </div>
               <div>
                 <div className="text-slate-400">Нужно</div>
@@ -144,7 +198,8 @@ export default async function PackagingListPage() {
           </Link>
         ))}
         {rows.length === 0 && (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">
+          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center text-sm text-slate-500">
+            <div className="mb-2 text-3xl">▯</div>
             Карточек упаковки пока нет.{" "}
             <Link href="/packaging/new" className="text-slate-900 underline">Создать первую?</Link>
           </div>
@@ -152,7 +207,8 @@ export default async function PackagingListPage() {
       </div>
 
       {/* Десктопная версия — таблица */}
-      <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white md:block">
+      <div className="scroll-x-hint hidden md:block">
+      <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="sticky top-0 z-10 bg-slate-50 shadow-[inset_0_-1px_0_rgb(226_232_240)]">
             <tr>
@@ -161,6 +217,7 @@ export default async function PackagingListPage() {
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Тип</th>
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">На складе</th>
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">В производстве</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">В пути</th>
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Потребность</th>
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Дефицит</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Статус</th>
@@ -189,7 +246,7 @@ export default async function PackagingListPage() {
                   {PACKAGING_TYPE_LABELS[r.type]}
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <span className={r.lowStock ? "font-semibold text-amber-700" : ""}>
+                  <span className={r.lowStock ? "font-semibold text-amber-700 dark:text-amber-300" : ""}>
                     {r.stock.toLocaleString("ru-RU")}
                   </span>
                   {r.minStock != null && (
@@ -199,16 +256,28 @@ export default async function PackagingListPage() {
                 <td className="px-3 py-2 text-right">
                   {r.inProduction > 0 ? r.inProduction.toLocaleString("ru-RU") : "—"}
                 </td>
+                <td className="px-3 py-2 text-right">
+                  {r.inTransit > 0 ? r.inTransit.toLocaleString("ru-RU") : "—"}
+                </td>
                 <td className="px-3 py-2 text-right text-slate-700">
                   {r.required > 0 ? r.required.toLocaleString("ru-RU") : "—"}
                 </td>
                 <td className="px-3 py-2 text-right">
                   {r.shortage > 0 ? (
-                    <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
-                      -{r.shortage.toLocaleString("ru-RU")}
+                    <span className="inline-flex items-center gap-1.5">
+                      {/* Единый формат с шапкой: «дефицит N», не «-N» (§4) */}
+                      <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-400/10 dark:text-red-300">
+                        дефицит {r.shortage.toLocaleString("ru-RU")}
+                      </span>
+                      <Link
+                        href={`/packaging-orders/new?itemId=${r.id}&qty=${r.shortage}`}
+                        className="rounded-lg bg-slate-900 px-2 py-1 text-[11px] font-medium text-white hover:bg-slate-800"
+                      >
+                        Заказать
+                      </Link>
                     </span>
                   ) : (
-                    <span className="text-xs text-emerald-600">Хватает</span>
+                    <span className="text-xs text-emerald-600 dark:text-emerald-300">Хватает</span>
                   )}
                 </td>
                 <td className="px-3 py-2 text-xs">
@@ -227,6 +296,7 @@ export default async function PackagingListPage() {
             )}
           </tbody>
         </table>
+      </div>
       </div>
 
       <p className="text-xs text-slate-400">

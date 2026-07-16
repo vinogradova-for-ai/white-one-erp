@@ -21,3 +21,9 @@ export const paymentUpdateSchema = paymentCreateSchema.partial();
 export const paymentMarkPaidSchema = z.object({
   paidAt: z.string().optional(), // ISO, по умолчанию — сегодня
 });
+
+// Массовая отметка «оплачено» для выбранных платежей (чекбоксы в «Предстоящих»).
+export const paymentMarkPaidBulkSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, "Выберите хотя бы один платёж"),
+  paidAt: z.string().optional(), // ISO, по умолчанию — сегодня
+});

@@ -29,6 +29,13 @@ export default async function SeasonsPage({
   const defaultKey = currentSeason?.key ?? upcomingSeason?.key ?? SEASONS[0].key;
   const activeKey = sp.s && SEASONS.some((s) => s.key === sp.s) ? sp.s : defaultKey;
 
+  // Честная заглушка: сегодня за пределами всех описанных сезонов (нет ни
+  // текущего, ни будущего). Раньше экран молча откатывался на «Лето 2026» и
+  // показывал прошлогодние данные как дефолт. Теперь — заметный баннер, чтобы
+  // добавить сезоны на новый год (аудит блок ④).
+  const noSeasonForToday = !currentSeason && !upcomingSeason;
+  const currentYear = today.getFullYear();
+
   const [overview, summaries] = await Promise.all([
     getSeasonOverview(activeKey),
     getAllSeasonsSummary(),
@@ -42,7 +49,7 @@ export default async function SeasonsPage({
     <div className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Цели</h1>
+          <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Цели</h1>
           <p className="text-sm text-slate-500">
             10 артикулов и 20 000 шт в месяц — общая цель отдела.
           </p>
@@ -50,16 +57,30 @@ export default async function SeasonsPage({
         <div className="flex flex-wrap items-center gap-2">
           <FillPlanButton />
           <Link
+            href="/plan-vs-fact"
+            className="flex h-10 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+          >
+            План/Факт →
+          </Link>
+          <Link
             href="/admin/plans"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+            className="flex h-10 items-center rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100"
           >
             Редактировать план →
           </Link>
         </div>
       </div>
 
-      {/* Табы сезонов */}
-      <div className="flex flex-wrap gap-1.5">
+      {noSeasonForToday && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-300">
+          ⚠️ Сезоны на {currentYear} год не настроены — показан последний
+          описанный сезон, данные могут быть неактуальны. Добавьте сезоны на{" "}
+          {currentYear} в <code className="rounded bg-amber-100 px-1 dark:bg-amber-400/10">src/lib/seasons.ts</code>.
+        </div>
+      )}
+
+      {/* Табы сезонов — одна прокручиваемая строка на мобиле */}
+      <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
         {summaries.map((s) => {
           const active = s.season.key === activeKey;
           const factPct = s.goalQuantity > 0 ? Math.round((s.factQuantity / s.goalQuantity) * 100) : 0;
@@ -67,7 +88,7 @@ export default async function SeasonsPage({
             <Link
               key={s.season.key}
               href={`/seasons?s=${s.season.key}`}
-              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
+              className={`inline-flex min-h-[40px] shrink-0 items-center gap-2 rounded-full border px-3 text-sm transition ${
                 active
                   ? "border-slate-900 bg-slate-900 text-white"
                   : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
@@ -171,7 +192,7 @@ function GoalBar({
       </div>
       {/* Двойной бар: подложка = цель, синяя = план, зелёная = факт */}
       <div className="relative mt-1.5 h-2.5 overflow-hidden rounded-full bg-slate-100">
-        <div className="absolute inset-y-0 left-0 bg-blue-100" style={{ width: `${planPct}%` }} />
+        <div className="absolute inset-y-0 left-0 bg-blue-100 dark:bg-blue-400/15" style={{ width: `${planPct}%` }} />
         <div
           className={`absolute inset-y-0 left-0 ${pct >= 90 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-red-400"}`}
           style={{ width: `${pct}%` }}
@@ -179,9 +200,9 @@ function GoalBar({
       </div>
       <div className="mt-1 flex items-baseline justify-between gap-2 text-[11px] text-slate-500">
         <span>{pct}% к цели</span>
-        {gap > 0 && <span className="text-amber-700">план короче цели на {gap.toLocaleString("ru-RU")}</span>}
-        {gap === 0 && <span className="text-emerald-700">план = цели</span>}
-        {gap < 0 && <span className="text-blue-700">план выше цели на {(-gap).toLocaleString("ru-RU")}</span>}
+        {gap > 0 && <span className="text-amber-700 dark:text-amber-300">план короче цели на {gap.toLocaleString("ru-RU")}</span>}
+        {gap === 0 && <span className="text-emerald-700 dark:text-emerald-300">план = цели</span>}
+        {gap < 0 && <span className="text-blue-700 dark:text-blue-300">план выше цели на {(-gap).toLocaleString("ru-RU")}</span>}
       </div>
     </div>
   );
@@ -192,9 +213,9 @@ function MonthlyHeatmap({ overview }: { overview: SeasonOverview }) {
     <div className="grid gap-2 sm:grid-cols-3">
       {overview.monthly.map((m) => {
         const cls =
-          m.loadStatus === "ok" ? "border-emerald-200 bg-emerald-50"
-          : m.loadStatus === "underplan" ? "border-amber-200 bg-amber-50"
-          : m.loadStatus === "overload" ? "border-red-200 bg-red-50"
+          m.loadStatus === "ok" ? "border-emerald-200 bg-emerald-50 dark:border-emerald-400/20 dark:bg-emerald-400/10"
+          : m.loadStatus === "underplan" ? "border-amber-200 bg-amber-50 dark:border-amber-400/20 dark:bg-amber-400/10"
+          : m.loadStatus === "overload" ? "border-red-200 bg-red-50 dark:border-red-400/20 dark:bg-red-400/10"
           : m.loadStatus === "gap" ? "border-slate-300 bg-slate-50 border-dashed"
           : "border-slate-200 bg-white";
         const label =
@@ -221,6 +242,15 @@ function MonthlyHeatmap({ overview }: { overview: SeasonOverview }) {
                   style={{ width: `${pct}%` }}
                 />
               </div>
+            )}
+            {/* §4 UX-аудита: у «план не задан» — кнопка задания плана прямо в ячейке */}
+            {m.loadStatus === "gap" && (
+              <Link
+                href={`/admin/plans?year=${Math.floor(m.yearMonth / 100)}`}
+                className="mt-2 inline-flex min-h-[36px] items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+              >
+                Задать план →
+              </Link>
             )}
           </div>
         );
@@ -260,9 +290,9 @@ function OwnersBreakdown({ overview }: { overview: SeasonOverview }) {
           : status === "critical" ? "bg-red-400"
           : "bg-slate-300";
         const chipCls =
-          status === "ok" ? "bg-emerald-100 text-emerald-700"
-          : status === "warning" ? "bg-amber-100 text-amber-700"
-          : status === "critical" ? "bg-red-100 text-red-700"
+          status === "ok" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300"
+          : status === "warning" ? "bg-amber-100 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300"
+          : status === "critical" ? "bg-red-100 text-red-700 dark:bg-red-400/10 dark:text-red-300"
           : "bg-slate-100 text-slate-500";
         const chipLabel =
           status === "ok" ? "✓ ОК"
@@ -314,9 +344,9 @@ function CategoriesBreakdown({ overview }: { overview: SeasonOverview }) {
           : pct >= 50 ? "warning"
           : "critical";
         const ringCls =
-          status === "ok" ? "border-emerald-300"
-          : status === "warning" ? "border-amber-300"
-          : status === "critical" ? "border-red-300"
+          status === "ok" ? "border-emerald-300 dark:border-emerald-400/20"
+          : status === "warning" ? "border-amber-300 dark:border-amber-400/20"
+          : status === "critical" ? "border-red-300 dark:border-red-400/20"
           : "border-slate-200";
         return (
           <div
@@ -343,25 +373,53 @@ function CategoriesBreakdown({ overview }: { overview: SeasonOverview }) {
 }
 
 function Blockers({ overview }: { overview: SeasonOverview }) {
-  if (overview.blockers.length === 0) {
+  // §4 UX-аудита: красный месяц (план есть, факт сильно ниже) — это тоже затор.
+  // Раньше при 🔴 в heatmap секция говорила «Заторов нет» — врала.
+  const redMonths = overview.monthly.filter((m) => m.loadStatus === "overload");
+  if (overview.blockers.length === 0 && redMonths.length === 0) {
     return <Empty>Заторов нет — всё движется по плану.</Empty>;
   }
   return (
-    <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      {overview.blockers.map((b, i) => (
-        <li key={i} className="px-4 py-2.5 text-sm">
-          <Link href={`/models/${b.modelId}`} className="block hover:bg-slate-50">
-            <div className="flex items-baseline justify-between gap-2">
-              <div className="min-w-0">
-                <div className="truncate font-medium text-slate-900">{b.modelName}</div>
-                <div className="truncate text-[11px] text-slate-500">{b.text}</div>
-              </div>
-              <div className="shrink-0 text-[11px] text-slate-400">{b.ownerName}</div>
-            </div>
-          </Link>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-2">
+      {redMonths.length > 0 && (
+        <ul className="divide-y divide-red-100 overflow-hidden rounded-2xl border border-red-200 bg-red-50/50 dark:divide-red-400/10 dark:border-red-400/20 dark:bg-red-400/10">
+          {redMonths.map((m) => {
+            const pct = m.plannedQuantity > 0 ? Math.round((m.factQuantity / m.plannedQuantity) * 100) : 0;
+            return (
+              <li key={m.yearMonth} className="px-4 py-2.5 text-sm">
+                <Link href="/plan-vs-fact" className="block">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate font-medium capitalize text-red-800 dark:text-red-300">🔴 {m.label} — факт сильно ниже плана</div>
+                      <div className="truncate text-[11px] text-red-700/80 dark:text-red-300/80">
+                        {m.factQuantity.toLocaleString("ru-RU")} из {m.plannedQuantity.toLocaleString("ru-RU")} шт ({pct}%) · открыть План/Факт →
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {overview.blockers.length > 0 && (
+        <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          {overview.blockers.map((b, i) => (
+            <li key={i} className="px-4 py-2.5 text-sm">
+              <Link href={`/models/${b.modelId}`} className="block hover:bg-slate-50">
+                <div className="flex items-baseline justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-slate-900">{b.modelName}</div>
+                    <div className="truncate text-[11px] text-slate-500">{b.text}</div>
+                  </div>
+                  <div className="shrink-0 text-[11px] text-slate-400">{b.ownerName}</div>
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

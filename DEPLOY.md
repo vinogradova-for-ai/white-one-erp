@@ -49,7 +49,7 @@ DATABASE_URL="postgresql://...neon..." npx prisma migrate deploy
 DATABASE_URL="postgresql://...neon..." npx prisma db seed
 ```
 
-Создаст всю схему и одну учётку `alena@whiteone.ru` / `whiteone2026`.
+Создаст всю схему и учётку владельца `alena@whiteone.ru` (пароль — из переменной `SEED_OWNER_PASSWORD`, без неё сид не запустится).
 
 ## 4. Vercel Blob для фото (опционально, но желательно)
 
@@ -62,9 +62,9 @@ DATABASE_URL="postgresql://...neon..." npx prisma db seed
 ## 5. Проверить
 
 1. Открыть `https://имя-проекта.vercel.app`
-2. Войти `alena@whiteone.ru` / `whiteone2026`
+2. Войти `alena@whiteone.ru` (пароль из `SEED_OWNER_PASSWORD`)
 3. Создать тестовый фасон + фото — проверить что фото загрузилось
-4. Если всё норм — сменить пароль (или пересоздать seed с `SEED_OWNER_PASSWORD=...`)
+4. Если всё норм — сменить пароль в «Профиле»
 
 ## Если что-то сломается
 

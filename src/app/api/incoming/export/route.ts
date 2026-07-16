@@ -7,7 +7,7 @@ import { ORDER_STATUS_LABELS, DELIVERY_METHOD_LABELS } from "@/lib/constants";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const STATUSES = ["READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK"] as const;
+const STATUSES = ["IN_TRANSIT", "WAREHOUSE_MSK"] as const;
 
 function formatDate(d: Date | null | undefined): string {
   if (!d) return "";

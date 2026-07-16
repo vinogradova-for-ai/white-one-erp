@@ -79,7 +79,8 @@ export function CollectionBoard({ models }: { models: CollModel[] }) {
       return a.category.localeCompare(b.category) || a.name.localeCompare(b.name);
     });
   const library = withFlat.filter((m) => (rows[m.id]?.boardColors.length ?? 0) === 0);
-  const noFlatCount = models.length - withFlat.length;
+  const noFlat = models.filter((m) => !m.flatSvg);
+  const [noFlatOpen, setNoFlatOpen] = useState(false);
 
   const update = useCallback((id: string, boardColors: string[], order?: number | null) => {
     setRows((prev) => ({ ...prev, [id]: { boardColors, order: order !== undefined ? order : prev[id]?.order ?? null } }));
@@ -118,9 +119,9 @@ export function CollectionBoard({ models }: { models: CollModel[] }) {
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] w-full overflow-hidden bg-[#f5f3ee]">
-      {/* Библиотека фасонов слева */}
-      <aside className="flex w-60 flex-shrink-0 flex-col border-r border-slate-200 bg-white">
+    <div className="flex h-[calc(100vh-4rem)] w-full overflow-hidden bg-[#f5f3ee] max-md:h-auto max-md:min-h-[calc(100vh-4rem)] max-md:flex-col">
+      {/* Библиотека фасонов слева (на мобилке — сверху, свёрнутая по высоте) */}
+      <aside className="flex w-60 flex-shrink-0 flex-col border-r border-slate-200 bg-white max-md:max-h-56 max-md:w-full max-md:border-r-0 max-md:border-b">
         <div className="border-b border-slate-100 px-4 py-3">
           <div className="text-sm font-semibold text-slate-900">Библиотека</div>
           <div className="text-[11px] text-slate-500">Нажми, чтобы добавить на доску</div>
@@ -152,15 +153,39 @@ export function CollectionBoard({ models }: { models: CollModel[] }) {
             </button>
           ))}
         </div>
-        {noFlatCount > 0 && (
-          <div className="border-t border-slate-100 px-3 py-2 text-[11px] text-slate-400">
-            Без контура: {noFlatCount}
+        {noFlat.length > 0 && (
+          <div className="border-t border-slate-100">
+            {/* §4 UX-аудита: «Без контура: N» — кликабельный список, а не тупик */}
+            <button
+              type="button"
+              onClick={() => setNoFlatOpen((s) => !s)}
+              className="flex w-full items-center gap-1.5 px-3 py-2 text-left text-[11px] text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+            >
+              <span className={`text-slate-300 transition ${noFlatOpen ? "rotate-90" : ""}`}>▸</span>
+              Без контура: {noFlat.length}
+            </button>
+            {noFlatOpen && (
+              <div className="max-h-48 overflow-y-auto px-2 pb-2">
+                {noFlat.map((m) => (
+                  <a
+                    key={m.id}
+                    href={`/models/${m.id}`}
+                    className="block rounded-lg px-2 py-1.5 hover:bg-slate-100"
+                    title="Открыть фасон — контур генерится из его карточки"
+                  >
+                    <span className="block truncate text-[12px] text-slate-700">{m.name}</span>
+                    <span className="block truncate text-[10px] text-slate-400">{m.category}</span>
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </aside>
 
-      {/* Доска: ряды по фасонам */}
-      <div className="min-w-0 flex-1 overflow-auto">
+      {/* Доска: ряды по фасонам. light-canvas — доска остаётся светлой и в тёмной
+          теме: флэты красятся в цвет ткани (в т.ч. чёрный), на тёмном фоне их не видно */}
+      <div className="light-canvas min-w-0 flex-1 overflow-auto">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-[#f5f3ee]/95 px-6 py-3 backdrop-blur">
           <div>
             <div className="text-base font-semibold text-slate-900">Раскладка по цветам</div>

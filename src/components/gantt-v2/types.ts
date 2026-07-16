@@ -60,6 +60,9 @@ export type GanttRowV2 = {
   hasDateOrderIssue?: boolean;
   dateOrderIssueText?: string;
   isPaused?: boolean;
+  // Опаздывает N дней: план прибытия прошёл, факта нет. 0/undefined — не опаздывает.
+  // Подсветка в тултипе/подзаголовке без смены статуса заказа (аудит п.6).
+  lateDays?: number;
   thumbnails?: GanttThumbnail[];
   bars: GanttBarV2[];
 };
@@ -82,6 +85,7 @@ export type GanttFilters = {
   thisWeek: boolean;    // только с активностью на этой неделе
   dateIssue: boolean;   // только заказы с нарушенным порядком фаз
   myOnly: string | null; // userId или null
+  hideDone: boolean;    // скрыть завершённые (заказ приехал на склад и дальше)
 };
 
 export type GanttGrouping =

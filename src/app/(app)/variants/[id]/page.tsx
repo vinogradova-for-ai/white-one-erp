@@ -2,7 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, PACKAGING_TYPE_ICONS, PACKAGING_TYPE_LABELS } from "@/lib/constants";
+import {
+  ORDER_STATUS_LABELS,
+  ORDER_STATUS_COLORS,
+  PACKAGING_TYPE_ICONS,
+  PACKAGING_TYPE_LABELS,
+  PRODUCT_VARIANT_STATUS_LABELS,
+  PRODUCT_VARIANT_STATUS_COLORS,
+} from "@/lib/constants";
 import { PhotoGallery, PhotoThumb } from "@/components/common/photo-thumb";
 import { ColorChip } from "@/components/common/color-chip";
 import { DeleteButton } from "@/components/common/delete-button";
@@ -84,8 +91,12 @@ export default async function VariantDetailPage({ params }: { params: Promise<{ 
           >
             {variant.productModel.name}
           </Link>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">
+          <h1 className="mt-1 flex flex-wrap items-center gap-3 text-3xl font-semibold tracking-tight text-slate-900">
             <ColorChip name={variant.colorName} />
+            {/* §4 UX-аудита: статус цветомодели виден на карточке, не только в списке */}
+            <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${PRODUCT_VARIANT_STATUS_COLORS[variant.status]}`}>
+              {PRODUCT_VARIANT_STATUS_LABELS[variant.status]}
+            </span>
           </h1>
           <div className="mt-1 flex items-center gap-2 font-mono text-xs text-slate-400">
             {variant.sku}
@@ -122,6 +133,21 @@ export default async function VariantDetailPage({ params }: { params: Promise<{ 
           <div className="grid grid-cols-2 gap-3">
             <KpiCard label="Закуп с фабрики" value={purchaseLine ?? "—"} />
             <KpiCard label="Упаковка на штуку" value={packagingPerUnit != null ? formatCurrency(packagingPerUnit) : "—"} />
+          </div>
+
+          {/* §4 UX-аудита: состав виден на карточке цвета (общий у фасона) */}
+          <div className="rounded-2xl bg-white px-4 py-3">
+            <div className="text-[11px] uppercase tracking-wider text-slate-400">Состав</div>
+            {variant.productModel.fabricComposition ? (
+              <div className="mt-0.5 text-sm font-semibold text-slate-900">{variant.productModel.fabricComposition}</div>
+            ) : (
+              <Link
+                href={`/models/${variant.productModel.id}`}
+                className="mt-0.5 block text-sm text-red-600 hover:underline dark:text-red-300"
+              >
+                не заполнен — заполнить в фасоне →
+              </Link>
+            )}
           </div>
 
           {/* Комплект упаковки — компактный список без отдельной карточки */}

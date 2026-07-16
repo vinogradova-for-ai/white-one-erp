@@ -15,14 +15,19 @@ export default async function NewOrderPage({
     prisma.productModel.findMany({
       where: {
         deletedAt: null,
-        variants: { some: { deletedAt: null } },
+        // Показываем и фасоны на этапе разработки (без цветомоделей) — заказ на
+        // них тоже создают (правка Алёны 07.07); форма подскажет добавить цвет.
+        // Снятые с разработки (activated=false) не предлагаем.
+        activated: true,
       },
       orderBy: { name: "asc" },
       take: 500,
       select: {
         id: true,
         name: true,
+        createdAt: true,
         photoUrls: true,
+        countryOfOrigin: true,
         preferredFactoryId: true,
         customerPrice: true,
         fullCost: true,
@@ -65,8 +70,9 @@ export default async function NewOrderPage({
       },
     }),
     prisma.factory.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true },
+      // П6: в форме заказа на пошив — только швейные фабрики.
+      where: { isActive: true, kind: "SEWING" },
+      select: { id: true, name: true, country: true },
       orderBy: { name: "asc" },
     }),
     prisma.user.findMany({
@@ -94,7 +100,11 @@ export default async function NewOrderPage({
           models={models.map((m) => ({
             id: m.id,
             name: m.name,
+            // Старт разработки фасона: заказ наследует его в плашку «Разработка»,
+            // а не начинает разработку заново с сегодня (правка Алёны 07.07).
+            devStartIso: m.createdAt.toISOString().slice(0, 10),
             photoUrl: m.photoUrls[0] ?? null,
+            countryOfOrigin: m.countryOfOrigin ?? null,
             preferredFactoryId: m.preferredFactoryId,
             customerPrice: m.customerPrice?.toString() ?? null,
             fullCost: m.fullCost?.toString() ?? null,

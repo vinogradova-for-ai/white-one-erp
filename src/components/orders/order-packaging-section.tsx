@@ -129,7 +129,11 @@ export function OrderPackagingSection({
             <tbody className="divide-y divide-slate-100">
               {items.map((x) => {
                 const total = Math.ceil(orderQuantity * Number(x.quantityPerUnit));
-                const have = x.packagingItem.stock + x.packagingItem.inProductionQty;
+                // Честный дефицит (аудит п.7): «доступно» = ТОЛЬКО физический остаток.
+                // «В производстве» (едет из Китая) показываем отдельно справочно,
+                // в доступное НЕ включаем — иначе гейт упаковки врёт в плюс.
+                const have = x.packagingItem.stock;
+                const inProd = x.packagingItem.inProductionQty;
                 const shortage = total - have;
                 return (
                   <tr key={x.id}>
@@ -156,25 +160,31 @@ export function OrderPackagingSection({
                         value={String(x.quantityPerUnit)}
                         onChange={(e) => setLocalQuantity(x.id, e.target.value)}
                         onBlur={(e) => commitQuantity(x.id, e.target.value)}
-                        className="w-16 rounded border border-slate-300 bg-white px-2 py-1 text-right text-xs"
+                        className="h-11 w-16 rounded border border-slate-300 bg-white px-2 text-right text-xs sm:h-9"
                       />
                     </td>
                     <td className="px-2 py-2 text-right font-semibold">{total.toLocaleString("ru-RU")}</td>
                     <td className="px-2 py-2">
                       {shortage > 0 ? (
-                        <span className="rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">
+                        <span className="rounded bg-red-100 dark:bg-red-400/10 px-2 py-0.5 text-xs text-red-700 dark:text-red-300">
                           Не хватает {shortage}
                         </span>
                       ) : (
-                        <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
+                        <span className="rounded bg-emerald-100 dark:bg-emerald-400/10 px-2 py-0.5 text-xs text-emerald-700 dark:text-emerald-300">
                           Хватает
                         </span>
                       )}
+                      <div className="mt-0.5 text-[11px] text-slate-500">
+                        на складе {have.toLocaleString("ru-RU")}
+                        {inProd > 0 && (
+                          <span className="text-slate-400"> · в производстве {inProd.toLocaleString("ru-RU")} (едет)</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-2 py-2 text-right">
                       <button
                         onClick={() => removeItem(x.id)}
-                        className="text-xs text-red-600 hover:underline"
+                        className="inline-flex min-h-[44px] items-center px-2 text-xs text-red-600 dark:text-red-300 hover:underline"
                       >
                         Убрать
                       </button>
@@ -195,7 +205,7 @@ export function OrderPackagingSection({
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+          className="inline-flex min-h-[44px] items-center rounded-lg border border-slate-300 bg-white px-4 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100 sm:min-h-0 sm:px-3 sm:py-1.5"
         >
           + Добавить упаковку
         </button>
@@ -206,7 +216,7 @@ export function OrderPackagingSection({
           <select
             value={form.packagingItemId}
             onChange={(e) => setForm({ ...form, packagingItemId: e.target.value })}
-            className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+            className="h-11 flex-1 rounded-lg border border-slate-300 bg-white px-3 text-sm sm:h-auto sm:py-2"
           >
             <option value="">— выбрать упаковку —</option>
             {options.map((p) => (
@@ -221,12 +231,12 @@ export function OrderPackagingSection({
             value={form.quantityPerUnit}
             onChange={(e) => setForm({ ...form, quantityPerUnit: e.target.value.replace(",", ".") })}
             placeholder="шт/единицу"
-            className="w-24 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+            className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm sm:h-auto sm:w-24 sm:py-2"
           />
           <button
             type="submit"
             disabled={busy}
-            className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="h-11 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-50 sm:h-auto sm:px-3 sm:py-2"
           >
             {busy ? "…" : "Добавить"}
           </button>
@@ -236,14 +246,14 @@ export function OrderPackagingSection({
               setAdding(false);
               setError(null);
             }}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+            className="h-11 rounded-lg border border-slate-300 bg-white px-4 text-sm text-slate-700 sm:h-auto sm:px-3 sm:py-2"
           >
             Отмена
           </button>
         </form>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-300">{error}</p>}
 
       {options.length === 0 && !adding && availablePackaging.length === 0 && (
         <p className="text-xs text-slate-400">

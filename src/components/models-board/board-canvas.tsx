@@ -753,7 +753,7 @@ export function BoardCanvas({ cards, items }: { cards: BoardCard[]; items: Board
             <div className="mx-1 h-6 w-px bg-slate-200" />
             <span className="px-1.5 text-sm text-slate-600">Выбрано: <b className="text-slate-900">{selection.length}</b></span>
             <button type="button" onClick={bringFrontSelection} className="flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-sm text-slate-700 hover:bg-slate-100" title="На передний план">⤴</button>
-            <button type="button" onClick={deleteSelection} className="flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-sm text-red-600 hover:bg-red-50" title="Удалить выделенные (стикеры/текст/картинки)">🗑</button>
+            <button type="button" onClick={deleteSelection} className="flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-400/10" title="Удалить выделенные (стикеры/текст/картинки)">🗑</button>
             <button type="button" onClick={() => setSelection([])} className="flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-sm text-slate-500 hover:bg-slate-100" title="Снять выделение">✕</button>
           </>
         )}
@@ -864,7 +864,7 @@ function SelectionControls({
               key={f.key}
               type="button"
               onClick={() => onFontFamily(f.key)}
-              className={`flex h-7 items-center rounded-md px-2 leading-none ring-1 ${el.fontFamily === f.key ? "bg-pink-100 ring-pink-300" : "ring-slate-300 hover:bg-slate-100"}`}
+              className={`flex h-7 items-center rounded-md px-2 leading-none ring-1 ${el.fontFamily === f.key ? "bg-pink-100 ring-pink-300 dark:bg-pink-400/10 dark:ring-pink-400/30" : "ring-slate-300 hover:bg-slate-100"}`}
               style={{ fontFamily: f.css, fontSize: 18 }}
               title={`Курсив: ${f.label}`}
             >
@@ -894,7 +894,7 @@ function SelectionControls({
           <div className="mx-0.5 h-6 w-px bg-slate-200" />
           <button type="button" className={btn} onClick={onFront} title="На передний план">⤴</button>
           <button type="button" className={btn} onClick={onDuplicate} title="Дублировать">⎘</button>
-          <button type="button" className={`${btn} text-red-600 hover:bg-red-50`} onClick={onDelete} title="Удалить">🗑</button>
+          <button type="button" className={`${btn} text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-400/10`} onClick={onDelete} title="Удалить">🗑</button>
         </>
       )}
       {isCard && (

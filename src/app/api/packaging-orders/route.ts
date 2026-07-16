@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
-import { assertCan } from "@/lib/rbac";
+import { assertCan, can } from "@/lib/rbac";
 import { packagingOrderCreateSchema } from "@/lib/validators/packaging-order";
 import { fillMissingPackagingDates } from "@/lib/normalize-phase-dates";
 import { logAudit } from "@/server/audit";
@@ -115,14 +115,19 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Платежи: либо берём график из формы, либо генерим один автоплатёж на полную сумму
+      // Платежи: либо берём график из формы, либо генерим один автоплатёж на полную сумму.
+      // Отметку «Оплачено» может ставить только сотрудник с правом payment.markPaid —
+      // иначе через создание заказа упаковки обходилось бы правило (аудит зоны упаковки).
+      const canMarkPaid = can(session.user.role, "payment.markPaid");
       if (data.payments && data.payments.length > 0) {
         await tx.payment.createMany({
-          data: data.payments.map((p) => ({
+          data: data.payments.map((p) => {
+            const paid = !!p.paid && canMarkPaid;
+            return {
             type: "PACKAGING" as const,
-            status: p.paid ? "PAID" as const : "PENDING" as const,
-            paidAt: p.paid ? new Date() : null,
-            paidById: p.paid ? session.user.id : null,
+            status: paid ? "PAID" as const : "PENDING" as const,
+            paidAt: paid ? new Date() : null,
+            paidById: paid ? session.user.id : null,
             plannedDate: new Date(p.plannedDate),
             amount: p.amount,
             currency: "RUB" as const,
@@ -130,7 +135,8 @@ export async function POST(req: NextRequest) {
             packagingOrderId: order.id,
             supplierName: data.supplierName || null,
             createdById: session.user.id,
-          })),
+          };
+          }),
         });
       } else {
         const totalRub = data.lines.reduce((sum, l) => sum + lineTotalRub(l), 0);

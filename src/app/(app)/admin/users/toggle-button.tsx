@@ -21,7 +21,7 @@ export function UserToggleButton({ userId, isActive }: { userId: string; isActiv
     <button
       onClick={toggle}
       disabled={busy}
-      className={`text-xs rounded px-2 py-1 font-medium ${
+      className={`inline-flex min-h-[36px] items-center rounded px-3 text-xs font-medium ${
         isActive
           ? "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
           : "bg-slate-900 text-white hover:bg-slate-800"

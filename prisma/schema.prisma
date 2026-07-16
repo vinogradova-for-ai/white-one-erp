@@ -131,6 +131,24 @@ enum PackagingItemStatus {
   ARCHIVED      // Снято с использования
 }
 
+// Статус поставки (группы партий, едущих одним транспортом на склад МСК).
+enum ShipmentStatus {
+  DRAFT       // Черновик — собираем партии, ещё не выехала
+  IN_TRANSIT  // В пути (проставлена дата выезда)
+  ARRIVED     // Приехала на склад, идёт приёмка
+  RECEIVED    // Приёмка завершена по всем партиям
+}
+
+// Статус образца фасона: заказан у фабрики → едет → получен → вердикт.
+// «На доработку» = итерация: правки уходят фабрике, следующий образец — новой записью.
+enum SampleStatus {
+  ORDERED     // Заказан у фабрики
+  IN_TRANSIT  // Едет к нам
+  RECEIVED    // Получен, ждёт вердикта
+  APPROVED    // Ок — образец утверждён
+  REWORK      // На доработку
+}
+
 enum PackagingType {
   LABEL        // Бирки (навесные, обшивные)
   SIZE_LABEL   // Размерники
@@ -170,11 +188,15 @@ model User {
   auditLogs         AuditLog[]
   notifications     Notification[]
   createdPayments   Payment[]            @relation("PaymentCreator")
+  createdSamples    Sample[]             @relation("SampleCreator")
   paidPayments      Payment[]            @relation("PaymentPayer")
+  createdPayouts    FactoryPayout[]      @relation("PayoutCreator")
   ownedPackagingItems PackagingItem[]    @relation("PackagingOwner")
+  ownedBrandPlans   BrandPlan[]          @relation("BrandPlanOwner")
   packagingStatusLogs PackagingItemStatusLog[] @relation("PackagingStatusActor")
   ownedPackagingOrders PackagingOrder[]  @relation("PackagingOrderOwner")
   ownedPlans          MonthlyPlan[]      @relation("PlanOwner")
+  createdShipments    Shipment[]         @relation("ShipmentCreator")
 
   @@index([role])
   @@index([isActive])
@@ -184,9 +206,18 @@ model User {
 // FACTORY
 // ======================================================
 
+// Тип фабрики (П6 UX-аудита): швейная или поставщик упаковки.
+// В формах фасона/заказа показываются только швейные —
+// упаковщики больше не всплывают в списке фабрик пошива.
+enum FactoryKind {
+  SEWING
+  PACKAGING
+}
+
 model Factory {
   id               String   @id @default(cuid())
   name             String   @unique
+  kind             FactoryKind @default(SEWING)
   country          String
   city             String?
   contactName      String?
@@ -202,8 +233,45 @@ model Factory {
   orders             Order[]
   payments           Payment[]
   packagingOrders    PackagingOrder[] @relation("PackagingOrderFactory")
+  payouts            FactoryPayout[]
+  samples            Sample[]
 
   @@index([isActive])
+}
+
+// ======================================================
+// SAMPLE (образец фасона) — вторая, лёгкая версия.
+// Первую убили 26.04.2026 как переусложнённую; 03.07.2026 Алёна попросила
+// вернуть простой учёт: заказан → едет → получен → вердикт, фото и даты.
+// История хранится записями (итерация доработки = новый образец), не логом.
+// ======================================================
+model Sample {
+  id             String       @id @default(cuid())
+  productModelId String
+  productModel   ProductModel @relation(fields: [productModelId], references: [id], onDelete: Cascade)
+  factoryId      String?
+  factory        Factory?     @relation(fields: [factoryId], references: [id], onDelete: SetNull)
+
+  label          String?      // «44 размер, ткань лён», «2-я итерация»
+  status         SampleStatus @default(ORDERED)
+
+  orderedDate    DateTime?    // когда заказали у фабрики
+  receivedDate   DateTime?    // когда получили
+  verdictDate    DateTime?    // когда дали вердикт (ок / на доработку)
+  verdictNote    String?      // текст вердикта: что не так / что ок
+
+  photoUrls      String[]
+
+  createdById    String?
+  createdBy      User?        @relation("SampleCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([productModelId])
+  @@index([status])
+  @@index([deletedAt])
 }
 
 // ======================================================
@@ -280,6 +348,13 @@ model ProductModel {
 
   // Производство
   countryOfOrigin      String                                   // "Россия" / "Китай" / "Кыргызстан"
+
+  // Маркировка «Честный знак» — атрибуты для Национального каталога.
+  // Код ТНВЭД ЕАЭС (10 знаков) общий для всех цветов фасона; состав ткани
+  // берётся из fabricComposition. Аудит нашёл ТНВЭД «полем-фантомом»
+  // (упоминался в комментах, но в БД/формах его не было) — заводим по-настоящему.
+  tnvedCode            String?
+
   preferredFactoryId   String?
   preferredFactory     Factory? @relation("ModelPreferredFactory", fields: [preferredFactoryId], references: [id])
 
@@ -347,6 +422,11 @@ model ProductModel {
   orders      Order[]                                         @relation("ModelOrders")
   statusLogs  ProductModelStatusLog[]
   packagingItems   ModelPackaging[]
+  samples     Sample[]
+
+  // Фасон разрабатывается в рамках плана-направления («Планирование»)
+  brandPlanId String?
+  brandPlan   BrandPlan? @relation(fields: [brandPlanId], references: [id])
 
   @@index([status])
   @@index([ownerId])
@@ -489,6 +569,7 @@ model Order {
   statusLogs OrderStatusLog[]
   packagingItems OrderPackaging[]
   payments Payment[]
+  batches  OrderBatch[]
 
   @@index([orderNumber])
   @@index([productModelId])
@@ -536,6 +617,103 @@ model OrderLine {
 
   @@index([orderId])
   @@index([productVariantId])
+}
+
+// ======================================================
+// ПАРТИИ / ПОСТАВКИ / ПРИЁМКА
+// ======================================================
+// Боль Алёны: «фабрика сшила чуть по-другому — приёмка поштучно; заказ сдаётся
+// в несколько партий; несколько заказов уезжает в одной поставке».
+//
+// OrderBatch — партия заказа (кусок заказа, едущий отдельно). У простого заказа
+// партия одна и создаётся ЛЕНИВО (при первом добавлении в поставку) со всеми
+// позициями из линий заказа — обычному случаю никакой лишней возни.
+// Shipment — поставка: группа партий (возможно разных заказов), едущая на склад.
+
+model OrderBatch {
+  id         String    @id @default(cuid())
+  orderId    String
+  order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  index      Int                                   // Номер партии в заказе 1..N (для подписи «партия 1/2»)
+
+  // Поставка, в которой едет партия (null — партия ещё не назначена в поставку).
+  shipmentId String?
+  shipment   Shipment? @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+
+  // Дата завершения приёмки партии. null — приёмка не завершена.
+  receivedAt DateTime?
+  note       String?
+
+  items      OrderBatchItem[]
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([orderId, index])
+  @@index([orderId])
+  @@index([shipmentId])
+  @@index([receivedAt])
+}
+
+// Позиция партии — по образцу OrderLine (цвет + размер + кол-во), но с фактом
+// приёмки поштучно. variantId опционален: строку можно добавить руками при
+// приёмке, если фабрика сшила размер/цвет, которого не было в заказе.
+model OrderBatchItem {
+  id          String  @id @default(cuid())
+  batchId     String
+  batch       OrderBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  variantId   String?                              // Ссылка на ProductVariant (если позиция из заказа)
+  colorName   String                               // Цвет (денормализовано, как в OrderLine.productVariant.colorName)
+  size        String                               // Размер («42», «44», ...)
+
+  plannedQty  Int                                  // План — сколько этой позиции едет в партии
+  factQty     Int?                                 // Факт — сколько реально приняли (null — не принимали)
+  defectQty   Int?                                 // Брак — сколько с браком
+  note        String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([batchId])
+  @@index([variantId])
+}
+
+model Shipment {
+  id          String         @id @default(cuid())
+  number      String         @unique              // SHP-YYYY-NNNN (генерация как orderNumber)
+  status      ShipmentStatus @default(DRAFT)
+
+  departDate  DateTime?                            // Дата выезда (перевод в IN_TRANSIT)
+  arriveDate  DateTime?                            // Дата прибытия на склад (перевод в ARRIVED) — ПЛАН
+  carrier     String?                              // Перевозчик / способ
+  comment     String?
+
+  // ─── Карго-накладная (перенос листа «КАРГО» из Excel-матрицы, 04.07.2026) ───
+  // Одна поставка = одна накладная карго (номер вида M0514-4759-47).
+  cargoNumber       String?   @unique              // номер накладной карго
+  placesCount       Int?                           // количество мест
+  weightKg          Decimal?  @db.Decimal(10, 1)   // вес брутто, кг
+  amountUsdt        Decimal?  @db.Decimal(12, 2)   // сумма к оплате карго, USDT
+  cargoPaidAt       DateTime?                      // null = карго не оплачено
+  arrivalActualDate DateTime?                      // ФАКТ прибытия в Москву
+
+  createdById String
+  createdBy   User           @relation("ShipmentCreator", fields: [createdById], references: [id])
+
+  // Мягкое удаление (только OWNER/DIRECTOR) — «никогда не удаляем физически».
+  deletedAt   DateTime?
+
+  batches         OrderBatch[]
+  // Заказы упаковки едут тем же карго, что и одежда (лист КАРГО: сумки, бирки, плечики).
+  packagingOrders PackagingOrder[]
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([status])
+  @@index([deletedAt])
+  @@index([number])
 }
 
 // ======================================================
@@ -595,6 +773,47 @@ model OrderStatusLog {
 // Ключ — (yearMonth, ownerId, category). Категория опциональна:
 // при null — это «общий план ответственного на месяц».
 // plannedRevenue остаётся для исторических данных, но новые планы её не пишут.
+// ======================================================
+// BRAND PLAN — «Планирование»: направления развития бренда
+// ======================================================
+// «К весне пиджачная группа: ~5 фасонов по ~55 ¥, тестовая партия N шт,
+// бюджет теста не больше X ₽». Задаёт продактам рамку: сколько моделей и
+// потолок денег. Факт = привязанные фасоны + стоимость их заказов
+// (orderTotalCost, как на /stats) против бюджета. Не удаляем — статус CANCELLED.
+model BrandPlan {
+  id     String          @id @default(cuid())
+  name   String                                        // «Пиджачная группа — весна 2027»
+  status BrandPlanStatus @default(IDEA)
+
+  season     String?                                   // как у заказов, строкой
+  targetDate DateTime?                                 // к какому сроку запуститься
+
+  plannedModelsCount   Int?                            // сколько фасонов задумано
+  plannedUnitsPerModel Int?                            // тестовая партия на фасон, шт
+  targetUnitPriceCny   Decimal? @db.Decimal(12, 2)     // примерная закупка за единицу, ¥
+  cnyRubRate           Decimal? @db.Decimal(10, 4)
+  budgetRub            Decimal? @db.Decimal(14, 2)     // потолок затрат на направление, ₽
+
+  notes   String?
+  ownerId String?
+  owner   User?   @relation("BrandPlanOwner", fields: [ownerId], references: [id])
+
+  models ProductModel[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+enum BrandPlanStatus {
+  IDEA        // прикидываем, идём или нет
+  APPROVED    // решили: идём
+  IN_PROGRESS // продакты работают
+  DONE        // запущено
+  CANCELLED   // решили не идти (не удаляем)
+}
+
 model MonthlyPlan {
   id                String   @id @default(cuid())
   yearMonth         Int
@@ -612,6 +831,10 @@ model MonthlyPlan {
   @@unique([yearMonth, ownerId, category])
   @@index([yearMonth])
   @@index([ownerId])
+  // Плюс ЧАСТИЧНЫЕ уникальные индексы на NULL-комбинации (yearMonth+category при
+  // ownerId=NULL, yearMonth+ownerId при category=NULL, yearMonth при обоих NULL)
+  // — миграция 20260702200000_monthly_plan_null_unique. Prisma их не отражает в
+  // схеме (partial WHERE), но БД ими блокирует дубли «общего плана месяца».
 }
 
 // ======================================================
@@ -710,6 +933,16 @@ model OrderPackaging {
   quantityPerUnit  Decimal @default(1) @db.Decimal(6, 2)    // Сколько штук упаковки на 1 ед. товара
   notes            String?
 
+  // Строка пришла из комплекта фасона (авто-синк). Такие строки зеркалятся с
+  // фасоном: смена комплекта в карточке фасона обновляет/убирает их в открытых
+  // заказах. Ручные правки в заказе снимают флаг — их синк не трогает.
+  syncedFromModel  Boolean @default(false)
+
+  // Сколько штук упаковки СПИСАНО со склада при переходе заказа в «Упаковка».
+  // null — ещё не списывали. Нужно, чтобы: (1) не списать дважды при повторном
+  // входе в PACKING; (2) корректно вернуть остаток при откате статуса назад.
+  consumedQty      Int?
+
   createdAt DateTime @default(now())
 
   @@unique([orderId, packagingItemId])
@@ -775,6 +1008,9 @@ model Payment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Фактические разнесения оплат фабрикам на этот плановый платёж.
+  allocations PayoutAllocation[]
+
   @@index([type])
   @@index([status])
   @@index([plannedDate])
@@ -782,6 +1018,54 @@ model Payment {
   @@index([factoryId])
   @@index([packagingItemId])
   @@index([packagingOrderId])
+}
+
+// ======================================================
+// ОПЛАТЫ ФАБРИКАМ — фактические переводы денег с разнесением по плановым платежам
+// ======================================================
+//
+// Боль владельца: «оплату зафиксировали, а потом фиг знает как списать; 5 заказов
+// с одной фабрики, а списывается скопом». Payment — это ПЛАН (график по заказу).
+// FactoryPayout — ФАКТ перевода: одной суммой закрываем сразу несколько плановых
+// платежей через PayoutAllocation.
+model FactoryPayout {
+  id           String    @id @default(cuid())
+  date         DateTime                          // Дата фактического перевода
+  amount       Decimal   @db.Decimal(14, 2)      // Сумма перевода в ₽
+  currencyNote String?                           // Справочно, если платили в валюте: «≈36 500 ¥»
+  comment      String?
+
+  factoryId    String
+  factory      Factory   @relation(fields: [factoryId], references: [id])
+
+  createdById  String
+  createdBy    User      @relation("PayoutCreator", fields: [createdById], references: [id])
+
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?                         // Мягкое удаление — «никогда не удалять»
+
+  allocations  PayoutAllocation[]
+
+  @@index([factoryId])
+  @@index([date])
+  @@index([deletedAt])
+}
+
+// Разнесение одной оплаты на один плановый платёж. Сумма оплаты = сумма её allocations
+// (плюс возможный нераспределённый остаток).
+model PayoutAllocation {
+  id        String        @id @default(cuid())
+  payoutId  String
+  payout    FactoryPayout @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+  paymentId String
+  payment   Payment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  amount    Decimal       @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+
+  @@unique([payoutId, paymentId])
+  @@index([paymentId])
+  @@index([payoutId])
 }
 
 // ======================================================
@@ -808,6 +1092,10 @@ model PackagingOrder {
 
   deliveryMethod  DeliveryMethod?
 
+  // Каким карго едет (лист КАРГО: упаковка едет теми же накладными, что одежда).
+  shipmentId      String?
+  shipment        Shipment?     @relation(fields: [shipmentId], references: [id])
+
   ownerId         String
   owner           User          @relation("PackagingOrderOwner", fields: [ownerId], references: [id])
 
@@ -820,6 +1108,7 @@ model PackagingOrder {
 
   @@index([status])
   @@index([factoryId])
+  @@index([shipmentId])
 }
 
 model PackagingOrderLine {

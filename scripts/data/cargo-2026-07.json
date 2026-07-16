@@ -1,0 +1,355 @@
+[
+ {
+  "cargoNumber": "M0518-4795-2",
+  "placesCount": 2,
+  "weightKg": 162.2,
+  "items": [
+   "Сумки для пальто 56*27*2 — 1000 штук"
+  ],
+  "depart": "2026-05-18",
+  "arrivePlan": "2026-06-18",
+  "amountUsdt": 330.0,
+  "paid": false,
+  "arrivalActual": null,
+  "status": "ARRIVED"
+ },
+ {
+  "cargoNumber": "M0519-4795-10",
+  "placesCount": 10,
+  "weightKg": 1066.9,
+  "items": [
+   "Брюки Алладины лен"
+  ],
+  "depart": "2026-05-19",
+  "arrivePlan": "2026-06-19",
+  "amountUsdt": 3088.0,
+  "paid": false,
+  "arrivalActual": "2026-06-09",
+  "status": "ARRIVED"
+ },
+ {
+  "cargoNumber": "M0514-4759-47",
+  "placesCount": 47,
+  "weightKg": 3521.1,
+  "items": [
+   "Брюки бочки — 4331",
+   "Брюки алладины офис — 991 (505- золото\n486- бежевые)",
+   "Брюки Алладин в клетку — 2905",
+   "алладины золотые и бежевые, брюки бочки, алладины в клеточку — алладины золотые 505шт, бежевые 486шт, брюки бочки 4341шт, алладины в клеточку голубые 1767, коричневые 1138"
+  ],
+  "depart": "2026-05-14",
+  "arrivePlan": "2026-06-14",
+  "amountUsdt": 10252.0,
+  "paid": true,
+  "arrivalActual": "2026-06-14",
+  "status": "ARRIVED"
+ },
+ {
+  "cargoNumber": "M0423-4759-11",
+  "placesCount": 11,
+  "weightKg": 709.9,
+  "items": [
+   "Брюки Алладин в клетку — 2000"
+  ],
+  "depart": "2026-04-23",
+  "arrivePlan": "2026-05-23",
+  "amountUsdt": 1972.0,
+  "paid": false,
+  "arrivalActual": "2026-05-22",
+  "status": "ARRIVED"
+ },
+ {
+  "cargoNumber": "M0424-4759-8",
+  "placesCount": 8,
+  "weightKg": 502.7,
+  "items": [
+   "Брюки Алладин в клетку — 2033"
+  ],
+  "depart": "2026-04-24",
+  "arrivePlan": "2026-05-24",
+  "amountUsdt": 1397.0,
+  "paid": false,
+  "arrivalActual": "2026-05-20",
+  "status": "ARRIVED"
+ },
+ {
+  "cargoNumber": "M0416-4759-10",
+  "placesCount": 10,
+  "weightKg": 531.1,
+  "items": [
+   "сумки-сетки для брюк — 20000"
+  ],
+  "depart": "2026-04-16",
+  "arrivePlan": "2026-05-16",
+  "amountUsdt": 1272.0,
+  "paid": true,
+  "arrivalActual": null,
+  "status": "ARRIVED"
+ },
+ {
+  "cargoNumber": "M0412-4759-6",
+  "placesCount": 6,
+  "weightKg": 606.9,
+  "items": [
+   "мешочки для пуговиц, зип-пакеты, бирки бумажные,биркодержатели"
+  ],
+  "depart": "2026-04-12",
+  "arrivePlan": "2026-05-12",
+  "amountUsdt": 1122.0,
+  "paid": true,
+  "arrivalActual": null,
+  "status": "ARRIVED"
+ },
+ {
+  "cargoNumber": "M0427-4759-6",
+  "placesCount": 6,
+  "weightKg": 284.5,
+  "items": [
+   "сумки-сетки для брюк"
+  ],
+  "depart": "2026-04-27",
+  "arrivePlan": "2026-05-27",
+  "amountUsdt": 684.0,
+  "paid": true,
+  "arrivalActual": "2026-05-13",
+  "status": "ARRIVED"
+ },
+ {
+  "cargoNumber": "M0510-4759-1",
+  "placesCount": 1,
+  "weightKg": 53.6,
+  "items": [
+   "бирки для пальто — жаккардовый логотип: 37200, жаккардовая петелька 37200, сатиновый ярлык ухода 37200"
+  ],
+  "depart": "2026-05-10",
+  "arrivePlan": "2026-06-09",
+  "amountUsdt": 101.0,
+  "paid": false,
+  "arrivalActual": "2026-06-05",
+  "status": "ARRIVED"
+ },
+ {
+  "cargoNumber": "M0524-4759-49",
+  "placesCount": 49,
+  "weightKg": 4385.0,
+  "items": [
+   "палаццо овер, зара — зара: 2543\nпалаццо овер: 4756"
+  ],
+  "depart": "2026-05-24",
+  "arrivePlan": "2026-06-23",
+  "amountUsdt": 12618.0,
+  "paid": true,
+  "arrivalActual": "2026-06-12",
+  "status": "ARRIVED"
+ },
+ {
+  "cargoNumber": "M0525-4759-4",
+  "placesCount": 4,
+  "weightKg": 1278.5,
+  "items": [
+   "плечики для пальто — 20160"
+  ],
+  "depart": "2026-05-25",
+  "arrivePlan": "2026-06-24",
+  "amountUsdt": 3234.0,
+  "paid": false,
+  "arrivalActual": null,
+  "status": "ARRIVED"
+ },
+ {
+  "cargoNumber": "M0529-4759-4",
+  "placesCount": 4,
+  "weightKg": 1277.0,
+  "items": [
+   "плечики для пальто — 20000"
+  ],
+  "depart": "2026-05-29",
+  "arrivePlan": "2026-06-28",
+  "amountUsdt": 3230.0,
+  "paid": false,
+  "arrivalActual": "2026-06-17",
+  "status": "ARRIVED"
+ },
+ {
+  "cargoNumber": "MК0529-4759-1",
+  "placesCount": 1,
+  "weightKg": null,
+  "items": [
+   "картхолдеры — 499"
+  ],
+  "depart": "2026-05-29",
+  "arrivePlan": "2026-06-28",
+  "amountUsdt": 21.0,
+  "paid": false,
+  "arrivalActual": "2026-06-17",
+  "status": "ARRIVED"
+ },
+ {
+  "cargoNumber": "MК0531-4759-1",
+  "placesCount": 1,
+  "weightKg": 74.0,
+  "items": [
+   "зип-пакеты — 5850"
+  ],
+  "depart": "2026-05-30",
+  "arrivePlan": "2026-06-29",
+  "amountUsdt": 153.0,
+  "paid": false,
+  "arrivalActual": "2026-06-17",
+  "status": "ARRIVED"
+ },
+ {
+  "cargoNumber": "M0603-4759-3",
+  "placesCount": 3,
+  "weightKg": 242.8,
+  "items": [
+   "чехлы для пальто — 1000"
+  ],
+  "depart": "2026-06-03",
+  "arrivePlan": "2026-07-03",
+  "amountUsdt": 476.0,
+  "paid": false,
+  "arrivalActual": null,
+  "status": "ARRIVED"
+ },
+ {
+  "cargoNumber": "M0608-4759-4",
+  "placesCount": 4,
+  "weightKg": 486.0,
+  "items": [
+   "платья крылья"
+  ],
+  "depart": "2026-06-08",
+  "arrivePlan": "2026-07-08",
+  "amountUsdt": 1415.0,
+  "paid": false,
+  "arrivalActual": null,
+  "status": "ARRIVED"
+ },
+ {
+  "cargoNumber": "M0610-4759-4",
+  "placesCount": 4,
+  "weightKg": 196.9,
+  "items": [
+   "бумажные вложения для пальто — 110250"
+  ],
+  "depart": "2026-06-10",
+  "arrivePlan": "2026-07-10",
+  "amountUsdt": 432.0,
+  "paid": false,
+  "arrivalActual": null,
+  "status": "ARRIVED"
+ },
+ {
+  "cargoNumber": "M0619-4759-5",
+  "placesCount": 5,
+  "weightKg": 462.7,
+  "items": [
+   "брюки мокка+ исправленный брак — 820мокка/72 исп брак"
+  ],
+  "depart": "2026-06-19",
+  "arrivePlan": "2026-07-19",
+  "amountUsdt": 1317.0,
+  "paid": false,
+  "arrivalActual": null,
+  "status": "IN_TRANSIT"
+ },
+ {
+  "cargoNumber": "M0622-4759-5",
+  "placesCount": 5,
+  "weightKg": 482.7,
+  "items": [
+   "чехлы для пальто — 2000"
+  ],
+  "depart": "2026-06-22",
+  "arrivePlan": "2026-07-22",
+  "amountUsdt": 1060.0,
+  "paid": false,
+  "arrivalActual": null,
+  "status": "IN_TRANSIT"
+ },
+ {
+  "cargoNumber": "M0626-4759-4",
+  "placesCount": 4,
+  "weightKg": 373.5,
+  "items": [
+   "брюки мокка — 721"
+  ],
+  "depart": "2026-06-26",
+  "arrivePlan": "2026-07-26",
+  "amountUsdt": 1075.0,
+  "paid": false,
+  "arrivalActual": null,
+  "status": "IN_TRANSIT"
+ },
+ {
+  "cargoNumber": "M0626-4759-5",
+  "placesCount": 5,
+  "weightKg": 203.6,
+  "items": [
+   "картхолдеры — коричневый 5000 серый 5000 бежевый 1000"
+  ],
+  "depart": "2026-06-26",
+  "arrivePlan": "2026-07-26",
+  "amountUsdt": 528.0,
+  "paid": false,
+  "arrivalActual": null,
+  "status": "IN_TRANSIT"
+ },
+ {
+  "cargoNumber": "M0627-4759-61",
+  "placesCount": 61,
+  "weightKg": null,
+  "items": [
+   "сумки для пальто — 56×32 = 10 900 штук = 55 единиц\n56×38 = 8 600 штук = 43 единицы\n56×27 = 3 700 штук = 19 единиц\n56×29 = 900 штук = 5 единиц\nИтого: 122 единицы"
+  ],
+  "depart": "2026-06-26",
+  "arrivePlan": "2026-07-26",
+  "amountUsdt": 8785.0,
+  "paid": false,
+  "arrivalActual": null,
+  "status": "IN_TRANSIT"
+ },
+ {
+  "cargoNumber": "M0627-4759-3",
+  "placesCount": 3,
+  "weightKg": 169.9,
+  "items": [
+   "бумажные бирки — 30,000шт"
+  ],
+  "depart": "2026-06-27",
+  "arrivePlan": "2026-07-27",
+  "amountUsdt": 359.0,
+  "paid": false,
+  "arrivalActual": null,
+  "status": "IN_TRANSIT"
+ },
+ {
+  "cargoNumber": "M0628-4759-6",
+  "placesCount": 6,
+  "weightKg": 228.7,
+  "items": [
+   "картхолдеры — 10011"
+  ],
+  "depart": "2026-06-26",
+  "arrivePlan": "2026-07-26",
+  "amountUsdt": 548.0,
+  "paid": false,
+  "arrivalActual": null,
+  "status": "IN_TRANSIT"
+ },
+ {
+  "cargoNumber": "M0629-4759-24",
+  "placesCount": 24,
+  "weightKg": 3728.0,
+  "items": [
+   "чехлы для пальто — 7000"
+  ],
+  "depart": "2026-06-29",
+  "arrivePlan": "2026-07-29",
+  "amountUsdt": 3728.0,
+  "paid": false,
+  "arrivalActual": null,
+  "status": "IN_TRANSIT"
+ }
+]

@@ -12,6 +12,9 @@ export const modelCreateSchema = z.object({
   subcategory: z.string().optional().nullable(),
   sizeGridId: z.string().optional().nullable(),
   countryOfOrigin: z.string().min(1, "Страна производства обязательна"),
+  // Маркировка «Честный знак»: код ТНВЭД ЕАЭС (обычно 10 цифр). Не валидируем строго —
+  // разные подгруппы легпрома, оставляем свободный ввод.
+  tnvedCode: z.string().optional().nullable(),
   preferredFactoryId: z.string().optional().nullable(),
   developmentType: z.enum(["OWN", "REPEAT"]).optional(),
   isRepeat: z.boolean().optional(),
@@ -58,6 +61,9 @@ export const modelCreateSchema = z.object({
 
   correctionsNeeded: z.boolean().optional(),
   sizeChartReady: z.boolean().optional(),
+  // «Снять с разработки / вернуть в работу» (Алёна 05.07): false — фасон уходит
+  // с канбана/Ганта/задач, остаётся в «Фасонах» под фильтром «не в работе».
+  activated: z.boolean().optional(),
 
   notes: z.string().optional().nullable(),
 });

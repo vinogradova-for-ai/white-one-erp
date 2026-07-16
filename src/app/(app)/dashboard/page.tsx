@@ -11,6 +11,22 @@ import {
 } from "@/lib/queries/main-screen-checklist";
 import { CheckableRow } from "./checkable-row";
 import { isCheckable } from "./checkable-kinds";
+import { MoneyTaskRow } from "@/components/dashboard/money-task-row";
+import { getDataGaps, countGapsSplit } from "@/lib/queries/data-gaps";
+import { getRecentEvents, type DailyEvent } from "@/lib/queries/daily-events";
+
+// «сегодня 14:05» / «вчера 18:30» по МСК для ленты событий.
+function fmtEventTime(e: DailyEvent): string {
+  const msk = new Date(e.at.getTime() + 3 * 60 * 60_000);
+  const nowMsk = new Date(Date.now() + 3 * 60 * 60_000);
+  const sameDay =
+    msk.getUTCFullYear() === nowMsk.getUTCFullYear() &&
+    msk.getUTCMonth() === nowMsk.getUTCMonth() &&
+    msk.getUTCDate() === nowMsk.getUTCDate();
+  const hh = String(msk.getUTCHours()).padStart(2, "0");
+  const mm = String(msk.getUTCMinutes()).padStart(2, "0");
+  return `${sameDay ? "сегодня" : "вчера"} ${hh}:${mm}`;
+}
 
 const MONTH_NAMES_RU = [
   "январе", "феврале", "марте", "апреле", "мае", "июне",
@@ -45,7 +61,16 @@ export default async function DashboardPage({
   const myId = (session?.user as { id?: string } | undefined)?.id ?? null;
 
   const all = await getMainScreenChecklist();
-  const groups = groupByOwner(all);
+  // Деньги с главного убраны (Алёна 05.07: «оплаты дотошно горят — убери в
+  // Платежи, максимум лёгкая галочка»): задачи payment-due не попадают ни в
+  // списки, ни в счётчики сотрудников. Вместо них — тихий чип-ссылка ниже.
+  const paymentTasks = all.filter((t) => t.kind === "payment-due");
+  const tasks = all.filter((t) => t.kind !== "payment-due");
+  const paymentsOverdue = paymentTasks.filter((t) => t.urgency === "overdue").length;
+  const groups = groupByOwner(tasks);
+  // Долг фабрикам и суммы больше не на главном — их показывает /payments.
+  const [gaps, recentEvents] = await Promise.all([getDataGaps(), getRecentEvents()]);
+  const gapsSplit = countGapsSplit(gaps);
 
   // Кабинет общий — разбивку задач по сотрудникам видят ВСЕ (прозрачность), не только админ.
   // По умолчанию открыта своя подвкладка; если своих задач нет — самая загруженная.
@@ -69,18 +94,78 @@ export default async function DashboardPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Добрый день, {userName}</h1>
-        {all.length > 0 ? (
-          <p className="text-sm text-slate-600">
-            Задач на ближайшие дни: <b>{all.length}</b>
-          </p>
-        ) : (
-          <p className="text-sm text-emerald-700">Всё под контролем. Срочного нет.</p>
-        )}
+        <h1 className="text-xl font-semibold text-slate-900 md:text-2xl">Добрый день, {userName}</h1>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          {tasks.length > 0 ? (
+            <p className="text-sm text-slate-600">
+              {/* П5: «у вас 13 из 102» вместо двух несвязанных цифр */}
+              Задач на ближайшие дни: <b>{tasks.length}</b>
+              {(() => {
+                const mine = groups.find((g) => g.ownerId === myId)?.tasks.length ?? 0;
+                return mine > 0 ? <> · у вас <b>{mine}</b></> : null;
+              })()}
+            </p>
+          ) : (
+            <p className="text-sm text-emerald-700 dark:text-emerald-300">Всё под контролем. Срочного нет.</p>
+          )}
+          {/* Деньги — «лёгкая галочка» (Алёна 05.07): один тихий чип без сумм,
+              вся работа с оплатами — в «Платежах». Долг фабрикам и суммы
+              показывает сама страница /payments. */}
+          {paymentTasks.length > 0 && (
+            <Link
+              href="/payments?view=list"
+              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-300 dark:hover:bg-slate-700"
+            >
+              ₽ План платежей:{" "}
+              {paymentsOverdue > 0
+                ? `${paymentsOverdue} просрочено`
+                : `${paymentTasks.length} на подходе`}{" "}
+              →
+            </Link>
+          )}
+          {gapsSplit.money + gapsSplit.other > 0 && (
+            <Link
+              href="/data-gaps"
+              className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-200 dark:bg-slate-700/60 dark:text-slate-300 dark:hover:bg-slate-700"
+            >
+              Дыры в данных: {gapsSplit.money + gapsSplit.other} →
+            </Link>
+          )}
+        </div>
       </div>
 
+      {/* Что изменилось со вчера — свёрнутая лента событий (статусы, оплаты,
+          комментарии, образцы). Утренний обзор без телеграма. */}
+      {recentEvents.length > 0 && (
+        <details className="group rounded-2xl border border-slate-200 bg-white">
+          <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-slate-700 [&::-webkit-details-marker]:hidden">
+            <span className="text-slate-400 transition group-open:rotate-90">▸</span>
+            Что изменилось со вчера
+            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs tabular-nums text-slate-600">
+              {recentEvents.length}
+            </span>
+          </summary>
+          <ul className="max-h-80 space-y-0.5 overflow-y-auto border-t border-slate-100 px-2 py-2">
+            {recentEvents.map((e) => (
+              <li key={e.id}>
+                <Link
+                  href={e.href}
+                  className="flex items-baseline gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50"
+                >
+                  <span aria-hidden className="w-5 shrink-0 text-center text-xs">{e.icon}</span>
+                  <span className="min-w-0 flex-1 truncate text-slate-800">{e.text}</span>
+                  <span className="shrink-0 text-[11px] tabular-nums text-slate-400">
+                    {fmtEventTime(e)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+
       {visibleGroups.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
           {visibleGroups.map((g) => {
             const isActive = g.ownerId === selectedOwnerId;
             const overdue = g.tasks.filter((t) => t.urgency === "overdue").length;
@@ -88,7 +173,8 @@ export default async function DashboardPage({
               <Link
                 key={g.ownerId}
                 href={`/dashboard?owner=${g.ownerId}`}
-                className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm transition ${
+                title={`${g.ownerName}: всего задач ${g.tasks.length}${overdue > 0 ? `, из них горит ${overdue}` : ""}`}
+                className={`inline-flex h-11 shrink-0 items-center gap-2 rounded-full px-4 text-sm whitespace-nowrap transition md:h-auto md:px-3 md:py-1.5 ${
                   isActive
                     ? "bg-slate-900 text-white"
                     : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
@@ -114,9 +200,9 @@ export default async function DashboardPage({
       )}
 
       {monthClosed > 0 && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 text-sm text-emerald-900">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-2.5 text-sm text-emerald-900 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300">
           <span className="font-semibold">✓ Закрыто в {monthName}: {monthClosed}</span>
-          <span className="text-emerald-700"> {pluralOrders(monthClosed)}</span>
+          <span className="text-emerald-700 dark:text-emerald-300"> {pluralOrders(monthClosed)}</span>
         </div>
       )}
 
@@ -155,6 +241,8 @@ const ZONES: Array<{ key: TaskZone; title: string; muted: boolean }> = [
   { key: "next-week", title: "Следующая неделя", muted: true },
 ];
 
+type MoneyRights = { canMarkPaid: boolean; canPostpone: boolean };
+
 function ChecklistGroup({ tasks }: { tasks: ChecklistTask[] }) {
   return (
     <div className="space-y-10">
@@ -172,6 +260,8 @@ function ChecklistGroup({ tasks }: { tasks: ChecklistTask[] }) {
 }
 
 function ZoneBody({ tasks, showIdle }: { tasks: ChecklistTask[]; showIdle: boolean }) {
+  // Денежных задач здесь больше нет — payment-due отфильтрованы на странице
+  // (Алёна 05.07: оплаты живут в «Платежах», на главном — только тихий чип).
   const orderTasks = tasks.filter((t) => ORDER_KINDS.includes(t.kind));
   const packagingTasks = tasks.filter((t) => PACKAGING_KINDS.includes(t.kind));
   const devTasks = tasks.filter(
@@ -272,7 +362,7 @@ function Section({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">{title}</h2>
         <span className="text-xs text-slate-400">{count}</span>
         {rightHint && (
-          <span className="ml-auto text-xs text-orange-600">{rightHint}</span>
+          <span className="ml-auto text-xs text-orange-600 dark:text-orange-300">{rightHint}</span>
         )}
       </div>
       {children}
@@ -280,11 +370,27 @@ function Section({
   );
 }
 
-function TaskList({ tasks }: { tasks: ChecklistTask[] }) {
+function TaskList({ tasks, money }: { tasks: ChecklistTask[]; money?: MoneyRights }) {
   return (
     <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
       {tasks.map((t) => {
         const ageBorder = ageBorderOf(t.ageInDays);
+        // Денежные задачи — ряд с инлайн-кнопками «Оплачено»/«＋7 дней» (П3).
+        if (t.kind === "payment-due" && t.paymentId && t.paymentPlannedDate) {
+          return (
+            <MoneyTaskRow
+              key={t.id}
+              text={t.text}
+              href={t.href}
+              paymentId={t.paymentId}
+              plannedDate={t.paymentPlannedDate}
+              overdue={t.urgency === "overdue"}
+              canMarkPaid={money?.canMarkPaid ?? false}
+              canPostpone={money?.canPostpone ?? false}
+              dot={<UrgencyDot urgency={t.urgency} />}
+            />
+          );
+        }
         // Задачи с однозначным «галочным» переходом — CheckableRow с чек-боксом
         // и выбором фактической даты. Остальные (требуют создать сущность или
         // ввести доп.данные) — обычная ссылка в карточку.
@@ -320,7 +426,7 @@ function ChecklistRow({ task, ageBorder }: { task: ChecklistTask; ageBorder: str
         <UrgencyDot urgency={task.urgency} />
         <span
           className={`flex-1 ${
-            task.urgency === "overdue" ? "font-medium text-red-700" : "text-slate-800"
+            task.urgency === "overdue" ? "font-medium text-red-700 dark:text-red-300" : "text-slate-800"
           }`}
         >
           {task.text}

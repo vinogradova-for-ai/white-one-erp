@@ -72,7 +72,7 @@ export function SizeGridsAdmin({ initial }: { initial: SizeGridRow[] }) {
 
   return (
     <div className="space-y-3">
-      {err && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{err}</div>}
+      {err && <div className="rounded-lg bg-red-50 dark:bg-red-400/10 p-3 text-sm text-red-700 dark:text-red-300">{err}</div>}
 
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -106,7 +106,7 @@ export function SizeGridsAdmin({ initial }: { initial: SizeGridRow[] }) {
                         value={draft.sizesRaw}
                         onChange={(e) => setDraft({ ...draft, sizesRaw: e.target.value })}
                         className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm font-mono"
-                        placeholder="42, 44, 46, 48"
+                        placeholder="42, 44, 46, 48 · ростовка: 52/170"
                       />
                     ) : (
                       <span className="font-mono text-xs">{g.sizes.join(", ")}</span>
@@ -146,7 +146,7 @@ export function SizeGridsAdmin({ initial }: { initial: SizeGridRow[] }) {
                           disabled={busy || g.usedByModels > 0}
                           title={g.usedByModels > 0 ? "Используется в фасонах" : ""}
                           onClick={() => remove(g.id)}
-                          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-red-700 hover:bg-red-50 disabled:opacity-40"
+                          className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-400/10 disabled:opacity-40"
                         >
                           Удалить
                         </button>

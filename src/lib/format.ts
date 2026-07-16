@@ -93,3 +93,13 @@ function toNumber(v: number | string | null | undefined): number | null {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
+
+// Русское склонение: pluralRu(4, ["цвет", "цвета", "цветов"]) → "цвета".
+export function pluralRu(n: number, forms: [string, string, string]): string {
+  const m100 = Math.abs(n) % 100;
+  const m10 = m100 % 10;
+  if (m100 >= 11 && m100 <= 14) return forms[2];
+  if (m10 === 1) return forms[0];
+  if (m10 >= 2 && m10 <= 4) return forms[1];
+  return forms[2];
+}

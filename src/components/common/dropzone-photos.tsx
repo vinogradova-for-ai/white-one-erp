@@ -101,7 +101,7 @@ export function DropzonePhotos({
         onClick={() => inputRef.current?.click()}
         className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 text-center transition ${
           dragging
-            ? "border-blue-500 bg-blue-50"
+            ? "border-blue-500 bg-blue-50 dark:bg-blue-400/10"
             : "border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100"
         }`}
       >
@@ -124,7 +124,7 @@ export function DropzonePhotos({
         />
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-300">{error}</p>}
       {hint && !error && <p className="text-xs text-slate-500">{hint}</p>}
 
       {value.length > 0 && (

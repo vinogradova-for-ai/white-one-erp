@@ -2,9 +2,16 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { GanttV2Client } from "@/components/gantt-v2/gantt-v2-client";
 import type { GanttRowV2, GanttBarV2, BarState, GanttFilterOptions } from "@/components/gantt-v2/types";
-import { ORDER_STATUS_LABELS, BRAND_LABELS } from "@/lib/constants";
+import { ORDER_STATUS_LABELS, BRAND_LABELS, PRODUCT_MODEL_STATUS_LABELS } from "@/lib/constants";
 import { orderActivePhaseIndex } from "@/lib/order-stage";
-import { PACKAGING_ORDER_STATUS_LABELS } from "@/lib/packaging-orders";
+import { moscowTodayIso } from "@/lib/dates";
+import { ListCapNotice } from "@/components/common/list-cap-notice";
+
+// Потолок ленты Ганта (аудит блок ④): при ровно стольких заказах показываем
+// полосу «показаны первые N». Пагинация — отдельной задачей.
+const GANTT_ORDERS_CAP = 500;
+import { orderLateDays } from "@/lib/order-auto-status";
+import { PACKAGING_ORDER_STATUS_LABELS, packagingActivePhaseIndex } from "@/lib/packaging-orders";
 
 // Фазы заказа: 4 фиксированных этапа от Разработки до Доставки.
 // Каждой фазе соответствует пара полей в БД (start/end), причём end предыдущей
@@ -23,14 +30,6 @@ const NEARLY_DUE_DAYS = 5;
 
 function iso(d: Date | null | undefined): string | null {
   return d ? d.toISOString().slice(0, 10) : null;
-}
-
-// Текущий московский день в формате YYYY-MM-DD. Сервер в UTC, поэтому
-// new Date() в ночь возвращает «вчера» по UTC. МСК = UTC+3 круглый год.
-function moscowToday(): string {
-  const now = new Date();
-  const mskMs = now.getTime() + 3 * 60 * 60 * 1000;
-  return new Date(mskMs).toISOString().slice(0, 10);
 }
 
 // Разнесём заказы по регионам производства для фильтра «Производство».
@@ -70,11 +69,11 @@ export default async function GanttV2Page() {
   const session = await auth();
   const isOwner = session?.user?.role === "OWNER";
 
-  const [orders, packagingOrders, owners, factories] = await Promise.all([
+  const [orders, packagingOrders, devModels, owners, factories] = await Promise.all([
     prisma.order.findMany({
       where: { deletedAt: null, status: { not: "ON_SALE" } },
       orderBy: { launchMonth: "asc" },
-      take: 500,
+      take: GANTT_ORDERS_CAP,
       include: {
         productModel: { select: { name: true, photoUrls: true, brand: true, category: true, subcategory: true } },
         owner: { select: { id: true, name: true } },
@@ -100,6 +99,30 @@ export default async function GanttV2Page() {
       console.warn("[gantt-v2] packagingOrder.findMany failed, returning empty:", err?.message);
       return [] as never[];
     }),
+    // Фасоны в разработке БЕЗ заказа (правка Алёны №2, 03.07): идея, взятая
+    // в работу, видна в Ганте с первого дня — полоса «Разработка» до сегодня.
+    // Когда появится заказ, эта строка исчезнет, а заказ унаследует старт
+    // разработки (см. создание заказа) — таймлайн сквозной, без «обнуления».
+    prisma.productModel.findMany({
+      where: {
+        deletedAt: null,
+        activated: true,
+        orders: { none: { deletedAt: null } },
+      },
+      select: {
+        id: true,
+        name: true,
+        photoUrls: true,
+        brand: true,
+        category: true,
+        status: true,
+        createdAt: true,
+        plannedLaunchMonth: true,
+        owner: { select: { id: true, name: true } },
+        preferredFactory: { select: { id: true, name: true, country: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
     prisma.user.findMany({
       where: { isActive: true },
       select: { id: true, name: true },
@@ -117,7 +140,7 @@ export default async function GanttV2Page() {
   // todayIso уезжает на день назад (для нас сегодня уже понедельник, для
   // UTC ещё воскресенье). Алёна и команда работают по МСК — даты везде в БД
   // тоже UTC-полночь нужного дня (через date-input). Берём день по МСК.
-  const todayIso = moscowToday();
+  const todayIso = moscowTodayIso();
   const today = new Date(`${todayIso}T00:00:00Z`);
 
   const rows: GanttRowV2[] = [];
@@ -147,9 +170,6 @@ export default async function GanttV2Page() {
       { name: "конец Доставки", d: o.arrivalPlannedDate },
     ]);
 
-    // Активная фаза — ОДИН маппер по статусу заказа (см. lib/order-stage).
-    // -1 ⇒ заказ завершён (все полосы закрашиваем как «done»).
-    const activeIdx = orderActivePhaseIndex(o.status);
     let prevEnd: string | null = null;
 
     const bars: GanttBarV2[] = [];
@@ -160,13 +180,6 @@ export default async function GanttV2Page() {
       const startIso: string = iso(startRaw) ?? prevEnd ?? todayIso;
       const endIso: string = iso(endRaw) ?? startIso;
       prevEnd = endIso;
-      // Фаза «закрыта», если заказ её уже прошёл (i < активной) или завершён.
-      const done = activeIdx === -1 || i < activeIdx;
-      const isActive = i === activeIdx;
-      const state: BarState = done ? "done" : isActive ? "active" : "future";
-      const overdue = !done && endIso < todayIso;
-      const daysToEnd = Math.round((new Date(endIso).getTime() - new Date(todayIso).getTime()) / 86400000);
-      const nearlyDue = !done && !overdue && daysToEnd >= 0 && daysToEnd <= NEARLY_DUE_DAYS;
       const isFirstInChain = i === 0;
       bars.push({
         key: ph.key,
@@ -174,14 +187,33 @@ export default async function GanttV2Page() {
         color: ph.color,
         start: startIso,
         end: endIso,
-        state,
+        state: "future", // проставится ниже, когда известна активная фаза
         owner: getPhaseOwner(ph.key, o.owner?.name, o.factory?.name),
-        overdue,
-        nearlyDue,
         orderId: o.id,
         endField: ph.endKey,
         ...(isFirstInChain ? { startField: ph.startKey } : {}),
       });
+    }
+
+    // ГАНТ ПЕРВИЧЕН (Алёна 05.07): активная фаза = где стоит «сегодня» по датам
+    // (девочки двигают Гант, статусы руками не отмечают). Ручной статус решает
+    // только «завершён ли заказ» (склад принял — orderActivePhaseIndex = -1).
+    // Если «сегодня» за концом Доставки, а заказ не завершён — активной остаётся
+    // Доставка (просрочка подсвечивается красным, а не ложным «готово»).
+    const firstUnfinished = bars.findIndex((b) => todayIso < b.end);
+    const activeIdx =
+      orderActivePhaseIndex(o.status) === -1
+        ? -1
+        : firstUnfinished === -1
+          ? bars.length - 1
+          : firstUnfinished;
+    for (let i = 0; i < bars.length; i++) {
+      const done = activeIdx === -1 || i < activeIdx;
+      bars[i].state = done ? "done" : i === activeIdx ? "active" : "future";
+      const overdue = !done && bars[i].end < todayIso;
+      const daysToEnd = Math.round((new Date(bars[i].end).getTime() - new Date(todayIso).getTime()) / 86400000);
+      bars[i].overdue = overdue;
+      bars[i].nearlyDue = !done && !overdue && daysToEnd >= 0 && daysToEnd <= NEARLY_DUE_DAYS;
     }
 
     const thumbs = o.lines.map((l) => ({
@@ -209,6 +241,13 @@ export default async function GanttV2Page() {
       hasNearlyDue: bars.some((b) => b.nearlyDue),
       hasDateOrderIssue: !!dateOrderIssue,
       dateOrderIssueText: dateOrderIssue ?? undefined,
+      lateDays: orderLateDays({
+        readyAtFactoryDate: o.readyAtFactoryDate,
+        qcDate: o.qcDate,
+        arrivalPlannedDate: o.arrivalPlannedDate,
+        arrivalActualDate: o.arrivalActualDate,
+        status: o.status,
+      }),
       thumbnails: thumbs,
       bars,
     });
@@ -233,30 +272,32 @@ export default async function GanttV2Page() {
       .slice(0, 3);
     const factoryOwner = po.factory?.name ?? po.supplierName ?? po.owner?.name;
 
-    const developmentDone = po.status !== "ORDERED";
-    const productionDone = ["IN_TRANSIT", "ARRIVED"].includes(po.status);
-    const deliveryDone = po.status === "ARRIVED";
-
-    let activeIdx = -1;
-    if (!developmentDone) activeIdx = 0;
-    else if (!productionDone) activeIdx = 1;
-    else if (!deliveryDone) activeIdx = 2;
-
     const phases: Array<{
       key: string; title: string; color: string;
-      start: string; end: string; done: boolean;
+      start: string; end: string;
       endField: string; startField?: string;
     }> = [
-      { key: "preparation", title: "Разработка",  color: "bg-slate-400",    start: decisionIso,    end: orderedIso,       done: developmentDone, endField: "orderedDate", startField: "decisionDate" },
-      { key: "production",  title: "Производство", color: "bg-blue-500",    start: orderedIso,     end: productionEndIso, done: productionDone,  endField: "productionEndDate" },
-      { key: "delivery",    title: "Доставка",      color: "bg-emerald-500", start: productionEndIso, end: expectedIso,    done: deliveryDone,    endField: "expectedDate" },
+      { key: "preparation", title: "Разработка",  color: "bg-slate-400",    start: decisionIso,    end: orderedIso,       endField: "orderedDate", startField: "decisionDate" },
+      { key: "production",  title: "Производство", color: "bg-blue-500",    start: orderedIso,     end: productionEndIso, endField: "productionEndDate" },
+      { key: "delivery",    title: "Доставка",      color: "bg-emerald-500", start: productionEndIso, end: expectedIso,    endField: "expectedDate" },
     ];
 
+    // ГАНТ ПЕРВИЧЕН: активная фаза упаковки — где «сегодня» по датам (как у
+    // одежды). Ручной статус решает только завершённость (ARRIVED/CANCELLED
+    // сюда не попадают — отфильтрованы запросом). Разработка позади всегда:
+    // заказ размещён, поэтому активная фаза минимум «Производство».
+    const firstUnfinishedPkg = phases.findIndex((p) => todayIso < p.end);
+    const activeIdx =
+      packagingActivePhaseIndex(po.status) === -1
+        ? -1
+        : Math.max(1, firstUnfinishedPkg === -1 ? phases.length - 1 : firstUnfinishedPkg);
+
     const bars: GanttBarV2[] = phases.map((p, i) => {
-      const overdue = !p.done && p.end < todayIso;
+      const done = activeIdx === -1 || i < activeIdx;
+      const overdue = !done && p.end < todayIso;
       const daysToEnd = Math.round((new Date(p.end).getTime() - new Date(todayIso).getTime()) / 86400000);
-      const nearlyDue = !p.done && !overdue && daysToEnd >= 0 && daysToEnd <= NEARLY_DUE_DAYS;
-      const state: BarState = p.done ? "done" : i === activeIdx ? "active" : "future";
+      const nearlyDue = !done && !overdue && daysToEnd >= 0 && daysToEnd <= NEARLY_DUE_DAYS;
+      const state: BarState = done ? "done" : i === activeIdx ? "active" : "future";
       return {
         key: p.key,
         title: p.title,
@@ -300,9 +341,54 @@ export default async function GanttV2Page() {
     });
   }
 
-  // (Раньше тут была секция «Разработка фасонов» (Лекала/Образец/Утверждение/
-  // Подготовка) — убрана по запросу Алёны: «у нас нет такого этапа, как лекала».
-  // На /gantt-v2 теперь только заказы (4 фазы) и упаковка (3 фазы без ОТК).
+  // === РАЗРАБОТКА (фасоны без заказа) ===
+  // Одна полоса «Разработка» от взятия идеи в работу до сегодня (правка №2).
+  // Без дробления на «лекала/образец» — те под-этапы Алёна отклоняла раньше;
+  // стадия видна текстом в подписи. Полоса не таскается (дат-полей у неё нет),
+  // при создании заказа строка исчезает, а заказ наследует старт разработки.
+  for (const m of devModels) {
+    const startIso = iso(m.createdAt) ?? todayIso;
+    const devDays = Math.max(
+      1,
+      Math.round((new Date(todayIso).getTime() - new Date(startIso).getTime()) / 86400000),
+    );
+    const stageLabel = PRODUCT_MODEL_STATUS_LABELS[m.status];
+    rows.push({
+      group: "development",
+      id: m.id,
+      href: `/models/${m.id}`,
+      title: `${m.name} · разработка`,
+      // statusLabel уже выводится перед subtitle — стадию тут не дублируем
+      // (на проде было «Идея · Идея · 30 дн», скрин Алёны 04.07).
+      subtitle: `${devDays} дн в разработке`,
+      statusLabel: stageLabel,
+      brand: m.brand,
+      factoryId: m.preferredFactory?.id ?? null,
+      factoryName: m.preferredFactory?.name ?? null,
+      productionRegion: productionRegionOf(m.preferredFactory),
+      ownerId: m.owner?.id ?? null,
+      ownerName: m.owner?.name ?? null,
+      launchMonth: m.plannedLaunchMonth ?? null,
+      category: m.category ?? null,
+      rawStatus: m.status,
+      hasOverdue: false,
+      hasNearlyDue: false,
+      thumbnails: [{ photoUrl: m.photoUrls?.[0] ?? null, colorName: null }],
+      bars: [
+        {
+          key: "development",
+          title: "Разработка",
+          color: "bg-purple-400",
+          start: startIso,
+          end: todayIso,
+          state: "active",
+          owner: m.owner?.name ?? undefined,
+          overdue: false,
+          nearlyDue: false,
+        },
+      ],
+    });
+  }
 
   // Опции фильтров с подсчётом — берём ТОЛЬКО те значения, которые реально
   // присутствуют у заказов. Иначе фильтр «Статус» показывает все 10 статусов
@@ -363,11 +449,14 @@ export default async function GanttV2Page() {
   };
 
   return (
-    <GanttV2Client
-      rows={rows}
-      filterOptions={filterOptions}
-      todayIso={todayIso}
-      isOwner={isOwner}
-    />
+    <div className="space-y-3">
+      <ListCapNotice shown={orders.length} cap={GANTT_ORDERS_CAP} unit="заказов" />
+      <GanttV2Client
+        rows={rows}
+        filterOptions={filterOptions}
+        todayIso={todayIso}
+        isOwner={isOwner}
+      />
+    </div>
   );
 }

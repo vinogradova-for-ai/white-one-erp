@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { ROLE_LABELS } from "@/lib/constants";
 import type { Role } from "@prisma/client";
+import { SidebarNav } from "./sidebar-nav";
 
 // Минималистичная навигация: только то, что Алёна реально открывает каждый день.
 // Аналитика и админка спрятаны, ОТК-приёмка склада убраны.
@@ -8,6 +8,7 @@ import type { Role } from "@prisma/client";
 // «Главный» = /dashboard (чек-лист задач по 7 типам, подвкладки по PM).
 const NAV = [
   { href: "/dashboard", label: "Главный", icon: "✦" },
+  { href: "/planning", label: "Планирование", icon: "🧭" },
   { href: "/models", label: "Фасоны", icon: "⬢" },
   { href: "/models/kanban", label: "Канбан фасонов", icon: "▦" },
   { href: "/models/board", label: "Доска фасонов", icon: "▢" },
@@ -17,16 +18,19 @@ const NAV = [
   { href: "/packaging", label: "Упаковка", icon: "▯" },
   { href: "/packaging-orders", label: "Заказы упаковки", icon: "▥" },
   { href: "/gantt-v2", label: "График Ганта", icon: "▦" },
-  { href: "/seasons", label: "Цели", icon: "◈" },
-  { href: "/plan-vs-fact", label: "План/Факт", icon: "⎋" },
-  { href: "/admin/plans", label: "Планирование работы", icon: "Σ" },
+  // «Цели» (/seasons) и «План/Факт» (/plan-vs-fact) убраны из меню (Алёна 04.07:
+  // «ненужные вкладки, ориентируемся на Статистику»). Страницы живы по URL,
+  // их данные питают Статистику — не удалять.
+  { href: "/stats", label: "Статистика", icon: "▤" },
+  { href: "/data-gaps", label: "Дыры в данных", icon: "⚠" },
 ];
 
 // Смежные отделы — разделы, за которыми приходят финансы / склад / ВЭД / контент.
 // Они здесь только СМОТРЯТ; работаем в системе мы (отдел продукта).
 const MORE_NAV = [
   { href: "/payments", label: "Платежи", icon: "₽" },
-  { href: "/incoming", label: "Поставки", icon: "▣" },
+  { href: "/shipments", label: "Карго", icon: "▣" },
+  { href: "/incoming", label: "Заказы в пути", icon: "▤" },
   { href: "/warehouse", label: "Склад", icon: "▩" },
   { href: "/content-schedule", label: "Артикулы для фотосессии", icon: "✿" },
 ];
@@ -34,6 +38,7 @@ const MORE_NAV = [
 // Справочники — общие разделы, видны всем сотрудникам.
 // Управление людьми (добавить/выключить) внутри «Сотрудников» остаётся за владельцем/руководителем.
 const REF_NAV = [
+  { href: "/honest-sign", label: "Честный знак", icon: "✓" },
   { href: "/factories", label: "Фабрики", icon: "⛭" },
   { href: "/admin/users", label: "Сотрудники", icon: "☉" },
   { href: "/admin/size-grids", label: "Размерные сетки", icon: "#" },
@@ -41,27 +46,26 @@ const REF_NAV = [
 ];
 
 export function Sidebar({ user }: { user: { name?: string | null; email?: string | null; role: Role } }) {
+  // Сайдбар — колонка на всю высоту: шапка (фикс) + меню (скроллится) +
+  // плашка пользователя (фикс, футер). Раньше плашка была absolute поверх
+  // меню и при прокрутке НАКЛАДЫВАЛАСЬ на нижние пункты. Теперь flex-колонка:
+  // меню в своей зоне flex-1 overflow-y-auto, футер — отдельным нескроллящимся
+  // блоком с фоном и border-t, ничего не перекрывает.
   return (
-    <aside className="hidden w-60 flex-shrink-0 border-r border-slate-200 bg-white md:block">
-      <div className="flex h-16 items-center border-b border-slate-200 px-5">
+    <aside className="sticky top-0 hidden h-screen w-60 flex-shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
+      <div className="flex h-16 shrink-0 items-center border-b border-slate-200 px-5">
         <span className="text-base font-semibold tracking-tight text-slate-900">White One</span>
       </div>
-      <nav className="space-y-0.5 px-3 py-4">
-        {NAV.map((item) => (
-          <NavItem key={item.href} {...item} />
-        ))}
-
-        <div className="mt-5 px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-slate-400">
-          Смежные отделы
-        </div>
-        {MORE_NAV.map((item) => <NavItem key={item.href} {...item} />)}
-
-        <div className="mt-5 px-2 pb-1 text-[11px] font-medium uppercase tracking-wider text-slate-400">
-          Справочники
-        </div>
-        {REF_NAV.map((item) => <NavItem key={item.href} {...item} />)}
+      <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
+        <SidebarNav
+          groups={[
+            { items: NAV },
+            { title: "Смежные отделы", items: MORE_NAV },
+            { title: "Справочники", items: REF_NAV },
+          ]}
+        />
       </nav>
-      <div className="absolute bottom-0 w-60 border-t border-slate-200 px-5 py-3">
+      <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-3">
         <div className="text-sm text-slate-900">{user.name}</div>
         <div className="text-[11px] text-slate-500">{ROLE_LABELS[user.role]}</div>
       </div>
@@ -69,14 +73,3 @@ export function Sidebar({ user }: { user: { name?: string | null; email?: string
   );
 }
 
-function NavItem({ href, label, icon }: { href: string; label: string; icon: string }) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-    >
-      <span className="w-4 text-center text-[13px] text-slate-400">{icon}</span>
-      <span>{label}</span>
-    </Link>
-  );
-}

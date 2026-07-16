@@ -4,25 +4,19 @@ import { formatNumber } from "@/lib/format";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
 import { ColorChip } from "@/components/common/color-chip";
 import { IncomingExportButton } from "../export-button";
+import { moscowTodayStart } from "@/lib/dates";
 
 // Календарный вид Поставок. Заказы группируются по arrivalPlannedDate
 // (дате плановой даты прибытия). Если факт-дата стоит — карточка переезжает
 // на факт-дату, и помечается зелёным как «приехала».
 // Навигация ◀/▶ переключает месяц через ?month=YYYY-MM.
 
-function moscowToday(): Date {
-  const now = new Date();
-  const mskMs = now.getTime() + 3 * 60 * 60 * 1000;
-  const iso = new Date(mskMs).toISOString().slice(0, 10);
-  return new Date(`${iso}T00:00:00Z`);
-}
-
 function parseMonthParam(monthStr: string | undefined): Date {
   if (monthStr && /^\d{4}-\d{2}$/.test(monthStr)) {
     const [y, m] = monthStr.split("-").map(Number);
     return new Date(Date.UTC(y, m - 1, 1));
   }
-  const t = moscowToday();
+  const t = moscowTodayStart();
   return new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), 1));
 }
 
@@ -47,7 +41,7 @@ export default async function IncomingCalendarPage({
   const y = monthStart.getUTCFullYear();
   const m = monthStart.getUTCMonth();
   const monthEnd = new Date(Date.UTC(y, m + 1, 1));
-  const today = moscowToday();
+  const today = moscowTodayStart();
 
   // Календарная сетка: начинаем с понедельника недели, в которой 1-е число,
   // и заканчиваем воскресеньем недели, в которой последнее число месяца.
@@ -71,7 +65,7 @@ export default async function IncomingCalendarPage({
   const orders = await prisma.order.findMany({
     where: {
       deletedAt: null,
-      status: { in: ["READY_SHIP", "IN_TRANSIT", "WAREHOUSE_MSK"] },
+      status: { in: ["IN_TRANSIT", "WAREHOUSE_MSK"] },
       OR: [
         { arrivalPlannedDate: { gte: queryStart, lte: queryEnd } },
         { arrivalActualDate: { gte: queryStart, lte: queryEnd } },
@@ -156,8 +150,8 @@ export default async function IncomingCalendarPage({
     <div className="space-y-4">
       <div className="flex items-center gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Поставки</h1>
-          <p className="text-sm text-slate-500">Заказы в пути и к отгрузке: {orders.length}</p>
+          <h1 className="text-2xl font-semibold text-slate-900">Заказы в пути</h1>
+          <p className="text-sm text-slate-500">В пути и к отгрузке: {orders.length}</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <IncomingExportButton />
@@ -207,7 +201,7 @@ export default async function IncomingCalendarPage({
             <div
               key={d}
               className={`px-2 py-2 text-[11px] font-semibold uppercase text-center ${
-                i >= 5 ? "text-rose-600" : "text-slate-600"
+                i >= 5 ? "text-rose-600 dark:text-rose-300" : "text-slate-600"
               }`}
             >
               {d}
@@ -224,13 +218,13 @@ export default async function IncomingCalendarPage({
                 key={day.key}
                 className={`min-h-[110px] p-1.5 border-r border-b border-slate-100 flex flex-col gap-1 ${
                   !day.inMonth ? "bg-slate-50/50" : "bg-white"
-                } ${day.isToday ? "ring-2 ring-inset ring-blue-400" : ""}`}
+                } ${day.isToday ? "ring-2 ring-inset ring-blue-400 dark:ring-blue-400/30" : ""}`}
               >
                 <div
                   className={`text-[11px] font-semibold leading-tight ${
                     !day.inMonth ? "text-slate-400" :
-                    day.isToday ? "text-blue-600" :
-                    day.isWeekend ? "text-rose-500" :
+                    day.isToday ? "text-blue-600 dark:text-blue-300" :
+                    day.isWeekend ? "text-rose-500 dark:text-rose-400" :
                     "text-slate-700"
                   }`}
                 >
@@ -243,8 +237,8 @@ export default async function IncomingCalendarPage({
                       href={`/orders/${c.id}`}
                       className={`block rounded px-1.5 py-1 text-[10px] hover:shadow-sm transition ${
                         c.arrived
-                          ? "bg-emerald-50 border border-emerald-200"
-                          : "bg-amber-50 border border-amber-200"
+                          ? "bg-emerald-50 border border-emerald-200 dark:bg-emerald-400/10 dark:border-emerald-400/20"
+                          : "bg-amber-50 border border-amber-200 dark:bg-amber-400/10 dark:border-amber-400/20"
                       }`}
                       title={`${c.name} · ${c.orderNumber} · ${formatNumber(c.qty)} шт${c.factoryName ? ` · ${c.factoryName}` : ""}`}
                     >
@@ -258,7 +252,7 @@ export default async function IncomingCalendarPage({
                           <div className="flex items-center gap-1 leading-tight">
                             <span className="font-mono text-slate-500 text-[9px]">{c.orderNumber.replace("ORD-", "")}</span>
                             <span className="text-slate-400">·</span>
-                            <span className={c.qtyIsFact ? "text-emerald-700 font-semibold" : "text-slate-700"}>
+                            <span className={c.qtyIsFact ? "text-emerald-700 font-semibold dark:text-emerald-300" : "text-slate-700"}>
                               {formatNumber(c.qty)}{c.qtyIsFact ? " ф" : ""}
                             </span>
                           </div>

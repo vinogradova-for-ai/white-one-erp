@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { formatNumber, formatDate } from "@/lib/format";
+import { formatNumber, formatDate, pluralRu } from "@/lib/format";
 import {
   PRODUCT_VARIANT_STATUS_LABELS,
   PRODUCT_VARIANT_STATUS_COLORS,
@@ -9,18 +9,26 @@ import {
   ORDER_STATUS_COLORS,
   BRAND_LABELS,
 } from "@/lib/constants";
-import { PhotoGallery } from "@/components/common/photo-thumb";
-import { VariantVisual } from "@/components/common/variant-visual";
+import { PhotoGallery, PhotoThumb } from "@/components/common/photo-thumb";
 import { ColorChip } from "@/components/common/color-chip";
+import { colorHexFromName, isLightColor } from "@/lib/color-map";
 import { DeleteButton } from "@/components/common/delete-button";
+import { ModelWorkToggle } from "@/components/models/model-work-toggle";
 import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
+import { syncModelOrderStatusesForward } from "@/server/sync-order-status";
 import { CommentsThread } from "@/components/comments/comments-thread";
+import { SamplesSection } from "@/components/models/samples-section";
+import { ModelStageBadge } from "@/components/models/model-stage-badge";
 import { auth } from "@/lib/auth";
+import { can } from "@/lib/rbac";
+import type { Role } from "@prisma/client";
 
 export default async function ModelDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   // Авто-синк упаковки фасона → открытые заказы (идемпотентно).
   await syncModelPackagingToOrders(id);
+  // Авто-статусы заказов по таймлайну — чтобы бейджи в списке «Заказы» не отставали.
+  await syncModelOrderStatusesForward(id);
   const session = await auth();
   const sessionUser = session?.user as { id?: string; role?: string } | undefined;
   const currentUserId = sessionUser?.id;
@@ -40,6 +48,11 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
       packagingItems: {
         include: { packagingItem: { select: { id: true, name: true, type: true, photoUrl: true } } },
         orderBy: { createdAt: "asc" },
+      },
+      samples: {
+        where: { deletedAt: null },
+        orderBy: { createdAt: "desc" },
+        include: { factory: { select: { name: true } } },
       },
       orders: {
         where: { deletedAt: null },
@@ -89,9 +102,21 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
           <div className="text-xs uppercase tracking-wider text-slate-400">
             {BRAND_LABELS[model.brand]} · {model.category}
           </div>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">{model.name}</h1>
+          <h1 className="mt-1 text-xl font-semibold tracking-tight text-slate-900 md:text-3xl">{model.name}</h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-            <span>{model.variants.length} цветов</span>
+            <ModelStageBadge
+              modelId={model.id}
+              status={model.status}
+              sizeChartReady={model.sizeChartReady}
+              canEdit={
+                sessionUser?.role
+                  ? can(sessionUser.role as Role, "product.updateStatus", model.ownerId, currentUserId)
+                  : false
+              }
+              hasActiveOrder={model.orders.length > 0}
+            />
+            <span>·</span>
+            <span>{model.variants.length} {pluralRu(model.variants.length, ["цвет", "цвета", "цветов"])}</span>
             <span>·</span>
             <span>{model.owner.name}</span>
             {model.isRepeat && (
@@ -100,15 +125,28 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
                 <span className="text-amber-700">повтор</span>
               </>
             )}
+            {!model.activated && (
+              <>
+                <span>·</span>
+                <span className="rounded bg-slate-200 px-1.5 py-0.5 font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                  не в работе
+                </span>
+              </>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link
             href={`/models/${model.id}/edit`}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            className="flex h-10 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100"
           >
             Редактировать
           </Link>
+          {/* «Передумала» для фасона с историей заказов: снять с разработки
+              вместо запрещённого удаления (Алёна 05.07). */}
+          {sessionUser?.role && can(sessionUser.role as Role, "product.update", model.ownerId, currentUserId) && (
+            <ModelWorkToggle modelId={model.id} activated={model.activated} />
+          )}
           <DeleteButton
             apiPath={`/api/models/${model.id}`}
             redirectTo="/models"
@@ -124,12 +162,23 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
         </div>
 
         <div className="space-y-3">
-          {/* Себестоимость — одна плитка, во всю ширину */}
-          <KpiCard
-            label="Себестоимость"
-            value={cost != null ? `${cost.cur}${formatNumber(cost.value.toString())}` : "—"}
-            accent
-          />
+          {/* Себестоимость — одна плитка, во всю ширину. Пустая — кликабельный
+              призыв «задать цену» вместо немого прочерка (§4 UX-аудита). */}
+          {cost != null ? (
+            <KpiCard
+              label="Себестоимость"
+              value={`${cost.cur}${formatNumber(cost.value.toString())}`}
+              accent
+            />
+          ) : (
+            <Link
+              href={`/models/${model.id}/edit#economy`}
+              className="block rounded-2xl border-2 border-dashed border-slate-300 px-4 py-3 hover:border-slate-400 hover:bg-slate-50"
+            >
+              <div className="text-[11px] uppercase tracking-wider text-slate-400">Себестоимость</div>
+              <div className="mt-0.5 text-lg font-semibold text-slate-500">не задана — задать цену →</div>
+            </Link>
+          )}
 
           {/* Факты — одной плиткой */}
           <div className="rounded-2xl bg-white p-5">
@@ -141,6 +190,31 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
                 </div>
               ))}
             </dl>
+
+            {/* Маркировка ЧЗ — состав и ТНВЭД видны прямо в карточке;
+                пустые подсвечены красным (дыра для Честного знака). */}
+            <div className="mt-4 space-y-1.5 border-t border-slate-100 pt-4 text-xs">
+              <div>
+                <span className="text-slate-400">Состав (для ЧЗ):</span>{" "}
+                {model.fabricComposition ? (
+                  <span className="text-slate-700">{model.fabricComposition}</span>
+                ) : (
+                  <Link href={`/models/${model.id}/edit`} className="font-medium text-red-600 hover:underline dark:text-red-300">
+                    не заполнено — заполнить
+                  </Link>
+                )}
+              </div>
+              <div>
+                <span className="text-slate-400">ТНВЭД:</span>{" "}
+                {model.tnvedCode ? (
+                  <span className="text-slate-700">{model.tnvedCode}</span>
+                ) : (
+                  <Link href={`/models/${model.id}/edit`} className="font-medium text-red-600 hover:underline dark:text-red-300">
+                    не заполнено — заполнить
+                  </Link>
+                )}
+              </div>
+            </div>
 
             {/* Документация и ткань — мелким шрифтом ниже, без отдельной карточки */}
             {(model.patternsUrl || model.fabricName) && (
@@ -172,19 +246,37 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
         </div>
       </div>
 
+      {/* Образцы — заказан → едет → получен → вердикт */}
+      <SamplesSection
+        modelId={model.id}
+        isAdmin={isAdmin}
+        samples={model.samples.map((s) => ({
+          id: s.id,
+          label: s.label,
+          status: s.status,
+          orderedDate: s.orderedDate?.toISOString() ?? null,
+          receivedDate: s.receivedDate?.toISOString() ?? null,
+          verdictDate: s.verdictDate?.toISOString() ?? null,
+          verdictNote: s.verdictNote,
+          photoUrls: s.photoUrls,
+          factoryName: s.factory?.name ?? null,
+        }))}
+      />
+
       {/* Комплект упаковки — что прикреплено к фасону */}
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-base font-semibold text-slate-900">Комплект упаковки</h2>
           <Link
             href={`/models/${model.id}/edit`}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            className="inline-flex h-9 items-center rounded-lg border border-slate-300 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 active:bg-slate-100"
           >
             {model.packagingItems.length > 0 ? "Изменить" : "+ Прикрепить"}
           </Link>
         </div>
         {model.packagingItems.length === 0 ? (
-          <div className="rounded-2xl bg-white p-8 text-center text-sm text-slate-400">
+          <div className="rounded-2xl bg-white px-6 py-8 text-center text-sm text-slate-400">
+            <div className="mb-1 text-2xl">▯</div>
             Упаковка ещё не прикреплена
           </div>
         ) : (
@@ -220,13 +312,16 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
           <h2 className="text-base font-semibold text-slate-900">Заказы</h2>
           <Link
             href={`/orders/new?modelId=${model.id}`}
-            className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+            className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-3 text-xs font-medium text-white hover:bg-slate-800 active:bg-slate-800"
           >
             + Заказ
           </Link>
         </div>
         {model.orders.length === 0 ? (
-          <div className="rounded-2xl bg-white p-8 text-center text-sm text-slate-400">Заказов нет</div>
+          <div className="rounded-2xl bg-white px-6 py-8 text-center text-sm text-slate-400">
+            <div className="mb-1 text-2xl">⬡</div>
+            Заказов нет
+          </div>
         ) : (
           <div className="overflow-hidden rounded-2xl bg-white">
             <ul className="divide-y divide-slate-100">
@@ -256,13 +351,14 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
           <h2 className="text-base font-semibold text-slate-900">Цветомодели</h2>
           <Link
             href={`/models/${model.id}/variants/new`}
-            className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+            className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-3 text-xs font-medium text-white hover:bg-slate-800 active:bg-slate-800"
           >
             + Цветомодель
           </Link>
         </div>
         {model.variants.length === 0 ? (
-          <div className="rounded-2xl bg-white p-8 text-center text-sm text-slate-400">
+          <div className="rounded-2xl bg-white px-6 py-8 text-center text-sm text-slate-400">
+            <div className="mb-1 text-2xl">◎</div>
             Цветов пока нет
           </div>
         ) : (
@@ -273,12 +369,21 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
                 href={`/variants/${v.id}`}
                 className="group flex items-center gap-3 rounded-2xl bg-white p-3 transition hover:bg-slate-50"
               >
-                <VariantVisual
-                  variantPhotoUrl={v.photoUrls[0] ?? null}
-                  modelPhotoUrl={model.photoUrls[0] ?? null}
-                  colorName={v.colorName}
-                  size={48}
-                />
+                {/* §4 UX-аудита: без фоллбэка на фото фасона — у цвета без своего
+                    фото серая заглушка с кружком, сразу видно где дыра */}
+                {v.photoUrls[0] ? (
+                  <PhotoThumb url={v.photoUrls[0]} size={48} />
+                ) : (
+                  <div
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-100 ring-1 ring-slate-200 dark:bg-slate-800 dark:ring-slate-700"
+                    title={`${v.colorName} — фото не загружено`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 rounded-full ${isLightColor(colorHexFromName(v.colorName)) ? "ring-1 ring-slate-300" : ""}`}
+                      style={{ backgroundColor: colorHexFromName(v.colorName) }}
+                    />
+                  </div>
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium text-slate-900">
                     <ColorChip name={v.colorName} />

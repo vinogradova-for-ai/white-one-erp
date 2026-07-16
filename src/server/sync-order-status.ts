@@ -66,3 +66,20 @@ export async function syncOrderStatusForward(orderId: string): Promise<void> {
     console.warn("[sync-order-status] failed:", (err as Error)?.message);
   }
 }
+
+/**
+ * Пересчёт статусов ВСЕХ заказов фасона при открытии его карточки — иначе
+ * бейджи в списке «Заказы» отстают, пока каждый заказ не откроют по одному
+ * (Алёна 15.07: превью показывало «В пошиве» у заказа, который давно едет).
+ */
+export async function syncModelOrderStatusesForward(modelId: string): Promise<void> {
+  try {
+    const orders = await prisma.order.findMany({
+      where: { productModelId: modelId, deletedAt: null },
+      select: SELECT,
+    });
+    for (const o of orders) await advanceOne(o);
+  } catch (err) {
+    console.warn("[sync-order-status] failed:", (err as Error)?.message);
+  }
+}

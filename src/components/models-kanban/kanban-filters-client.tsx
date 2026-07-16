@@ -38,6 +38,10 @@ export function KanbanFiltersClient({
     status: string[];
   }>("kanban:filters:v1", { category: [], ownerId: [], status: [] });
 
+  // Активен ли хоть один фильтр — для показа кнопки «Сбросить фильтры».
+  const hasActiveFilters =
+    filters.category.length > 0 || filters.ownerId.length > 0 || filters.status.length > 0;
+
   const filteredBuckets = useMemo(() => {
     const out: Record<string, KanbanCard[]> = {};
     let visibleCount = 0;
@@ -57,15 +61,30 @@ export function KanbanFiltersClient({
   return (
     <div className="space-y-2">
       <div className="rounded-xl border border-slate-200 bg-white p-2">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <div className="flex items-baseline gap-2">
+        <div className="no-scrollbar flex items-center gap-x-3 gap-y-2 overflow-x-auto md:flex-wrap">
+          <div className="flex shrink-0 items-center gap-2">
             <h1 className="text-sm font-semibold text-slate-900">Канбан фасонов</h1>
-            <span className="text-xs text-slate-500">
-              {filteredBuckets.visibleCount}/{total}
+            {/* П5: числа с подписями — «82/67» никто не расшифрует без тултипа */}
+            <span
+              className="text-xs text-slate-500"
+              title={`Показано карточек: ${filteredBuckets.visibleCount} из ${total} (после фильтров)`}
+            >
+              {hasActiveFilters
+                ? `показано ${filteredBuckets.visibleCount} из ${total}`
+                : `карточек: ${total}`}
             </span>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={() => setFilters({ category: [], ownerId: [], status: [] })}
+                className="inline-flex min-h-[44px] items-center gap-1 rounded-full border border-slate-200 px-3 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:text-slate-900 md:min-h-0 md:py-1"
+              >
+                ✕ Сбросить фильтры
+              </button>
+            )}
           </div>
-          <span className="mx-1 h-5 w-px bg-slate-200" aria-hidden />
-          <span className="text-xs uppercase tracking-wide text-slate-400">Фильтры:</span>
+          <span className="mx-1 hidden h-5 w-px bg-slate-200 md:inline-block" aria-hidden />
+          <span className="hidden shrink-0 text-xs uppercase tracking-wide text-slate-400 md:inline">Фильтры:</span>
           <FilterDropdown
             label="Категория"
             options={filterOptions.categories}
@@ -87,7 +106,33 @@ export function KanbanFiltersClient({
         </div>
       </div>
 
-      <BoardClient columns={columns} buckets={filteredBuckets.buckets} currentUserId={currentUserId} isAdmin={isAdmin} />
+      {/* П5: легенда эмодзи-маркеров дедлайнов одной строкой */}
+      <p className="px-1 text-[11px] text-slate-400">
+        🔥 дедлайн просрочен · ⚠️ ближайшие 7 дней · 📅 дальше недели · 📦 партия прибыла
+      </p>
+
+      {/* «Пустой канбан» 03.07: фильтры прятали все карточки, а доска молчала.
+          Если скрыто ВСЁ — большой честный баннер вместо тихих колонок «пусто». */}
+      {hasActiveFilters && filteredBuckets.visibleCount === 0 && total > 0 ? (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50 px-6 py-12 text-center dark:border-amber-400/30 dark:bg-amber-400/10">
+          <div className="mb-2 text-3xl" aria-hidden>🙈</div>
+          <div className="text-base font-semibold text-amber-900 dark:text-amber-300">
+            Все {total} фасонов скрыты фильтрами
+          </div>
+          <p className="mt-1 text-sm text-amber-800/80 dark:text-amber-300/80">
+            Данные целы — просто ни одна карточка не проходит выбранные фильтры.
+          </p>
+          <button
+            type="button"
+            onClick={() => setFilters({ category: [], ownerId: [], status: [] })}
+            className="mt-4 inline-flex min-h-[44px] items-center rounded-lg bg-slate-900 px-5 text-sm font-medium text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900"
+          >
+            Показать все фасоны
+          </button>
+        </div>
+      ) : (
+        <BoardClient columns={columns} buckets={filteredBuckets.buckets} currentUserId={currentUserId} isAdmin={isAdmin} />
+      )}
     </div>
   );
 }

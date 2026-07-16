@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
+import { assertCan } from "@/lib/rbac";
 import { logAudit } from "@/server/audit";
 import { z } from "zod";
 
@@ -23,6 +24,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth();
+    // Размерные сетки — продуктовая работа: PM и админы, read-only витрина не создаёт
+    assertCan(session.user.role, "product.update");
     const data = sizeGridCreateSchema.parse(await req.json());
     // Нормализуем размеры — trim и без дубликатов
     const sizes = Array.from(new Set(data.sizes.map((s) => s.trim()).filter(Boolean)));

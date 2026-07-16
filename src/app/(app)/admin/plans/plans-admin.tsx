@@ -115,7 +115,7 @@ export function PlansAdmin({
         ))}
       </div>
 
-      {err && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{err}</div>}
+      {err && <div className="rounded-lg bg-red-50 dark:bg-red-400/10 p-3 text-sm text-red-700 dark:text-red-300">{err}</div>}
 
       <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
         <table className="min-w-full text-sm">
@@ -165,7 +165,7 @@ export function PlansAdmin({
                           onBlur={(e) => saveCell(ym, u.id, "plannedModelCount", e.target.value)}
                           onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                           className={`w-12 rounded border bg-white px-1.5 py-1 text-right text-xs ${
-                            savingKey === key ? "border-amber-300 bg-amber-50" :
+                            savingKey === key ? "border-amber-300 dark:border-amber-400/20 bg-amber-50 dark:bg-amber-400/10" :
                             cell.plannedModelCount ? "border-slate-300" : "border-slate-200 text-slate-400"
                           }`}
                           placeholder="—"
@@ -180,7 +180,7 @@ export function PlansAdmin({
                           onBlur={(e) => saveCell(ym, u.id, "plannedQuantity", e.target.value)}
                           onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
                           className={`w-14 rounded border bg-white px-1.5 py-1 text-right text-xs ${
-                            savingKey === key ? "border-amber-300 bg-amber-50" :
+                            savingKey === key ? "border-amber-300 dark:border-amber-400/20 bg-amber-50 dark:bg-amber-400/10" :
                             cell.plannedQuantity ? "border-slate-300" : "border-slate-200 text-slate-400"
                           }`}
                           placeholder="—"

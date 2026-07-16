@@ -86,12 +86,12 @@ export function ModelsFilters({
           value={q}
           onChange={(e) => onQChange(e.target.value)}
           placeholder="Поиск по названию…"
-          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm w-44"
+          className="h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm md:h-auto md:w-44 md:py-1.5"
         />
         <select
           value={selected.brand}
           onChange={(e) => setBrand(e.target.value)}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm"
+          className="h-11 flex-1 rounded-lg border border-slate-300 bg-white px-3 text-sm md:h-auto md:flex-none md:py-1.5"
         >
           <option value="">Все бренды</option>
           {brands.map((b) => (
@@ -101,7 +101,7 @@ export function ModelsFilters({
         <select
           value={selected.owner}
           onChange={(e) => setOwner(e.target.value)}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm"
+          className="h-11 flex-1 rounded-lg border border-slate-300 bg-white px-3 text-sm md:h-auto md:flex-none md:py-1.5"
         >
           <option value="">Все ответственные</option>
           {owners.map((o) => (
@@ -115,14 +115,14 @@ export function ModelsFilters({
               setQ("");
               startTransition(() => router.replace(pathname, { scroll: false }));
             }}
-            className="text-sm text-slate-500 hover:text-slate-700 underline"
+            className="inline-flex min-h-[40px] items-center text-sm text-slate-500 underline hover:text-slate-700"
           >
             сбросить
           </button>
         )}
       </div>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] uppercase tracking-wider text-slate-400 mr-1">Категории:</span>
+      <div className="no-scrollbar -mx-4 flex items-center gap-1.5 overflow-x-auto px-4 md:mx-0 md:flex-wrap md:px-0">
+        <span className="mr-1 shrink-0 text-[10px] uppercase tracking-wider text-slate-400">Категории:</span>
         {categories.map((c) => {
           const active = selected.categoryList.includes(c);
           return (
@@ -130,7 +130,7 @@ export function ModelsFilters({
               key={c}
               type="button"
               onClick={() => toggleCategory(c)}
-              className={`rounded-full border px-2.5 py-0.5 text-xs transition ${
+              className={`inline-flex min-h-[32px] shrink-0 items-center rounded-full border px-3 text-xs transition ${
                 active
                   ? "border-slate-900 bg-slate-900 text-white"
                   : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"

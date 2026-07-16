@@ -158,20 +158,20 @@ export function PaymentForm({ orders, initial }: { orders: OrderOption[]; initia
         />
       </Field>
 
-      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-400/10 dark:text-red-300">{error}</div>}
 
-      <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+      <div className="flex gap-2 border-t border-slate-200 pt-4 md:justify-end">
         <button
           type="button"
           onClick={() => router.back()}
-          className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm"
+          className="flex h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm"
         >
           Отмена
         </button>
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="flex h-11 flex-1 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-50 md:flex-none"
         >
           {saving ? "Сохранение…" : isEdit ? "Сохранить" : "Создать платёж"}
         </button>
@@ -181,7 +181,7 @@ export function PaymentForm({ orders, initial }: { orders: OrderOption[]; initia
 }
 
 const inputCls =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
+  "min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

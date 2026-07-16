@@ -318,7 +318,7 @@ export function PackagingForm({
             type="button"
             onClick={onDelete}
             disabled={deleting}
-            className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+            className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-400/20 dark:text-red-300 dark:hover:bg-red-400/10"
           >
             {deleting ? "Удаление…" : "Удалить"}
           </button>

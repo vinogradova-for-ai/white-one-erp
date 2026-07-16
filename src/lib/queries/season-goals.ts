@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { MONTHLY_GOAL, SEASONS, matchSeasonCategory, type Season } from "@/lib/seasons";
+import { isOrderLaunched } from "@/lib/order-stage";
 
 /**
  * Сезонные цели + фактическое исполнение.
@@ -102,6 +103,12 @@ export async function getSeasonOverview(seasonKey: string): Promise<SeasonOvervi
     Promise.resolve(new Date()),
   ]);
 
+  // «Факт выпуска» = только РЕАЛЬНО запущенные заказы (пошив начался и дальше).
+  // Заказы в PREPARATION/FABRIC_ORDERED считаются заторами, а не выпуском —
+  // иначе прогресс к цели завышается незапущенными заказами (аудит блок ④).
+  // Полный `orders` оставляем для секции «Заторы» ниже.
+  const launchedOrders = orders.filter((o) => isOrderLaunched(o.status));
+
   // ── Голы и план/факт по сезону ───────────────────────────────────
   const goalModels = MONTHLY_GOAL.models * months.length;
   const goalQuantity = MONTHLY_GOAL.quantity * months.length;
@@ -110,7 +117,7 @@ export async function getSeasonOverview(seasonKey: string): Promise<SeasonOvervi
 
   const uniqueFactModelIds = new Set<string>();
   let factQuantity = 0;
-  for (const o of orders) {
+  for (const o of launchedOrders) {
     uniqueFactModelIds.add(o.productModelId);
     for (const l of o.lines) factQuantity += l.quantity;
   }
@@ -119,7 +126,7 @@ export async function getSeasonOverview(seasonKey: string): Promise<SeasonOvervi
   // ── По месяцам ───────────────────────────────────────────────────
   const monthly = months.map((ym) => {
     const monthPlans = plans.filter((p) => p.yearMonth === ym);
-    const monthOrders = orders.filter((o) => o.launchMonth === ym);
+    const monthOrders = launchedOrders.filter((o) => o.launchMonth === ym);
     const monthFactModels = new Set(monthOrders.map((o) => o.productModelId)).size;
     const monthFactQty = monthOrders.reduce((s, o) => s + o.lines.reduce((a, l) => a + l.quantity, 0), 0);
     const pM = monthPlans.reduce((s, p) => s + (p.plannedModelCount ?? 0), 0);
@@ -178,7 +185,7 @@ export async function getSeasonOverview(seasonKey: string): Promise<SeasonOvervi
     o.plannedModels += p.plannedModelCount ?? 0;
     o.plannedQuantity += p.plannedQuantity ?? 0;
   }
-  for (const o of orders) {
+  for (const o of launchedOrders) {
     const own = ensureOwner(o.ownerId, o.owner?.name ?? (o.ownerId ? "—" : "Без ответственного"));
     own.factModelIds.add(o.productModelId);
     own.factQuantity += o.lines.reduce((s, l) => s + l.quantity, 0);
@@ -196,8 +203,8 @@ export async function getSeasonOverview(seasonKey: string): Promise<SeasonOvervi
 
   // ── По категориям сезона ────────────────────────────────────────
   const byCategory = season.categories.map((cat) => {
-    const catPlans = plans.filter((p) => p.category && matchSeasonCategory(p.category, cat));
-    const catOrders = orders.filter((o) => matchSeasonCategory(o.productModel.category, cat));
+    const catPlans = plans.filter((p) => p.category && matchSeasonCategory(p.category, cat, season.categories));
+    const catOrders = launchedOrders.filter((o) => matchSeasonCategory(o.productModel.category, cat, season.categories));
     return {
       category: cat,
       plannedModels: catPlans.reduce((s, p) => s + (p.plannedModelCount ?? 0), 0),

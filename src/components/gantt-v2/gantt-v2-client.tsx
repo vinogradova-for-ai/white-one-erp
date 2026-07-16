@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useTransition } from "react";
+import { useEffect, useState, useMemo, useRef, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -29,7 +29,17 @@ const initialFilters: GanttFilters = {
   thisWeek: false,
   dateIssue: false,
   myOnly: null,
+  // Завершённые (приехали на склад и дальше) по умолчанию спрятаны —
+  // рабочие заказы не тонут в истории. Кнопкой можно показать.
+  hideDone: true,
 };
+
+// Строка Ганта считается завершённой: заказ приехал на склад (и дальше),
+// заказ упаковки прибыл или отменён.
+const DONE_RAW_STATUSES = new Set([
+  "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE", // Order
+  "ARRIVED", "CANCELLED",                              // PackagingOrder
+]);
 
 export function GanttV2Client({
   rows,
@@ -44,7 +54,9 @@ export function GanttV2Client({
   const router = useRouter();
   // Фильтры и зум запоминаются между заходами на страницу (localStorage),
   // чтобы «выбрала фильтр → провалилась в заказ → назад» не сбрасывало вид.
-  const [filters, setFilters] = usePersistedState<GanttFilters>("gantt-v2:filters:v1", initialFilters);
+  // v2: добавился hideDone (скрыть завершённые), дефолт true — ключ бампнут,
+  // чтобы у всех применился новый дефолт.
+  const [filters, setFilters] = usePersistedState<GanttFilters>("gantt-v2:filters:v2", initialFilters);
   const [zoom, setZoom] = usePersistedState<GanttZoom>("gantt-v2:zoom:v1", "3m");
   // pending — буфер изменений: drag → попадает сюда, через 600мс улетает в API.
   // Хранится и в state (для подсветки на барах), и в ref (для дебаунс-таймера —
@@ -56,17 +68,29 @@ export function GanttV2Client({
 
   // ---------- Фильтрация: Категория, Ответственный, Производство (RU/CN/Тяк) ----------
   const filtered = useMemo(() => {
+    // Поиск по названию фасона и номеру заказа (аудит блок ④). title строки —
+    // «Название · #ORD-...», subtitle — цвета/штуки; ищем по обоим, регистр не важен.
+    const q = filters.search.trim().toLowerCase();
     return rows.filter((r) => {
+      if (filters.hideDone && r.rawStatus && DONE_RAW_STATUSES.has(r.rawStatus)) return false;
       if (filters.ownerId.length && (!r.ownerId || !filters.ownerId.includes(r.ownerId))) return false;
       if (filters.category.length && (!r.category || !filters.category.includes(r.category))) return false;
       if (filters.productionRegion.length && (!r.productionRegion || !filters.productionRegion.includes(r.productionRegion))) return false;
+      if (q && !(`${r.title} ${r.subtitle ?? ""}`.toLowerCase().includes(q))) return false;
       return true;
     });
   }, [rows, filters]);
 
   // ---------- Сортировка: по дедлайну производства (end фазы «Производство»)
   //  от ранней даты к поздней. Если у заказа нет фазы production (упаковка) —
-  //  берём end её аналогичной средней фазы. Без даты — в самый конец. ----------
+  //  берём end её аналогичной средней фазы. Без даты — в самый конец.
+  //
+  //  СТАБИЛЬНОСТЬ (жалоба Алёны 05.07 «правлю — уходит вперёд-назад»): порядок
+  //  строк фиксируется при заходе/смене фильтров и НЕ пересчитывается после
+  //  каждого автосейва — иначе редактируемый заказ прыгает по вертикали.
+  //  Свежий порядок по дедлайнам применится при следующем заходе на страницу. ----------
+  const sortSigRef = useRef<string>("");
+  const rowOrderRef = useRef<Map<string, number>>(new Map());
   const sorted = useMemo(() => {
     function productionDeadline(row: typeof filtered[number]): string {
       const prod = row.bars.find((b) => b.key === "production");
@@ -77,8 +101,25 @@ export function GanttV2Client({
     }
     const arr = [...filtered];
     arr.sort((a, b) => productionDeadline(a).localeCompare(productionDeadline(b)));
+
+    const sig = JSON.stringify(filters);
+    if (sortSigRef.current !== sig) {
+      // Новый вид (первый заход или сменили фильтры) — фиксируем порядок.
+      sortSigRef.current = sig;
+      rowOrderRef.current = new Map(arr.map((r, i) => [`${r.group}:${r.id}`, i]));
+      return arr;
+    }
+    // Тот же вид: держим зафиксированный порядок, новые строки — в конец
+    // (по дедлайну между собой, за счёт исходной сортировки arr).
+    const order = rowOrderRef.current;
+    let next = order.size;
+    for (const r of arr) {
+      const k = `${r.group}:${r.id}`;
+      if (!order.has(k)) order.set(k, next++);
+    }
+    arr.sort((a, b) => order.get(`${a.group}:${a.id}`)! - order.get(`${b.group}:${b.id}`)!);
     return arr;
-  }, [filtered]);
+  }, [filtered, filters]);
 
   // ---------- Без группировки ----------
   const groups = useMemo(
@@ -90,11 +131,16 @@ export function GanttV2Client({
   // Каждое изменение попадает в pending, перезапускаем дебаунс-таймер 600мс.
   // Когда таймер дотикает (юзер перестал тащить) — снапшот улетает в API
   // одним батчем (каждый заказ — один PATCH), потом toast «Сохранено» и refresh.
+  //
+  // ВАЖНО (жалоба Алёны 05.07 «уходит вперёд, потом назад, потом снова вперёд»):
+  // pending НЕ сбрасываем при отправке. Иначе между «отправили» и «пришли свежие
+  // строки с сервера» плашка на мгновение прыгает на старые даты и обратно.
+  // Буфер отпускаем в useEffect ниже — только когда сервер уже отдал строки
+  // с сохранёнными датами (визуально ничего не двигается).
   async function flushAutosave() {
+    saveTimer.current = null;
     const snapshot = pendingRef.current;
     if (Object.keys(snapshot).length === 0) return;
-    pendingRef.current = {};
-    setPending({});
     const byOrder: Record<string, { group: string; orderId: string; fields: Record<string, string> }> = {};
     for (const [k, v] of Object.entries(snapshot)) {
       const [g, id, field] = k.split(":");
@@ -120,12 +166,23 @@ export function GanttV2Client({
       }
     }
     if (errors.length > 0) {
+      // pending не трогаем: плашки остаются где их поставили, можно дёрнуть ещё раз.
       toast.error(`Не сохранилось: ${errors.join("; ")}`);
       return;
     }
     toast.success("Сохранено");
     startTransition(() => router.refresh());
   }
+
+  // Свежие строки приехали с сервера (после refresh) — сохранённые даты уже в
+  // rows, буфер можно отпустить без визуального скачка. Если юзер в этот момент
+  // уже тащит следующую правку (таймер заряжен) — не трогаем, дождёмся её сейва.
+  useEffect(() => {
+    if (saveTimer.current != null) return;
+    if (Object.keys(pendingRef.current).length === 0) return;
+    pendingRef.current = {};
+    setPending({});
+  }, [rows]);
 
   function handleBarChange(orderId: string, endField: string, newDateIso: string, group: string) {
     const key = `${group}:${orderId}:${endField}`;
@@ -151,6 +208,14 @@ export function GanttV2Client({
             + Заказ
           </Link>
           <span className="w-px h-5 bg-slate-200 mx-1" aria-hidden />
+          {/* Поиск по названию фасона / номеру заказа (аудит блок ④) */}
+          <input
+            type="search"
+            value={filters.search}
+            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+            placeholder="Поиск: фасон или № заказа…"
+            className="h-7 w-48 rounded-md border border-slate-300 bg-white px-2 text-xs placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+          />
           <span className="text-xs uppercase tracking-wide text-slate-400">Фильтры:</span>
           <FilterDropdown label="Категория" options={filterOptions.categories} value={filters.category}
             onChange={(v) => setFilters((f) => ({ ...f, category: v }))} />
@@ -158,6 +223,18 @@ export function GanttV2Client({
             onChange={(v) => setFilters((f) => ({ ...f, ownerId: v }))} />
           <FilterDropdown label="Производство" options={filterOptions.productionRegions} value={filters.productionRegion}
             onChange={(v) => setFilters((f) => ({ ...f, productionRegion: v }))} />
+          <button
+            type="button"
+            onClick={() => setFilters((f) => ({ ...f, hideDone: !f.hideDone }))}
+            title="Завершённые = заказ приехал на склад (и дальше), упаковка прибыла"
+            className={`h-7 rounded-md border px-2 text-xs transition ${
+              filters.hideDone
+                ? "border-slate-900 bg-slate-900 text-white"
+                : "border-slate-300 bg-white text-slate-600 hover:border-slate-400"
+            }`}
+          >
+            {filters.hideDone ? "Завершённые скрыты" : "Показаны завершённые"}
+          </button>
 
           <span className="ml-3 text-xs uppercase tracking-wide text-slate-400">Зум:</span>
           <RadioGroup

@@ -4,6 +4,7 @@ import { ModelEditForm } from "@/components/models/model-edit-form";
 import { ModelEditFooter } from "@/components/models/model-edit-footer";
 import { ModelPackagingKit } from "@/components/models/model-packaging-kit";
 import { syncModelPackagingToOrders } from "@/server/sync-model-packaging";
+import { DEFAULT_CNY_RUB_RATE } from "@/lib/constants";
 
 export default async function EditModelPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,7 +24,8 @@ export default async function EditModelPage({ params }: { params: Promise<{ id: 
       orderBy: { name: "asc" },
     }),
     prisma.factory.findMany({
-      where: { isActive: true },
+      // П6: в форме фасона — только швейные фабрики.
+      where: { isActive: true, kind: "SEWING" },
       select: { id: true, name: true, country: true },
       orderBy: { name: "asc" },
     }),
@@ -50,6 +52,7 @@ export default async function EditModelPage({ params }: { params: Promise<{ id: 
             subcategory: model.subcategory ?? "",
             sizeGridId: model.sizeGridId ?? "",
             countryOfOrigin: model.countryOfOrigin,
+            tnvedCode: model.tnvedCode ?? "",
             preferredFactoryId: model.preferredFactoryId ?? "",
             developmentType: model.developmentType,
             isRepeat: model.isRepeat,
@@ -64,7 +67,7 @@ export default async function EditModelPage({ params }: { params: Promise<{ id: 
             notes: model.notes ?? "",
             purchasePriceCny: model.purchasePriceCny?.toString() ?? "",
             purchasePriceRub: model.purchasePriceRub?.toString() ?? "",
-            cnyRubRate: model.cnyRubRate?.toString() ?? "13.5",
+            cnyRubRate: model.cnyRubRate?.toString() ?? String(DEFAULT_CNY_RUB_RATE),
             packagingCost: model.packagingCost.toString(),
             wbLogisticsCost: model.wbLogisticsCost.toString(),
             wbPrice: model.wbPrice?.toString() ?? "",

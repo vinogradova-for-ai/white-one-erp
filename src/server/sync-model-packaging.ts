@@ -1,51 +1,107 @@
 import { prisma } from "@/lib/prisma";
 
+// Заказы, где комплект упаковки ещё «живой» и должен зеркалиться с фасоном.
+// С «Упаковки» и дальше комплект заморожен: списание уже прошло/идёт.
+const MIRROR_STATUSES = [
+  "PREPARATION",
+  "FABRIC_ORDERED",
+  "SEWING",
+  "QC",
+  "IN_TRANSIT",
+  "WAREHOUSE_MSK",
+] as const;
+
 /**
- * Идемпотентный авто-синк: для всех ModelPackaging данной модели создаёт
- * недостающие OrderPackaging в открытых заказах (status NOT IN [ON_SALE]).
+ * Идемпотентный авто-синк комплекта упаковки фасона в открытые заказы.
  *
- * Используется напрямую (без HTTP) из server-компонентов — например,
- * страница редактирования фасона перед рендером запускает синк, чтобы
- * упаковка автоматически «протекла» во все существующие заказы фасона.
+ * Правка Алёны №3 (03.07): раньше синк только ДОБАВЛЯЛ недостающие позиции.
+ * Если в карточке фасона пакет заменили или поменяли количество на единицу,
+ * в заказах оставался старый комплект — и «Упаковка» считала потребность
+ * по нему. Теперь синк — зеркало для строк, пришедших из фасона
+ * (syncedFromModel=true):
+ *   • создаёт недостающие позиции комплекта;
+ *   • обновляет quantityPerUnit под фасон;
+ *   • удаляет позиции, которых в комплекте фасона больше нет.
+ * Ручные строки заказа (добавленные/правленные в карточке заказа,
+ * syncedFromModel=false) не трогаются. Заказы с «Упаковки» и дальше — тоже.
  *
- * Почему так: новые привязки protect через POST /api/models/[id]/packaging,
- * но исторические gap'ы (созданные до фикса каскада) лечатся только при
- * следующем визите на страницу.
+ * Используется напрямую (без HTTP) из server-компонентов — страницы фасона
+ * и заказа запускают синк перед рендером.
  */
 export async function syncModelPackagingToOrders(productModelId: string): Promise<number> {
   const links = await prisma.modelPackaging.findMany({
     where: { productModelId },
     select: { packagingItemId: true, quantityPerUnit: true },
   });
-  if (links.length === 0) return 0;
+  const linkByItem = new Map(links.map((l) => [l.packagingItemId, l]));
 
   const orders = await prisma.order.findMany({
     where: {
       productModelId,
       deletedAt: null,
-      status: { not: "ON_SALE" },
+      status: { in: [...MIRROR_STATUSES] },
     },
     select: {
       id: true,
-      packagingItems: { select: { packagingItemId: true } },
+      packagingItems: {
+        select: {
+          id: true,
+          packagingItemId: true,
+          quantityPerUnit: true,
+          syncedFromModel: true,
+          consumedQty: true,
+        },
+      },
     },
   });
   if (orders.length === 0) return 0;
 
-  const toCreate: Array<{ orderId: string; packagingItemId: string; quantityPerUnit: number }> = [];
+  const toCreate: Array<{ orderId: string; packagingItemId: string; quantityPerUnit: number; syncedFromModel: boolean }> = [];
+  const toUpdate: Array<{ id: string; quantityPerUnit: number }> = [];
+  const toDelete: string[] = [];
+
   for (const o of orders) {
-    const existing = new Set(o.packagingItems.map((p) => p.packagingItemId));
+    const existingByItem = new Map(o.packagingItems.map((p) => [p.packagingItemId, p]));
+
     for (const link of links) {
-      if (existing.has(link.packagingItemId)) continue;
-      toCreate.push({
-        orderId: o.id,
-        packagingItemId: link.packagingItemId,
-        quantityPerUnit: Number(link.quantityPerUnit),
-      });
+      const existing = existingByItem.get(link.packagingItemId);
+      if (!existing) {
+        toCreate.push({
+          orderId: o.id,
+          packagingItemId: link.packagingItemId,
+          quantityPerUnit: Number(link.quantityPerUnit),
+          syncedFromModel: true,
+        });
+      } else if (
+        existing.syncedFromModel &&
+        Number(existing.quantityPerUnit) !== Number(link.quantityPerUnit)
+      ) {
+        toUpdate.push({ id: existing.id, quantityPerUnit: Number(link.quantityPerUnit) });
+      }
+    }
+
+    // Синхронные строки, которых больше нет в комплекте фасона, — убираем
+    // (кроме уже списанных: это история склада, её не трогаем).
+    for (const p of o.packagingItems) {
+      if (p.syncedFromModel && p.consumedQty == null && !linkByItem.has(p.packagingItemId)) {
+        toDelete.push(p.id);
+      }
     }
   }
-  if (toCreate.length > 0) {
-    await prisma.orderPackaging.createMany({ data: toCreate, skipDuplicates: true });
-  }
-  return toCreate.length;
+
+  if (toCreate.length === 0 && toUpdate.length === 0 && toDelete.length === 0) return 0;
+
+  await prisma.$transaction(async (tx) => {
+    if (toCreate.length > 0) {
+      await tx.orderPackaging.createMany({ data: toCreate, skipDuplicates: true });
+    }
+    for (const u of toUpdate) {
+      await tx.orderPackaging.update({ where: { id: u.id }, data: { quantityPerUnit: u.quantityPerUnit } });
+    }
+    if (toDelete.length > 0) {
+      await tx.orderPackaging.deleteMany({ where: { id: { in: toDelete } } });
+    }
+  });
+
+  return toCreate.length + toUpdate.length + toDelete.length;
 }

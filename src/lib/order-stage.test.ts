@@ -105,3 +105,44 @@ describe("order-stage — единый источник правды об эта
     });
   });
 });
+
+// ГАНТ ПЕРВИЧЕН (Алёна 05.07.2026): колонка «после заказа» — по датам Ганта,
+// не по ручному статусу. Девочки двигают Гант; статусы руками не отмечают.
+import { orderKanbanColumnByDates } from "@/lib/order-stage";
+
+describe("orderKanbanColumnByDates — колонка по датам Ганта", () => {
+  const d = (s: string | null) => (s ? new Date(`${s}T00:00:00Z`) : null);
+  const dates = (handed: string | null, ready: string | null, qc: string | null) => ({
+    handedToFactoryDate: d(handed),
+    readyAtFactoryDate: d(ready),
+    qcDate: d(qc),
+  });
+  const TODAY = "2026-07-06";
+
+  it("до передачи на фабрику (или дата пустая) → null: карточка в колонках разработки", () => {
+    expect(orderKanbanColumnByDates(dates(null, null, null), TODAY)).toBeNull();
+    expect(orderKanbanColumnByDates(dates("2026-07-10", null, null), TODAY)).toBeNull();
+  });
+
+  it("сегодня между передачей на фабрику и готовностью → Производство", () => {
+    expect(orderKanbanColumnByDates(dates("2026-06-01", "2026-08-01", "2026-08-05"), TODAY)).toBe("production");
+    // Конец производства не проставлен — шьют, пока не проставят.
+    expect(orderKanbanColumnByDates(dates("2026-06-01", null, null), TODAY)).toBe("production");
+  });
+
+  it("сегодня между готовностью и концом ОТК → ОТК", () => {
+    expect(orderKanbanColumnByDates(dates("2026-06-01", "2026-07-03", "2026-07-08"), TODAY)).toBe("qc");
+    // Конец ОТК не проставлен — заказ в ОТК, пока не проставят.
+    expect(orderKanbanColumnByDates(dates("2026-06-01", "2026-07-03", null), TODAY)).toBe("qc");
+  });
+
+  it("сегодня после конца ОТК → Доставка (и остаётся там до приёмки складом)", () => {
+    expect(orderKanbanColumnByDates(dates("2026-05-01", "2026-06-01", "2026-06-05"), TODAY)).toBe("delivery");
+  });
+
+  it("границы: день начала фазы уже относится к этой фазе", () => {
+    expect(orderKanbanColumnByDates(dates(TODAY, null, null), TODAY)).toBe("production");
+    expect(orderKanbanColumnByDates(dates("2026-06-01", TODAY, null), TODAY)).toBe("qc");
+    expect(orderKanbanColumnByDates(dates("2026-06-01", "2026-07-01", TODAY), TODAY)).toBe("delivery");
+  });
+});

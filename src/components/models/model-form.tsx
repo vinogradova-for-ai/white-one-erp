@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { CATEGORIES, BRAND_LABELS } from "@/lib/constants";
+import { CATEGORIES, BRAND_LABELS, DEFAULT_CNY_RUB_RATE } from "@/lib/constants";
 import { isLatinCategory, buildLatinBase, styleCandidates, colorCode, PREFIX_CYR, TYPE_LAT, translit, findBannedBrand } from "@/lib/artikul";
 import { PackagingType } from "@prisma/client";
 import { DropzonePhotos } from "@/components/common/dropzone-photos";
@@ -10,6 +10,7 @@ import { SizeGridPicker } from "@/components/common/size-grid-picker";
 import { PackagingPicker } from "@/components/common/packaging-picker";
 import { parseApiError, type ApiErrorResult } from "@/lib/api-error";
 import { FormErrorBanner, FieldError } from "@/components/common/form-errors";
+import { FormProgressNav } from "@/components/common/form-progress-nav";
 
 type Option = { id: string; name: string; country?: string };
 type SizeGridOption = { id: string; name: string; sizes: string[] };
@@ -57,7 +58,7 @@ export function ModelForm({
     subcategory: "",
     artikulStyle: "", // метка для латинского артикула (kimono/halter/atlas); пусто = из названия
     countryOfOrigin: "Китай",
-    preferredFactoryId: factories.find((f) => f.country === "Китай")?.id ?? factories[0]?.id ?? "",
+    preferredFactoryId: factories.find((f) => f.country === "Китай")?.id ?? "",
     sizeGridId: sizeGrids[0]?.id ?? "",
     developmentType: "OWN" as "OWN" | "REPEAT",
     isRepeat: false,
@@ -88,11 +89,18 @@ export function ModelForm({
     setForm((f) => ({ ...f, [key]: value }));
     if (key === "countryOfOrigin") {
       const country = value as string;
-      const firstFactory = factories.find((f) => f.country === country);
-      if (firstFactory) setForm((f) => ({ ...f, preferredFactoryId: firstFactory.id }));
+      // П6 UX-аудита: при смене страны фабрику НЕ подменяем молча —
+      // несоответствие подсвечивается под селектом фабрики.
       setForm((f) => ({ ...f, fabricCurrency: country === "Россия" ? "RUB" : "CNY" }));
     }
   }
+
+  // Фабрика выбрана, но не из страны производства — честная подсветка вместо тихой подмены.
+  const selectedFactory = factories.find((f) => f.id === form.preferredFactoryId);
+  const factoryCountryMismatch =
+    !!selectedFactory && !!selectedFactory.country && selectedFactory.country !== form.countryOfOrigin;
+  const factoriesInCountry = factories.filter((f) => f.country === form.countryOfOrigin);
+  const factoriesElsewhere = factories.filter((f) => f.country !== form.countryOfOrigin);
 
   // Варианты метки артикула из названия+особенностей и текущая выбранная метка.
   const styleVariants = styleCandidates(form.name, form.category, form.subcategory);
@@ -156,7 +164,13 @@ export function ModelForm({
         fabricComposition: form.fabricComposition || null,
         fabricPricePerMeter: form.fabricPricePerMeter ? Number(form.fabricPricePerMeter) : null,
         fabricCurrency: form.fabricPricePerMeter ? form.fabricCurrency : null,
-        cnyRubRate: form.fabricCurrency === "CNY" && form.cnyRubRate ? Number(form.cnyRubRate) : null,
+        // Курс ¥→₽ сохраняем, если цена закупки ИЛИ цена ткани в юанях.
+        // Раньше учитывалась только ткань (fabricCurrency), из-за чего курс к
+        // закупочной цене в ¥ не доезжал в БД и себестоимость не считалась (аудит п.8).
+        cnyRubRate:
+          (form.purchasePriceCny || form.fabricCurrency === "CNY") && form.cnyRubRate
+            ? Number(form.cnyRubRate)
+            : null,
         patternsUrl: form.patternsUrl || null,
         photoUrls: form.photoUrls,
         ownerId: form.ownerId,
@@ -214,9 +228,22 @@ export function ModelForm({
   // Чужой бренд в артикуле запрещён (товарный знак, WB блокирует).
   const bannedBrand = findBannedBrand(styleUsed) || findBannedBrand(form.name);
 
+  // §4 UX-аудита: якоря-прогресс по секциям (закон «длинная форма с прогрессом»).
+  const navSections = [
+    { id: "msec-main", title: "Основное", filled: form.name.trim().length > 0 },
+    { id: "msec-production", title: "Производство", filled: !!form.preferredFactoryId && !!form.sizeGridId },
+    { id: "msec-artikul", title: "Артикул", filled: form.name.trim().length > 0 },
+    { id: "msec-fabric", title: "Ткань", filled: !!(form.fabricName.trim() || form.fabricComposition.trim()) },
+    { id: "msec-cost", title: "Себестоимость", filled: !!(form.purchasePriceRub || form.purchasePriceCny) },
+    { id: "msec-photos", title: "Фото", filled: form.photoUrls.length > 0 },
+    { id: "msec-docs", title: "Документация", filled: form.patternsUrl.trim().length > 0 },
+    { id: "msec-packaging", title: "Упаковка", filled: form.packagingPicks.length > 0 },
+  ];
+
   return (
     <form onSubmit={onSubmit} className="space-y-6">
-      <Section title="Основное">
+      <FormProgressNav sections={navSections} />
+      <Section id="msec-main" title="Основное">
         <Field label="Название фасона *" full>
           <input required value={form.name} onChange={(e) => update("name", e.target.value)} className={inputCls} placeholder="Пальто Классика Двубортное Миди" />
           <FieldError error={apiErr} field="name" />
@@ -244,7 +271,7 @@ export function ModelForm({
         </Field>
       </Section>
 
-      <Section title="Производство">
+      <Section id="msec-production" title="Производство">
         <Field label="Страна *">
           <select value={form.countryOfOrigin} onChange={(e) => update("countryOfOrigin", e.target.value)} className={inputCls}>
             <option>Россия</option>
@@ -255,8 +282,20 @@ export function ModelForm({
         <Field label="Фабрика (по умолчанию)">
           <select value={form.preferredFactoryId} onChange={(e) => update("preferredFactoryId", e.target.value)} className={inputCls}>
             <option value="">—</option>
-            {factories.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            <optgroup label={form.countryOfOrigin}>
+              {factoriesInCountry.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+            </optgroup>
+            {factoriesElsewhere.length > 0 && (
+              <optgroup label="Другие страны">
+                {factoriesElsewhere.map((f) => <option key={f.id} value={f.id}>{f.name} · {f.country}</option>)}
+              </optgroup>
+            )}
           </select>
+          {factoryCountryMismatch && (
+            <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+              ⚠ Фабрика «{selectedFactory!.name}» из {selectedFactory!.country}, а страна производства — {form.countryOfOrigin}. Проверьте.
+            </p>
+          )}
         </Field>
         <Field label="Размерная сетка">
           <SizeGridPicker
@@ -270,7 +309,7 @@ export function ModelForm({
         </Field>
       </Section>
 
-      <Section title="Артикул (vendorCode на WB)">
+      <Section id="msec-artikul" title="Артикул (vendorCode на WB)">
         {latin && (
           <Field label="Метка фасона (англ.)">
             <div className="flex items-stretch gap-2">
@@ -310,14 +349,14 @@ export function ModelForm({
             )}
           </span>
           {bannedBrand && (
-            <span className="mt-2 block rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+            <span className="mt-2 block rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-400/20 dark:bg-red-400/10 dark:text-red-300">
               ⛔ В артикуле нельзя использовать чужой бренд: <b>«{bannedBrand}»</b>. Поменяйте метку или название — иначе WB заблокирует карточку.
             </span>
           )}
         </Field>
       </Section>
 
-      <Section title="Ткань (опционально)">
+      <Section id="msec-fabric" title="Ткань (опционально)">
         <Field label="Название ткани">
           <input value={form.fabricName} onChange={(e) => update("fabricName", e.target.value)} className={inputCls} placeholder="Диагональ" />
         </Field>
@@ -326,11 +365,12 @@ export function ModelForm({
         </Field>
       </Section>
 
-      <Section title="Себестоимость">
+      <Section id="msec-cost" title="Себестоимость">
         <Field label="Цена за единицу" full>
           <div className="flex items-stretch gap-2">
             <input
               type="number"
+              inputMode="decimal"
               step="0.01"
               value={form.purchasePriceRub || form.purchasePriceCny}
               onChange={(e) => {
@@ -349,7 +389,13 @@ export function ModelForm({
               onChange={(e) => {
                 const cur = e.target.value;
                 const num = form.purchasePriceRub || form.purchasePriceCny;
-                if (cur === "CNY") setForm((f) => ({ ...f, purchasePriceCny: num, purchasePriceRub: "" }));
+                if (cur === "CNY")
+                  setForm((f) => ({
+                    ...f,
+                    purchasePriceCny: num,
+                    purchasePriceRub: "",
+                    cnyRubRate: f.cnyRubRate || String(DEFAULT_CNY_RUB_RATE),
+                  }));
                 else setForm((f) => ({ ...f, purchasePriceRub: num, purchasePriceCny: "" }));
               }}
               className={inputCls}
@@ -363,9 +409,34 @@ export function ModelForm({
             Закупочная цена у фабрики. При создании заказа автоматически подтянется в стоимость единицы (можно поправить под конкретный заказ).
           </span>
         </Field>
+
+        {/* Курс ¥→₽ — виден только когда цена в юанях (аудит п.8). */}
+        {form.purchasePriceCny ? (
+          <Field label="Курс ¥→₽" full>
+            <input
+              type="number"
+              inputMode="decimal"
+              step="0.0001"
+              value={form.cnyRubRate}
+              onChange={(e) => update("cnyRubRate", e.target.value)}
+              className={inputCls}
+              placeholder={String(DEFAULT_CNY_RUB_RATE)}
+            />
+            <span className="mt-1 block text-xs text-slate-500">
+              {(() => {
+                const cny = Number(form.purchasePriceCny);
+                const rate = Number(form.cnyRubRate);
+                if (cny > 0 && rate > 0) {
+                  return `≈ ${(cny * rate).toLocaleString("ru-RU", { maximumFractionDigits: 0 })} ₽ за единицу по этому курсу.`;
+                }
+                return `Дефолт ${DEFAULT_CNY_RUB_RATE}. Введите фактический курс — по нему считается себестоимость в ₽.`;
+              })()}
+            </span>
+          </Field>
+        ) : null}
       </Section>
 
-      <Section title="Фото фасона">
+      <Section id="msec-photos" title="Фото фасона">
         <div className="md:col-span-2">
           <DropzonePhotos value={form.photoUrls} onChange={(urls) => setForm((f) => ({ ...f, photoUrls: urls }))} />
           <p className="mt-1 text-xs text-slate-500">
@@ -374,7 +445,7 @@ export function ModelForm({
         </div>
       </Section>
 
-      <Section title="Документация (Google Drive / Яндекс.Диск)">
+      <Section id="msec-docs" title="Документация (Google Drive / Яндекс.Диск)">
         <Field label="Ссылка на папку с материалами" full>
           <input
             type="url"
@@ -389,7 +460,7 @@ export function ModelForm({
         </Field>
       </Section>
 
-      <Section title="Комплект упаковки">
+      <Section id="msec-packaging" title="Комплект упаковки">
         <div className="md:col-span-2 space-y-2">
           {form.packagingPicks.length > 0 ? (
             <div className="space-y-2">
@@ -440,11 +511,11 @@ export function ModelForm({
 
       <FormErrorBanner error={apiErr} ignoreFields={["name"]} />
 
-      <div className="sticky bottom-0 z-30 flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white pt-4 pb-4 -mx-2 px-2 sm:mx-0 sm:px-0">
-        <button type="button" onClick={() => router.back()} className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700">
+      <div className="pb-safe-4 sticky bottom-16 z-30 -mx-4 flex gap-3 border-t border-slate-200 bg-white px-4 pt-4 md:bottom-0 md:mx-0 md:flex-wrap md:justify-end md:px-0">
+        <button type="button" onClick={() => router.back()} className="flex h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm text-slate-700">
           Отмена
         </button>
-        <button type="submit" disabled={saving || !!bannedBrand} className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">
+        <button type="submit" disabled={saving || !!bannedBrand} className="flex h-11 flex-1 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white disabled:opacity-50 md:flex-none">
           {saving ? "Сохранение…" : bannedBrand ? "Уберите чужой бренд" : "Создать фасон"}
         </button>
       </div>
@@ -452,11 +523,11 @@ export function ModelForm({
   );
 }
 
-const inputCls = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
+const inputCls = "min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900";
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, id }: { title: string; children: React.ReactNode; id?: string }) {
   return (
-    <fieldset className="space-y-3">
+    <fieldset id={id} className="space-y-3 scroll-mt-24">
       <legend className="text-sm font-semibold uppercase tracking-wide text-slate-500">{title}</legend>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">{children}</div>
     </fieldset>

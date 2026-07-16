@@ -72,17 +72,38 @@ export function PackagingOrderForm({
   users,
   defaultOwnerId,
   initial,
+  prefill,
+  canMarkPaid = false,
 }: {
   packagings: PackagingOption[];
   factories: FactoryOption[];
   users: UserOption[];
   defaultOwnerId: string;
   initial?: Initial;
+  /** Предзаполнение из «Упаковки» (топ-13): позиция + количество = дефицит. */
+  prefill?: { itemId: string; qty: number };
+  /** Есть ли право payment.markPaid. Без него чекбокс «Оплачено» заблокирован
+   *  (сервер тоже игнорирует смену флага — двойная защита, аудит зоны упаковки). */
+  canMarkPaid?: boolean;
 }) {
   const router = useRouter();
-  const [form, setForm] = useState<Initial>(
-    initial ?? {
-      lines: [makeEmptyLine()],
+  const [form, setForm] = useState<Initial>(() => {
+    if (initial) return initial;
+    let firstLine = makeEmptyLine();
+    const prefillItem = prefill && packagings.find((p) => p.id === prefill.itemId);
+    if (prefill && prefillItem) {
+      firstLine = {
+        ...firstLine,
+        packagingItemId: prefillItem.id,
+        quantity: prefill.qty,
+        unitPriceRub: prefillItem.unitPriceRub ?? "",
+        unitPriceCny: prefillItem.unitPriceCny ?? "",
+        priceCurrency: prefillItem.priceCurrency ?? "CNY",
+        cnyRubRate: prefillItem.cnyRubRate ?? DEFAULT_CNY_RATE,
+      };
+    }
+    return {
+      lines: [firstLine],
       factoryId: "",
       supplierName: "",
       productionEndDate: "",
@@ -90,8 +111,8 @@ export function PackagingOrderForm({
       ownerId: defaultOwnerId,
       notes: "",
       deliveryMethod: "CARGO_CN",
-    },
-  );
+    };
+  });
   const [payments, setPayments] = useState<PaymentRow[]>(
     initial?.payments ?? [],
   );
@@ -192,6 +213,11 @@ export function PackagingOrderForm({
         setError("Во всех позициях выберите упаковку");
         return;
       }
+      // §4 UX-аудита: без поставщика платежи по упаковке остаются безымянными.
+      if (!form.factoryId && !form.supplierName.trim()) {
+        setError("Укажите поставщика: выберите фабрику или впишите имя поставщика");
+        return;
+      }
       const payload: Record<string, unknown> = {
         factoryId: form.factoryId || null,
         supplierName: form.supplierName.trim() || null,
@@ -214,6 +240,10 @@ export function PackagingOrderForm({
       };
       if (payments.length > 0) {
         payload.payments = payments.map((p) => ({
+          // id существующего платежа шлём, чтобы сервер обновил его по id и сберёг
+          // историю оплат (paidAt/paidById). Синтетические id новых строк сервер
+          // не найдёт среди существующих — создаст как новые.
+          id: p.id,
           plannedDate: p.plannedDate,
           amount: p.amount,
           label: p.label,
@@ -351,9 +381,9 @@ export function PackagingOrderForm({
 
       {/* Стоимость (общая) */}
       {totalRub > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-emerald-50 p-4">
-          <div className="text-xs uppercase tracking-wide text-emerald-700">Сумма заказа</div>
-          <div className="mt-1 text-2xl font-semibold text-emerald-900">
+        <div className="rounded-xl border border-slate-200 bg-emerald-50 p-4 dark:bg-emerald-400/10">
+          <div className="text-xs uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Сумма заказа</div>
+          <div className="mt-1 text-2xl font-semibold text-emerald-900 dark:text-emerald-300">
             {totalRub.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽
           </div>
         </div>
@@ -420,10 +450,14 @@ export function PackagingOrderForm({
                   onChange={(e) => updatePayment(idx, { amount: Number(e.target.value) || 0 })}
                   className="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-right text-sm"
                 />
-                <label className="flex items-center gap-1 text-xs text-slate-600 whitespace-nowrap">
+                <label
+                  className={`flex items-center gap-1 text-xs whitespace-nowrap ${canMarkPaid ? "text-slate-600" : "text-slate-400"}`}
+                  title={canMarkPaid ? undefined : "Отметку «Оплачено» ставит только сотрудник с правом на платежи"}
+                >
                   <input
                     type="checkbox"
                     checked={p.paid}
+                    disabled={!canMarkPaid}
                     onChange={(e) => updatePayment(idx, { paid: e.target.checked })}
                   />
                   Оплачено
@@ -431,7 +465,7 @@ export function PackagingOrderForm({
                 <button
                   type="button"
                   onClick={() => removePayment(idx)}
-                  className="rounded-lg border border-slate-300 bg-white px-2 text-xs text-red-600 hover:bg-red-50"
+                  className="rounded-lg border border-slate-300 bg-white px-2 text-xs text-red-600 hover:bg-red-50 dark:text-red-300 dark:hover:bg-red-400/10"
                 >
                   ×
                 </button>
@@ -447,11 +481,11 @@ export function PackagingOrderForm({
               </button>
               <div className="text-sm">
                 <span className="text-slate-500">Итого:</span>{" "}
-                <span className={paymentsMismatch ? "font-semibold text-red-600" : "font-semibold text-slate-900"}>
+                <span className={paymentsMismatch ? "font-semibold text-red-600 dark:text-red-300" : "font-semibold text-slate-900"}>
                   {paymentsTotal.toLocaleString("ru-RU")} ₽
                 </span>
                 {paymentsMismatch && (
-                  <span className="ml-2 text-xs text-red-600">
+                  <span className="ml-2 text-xs text-red-600 dark:text-red-300">
                     расхождение: {(paymentsTotal - totalRub).toLocaleString("ru-RU")} ₽
                   </span>
                 )}
@@ -546,7 +580,7 @@ export function PackagingOrderForm({
         </div>
       </Section>
 
-      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-400/10 dark:text-red-300">{error}</div>}
       <FormErrorBanner error={apiErr} />
 
       <div className="sticky bottom-0 z-30 flex flex-wrap justify-end gap-3 border-t border-slate-200 bg-white pt-4 pb-4 -mx-2 px-2 sm:mx-0 sm:px-0">

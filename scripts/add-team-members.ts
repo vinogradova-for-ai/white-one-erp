@@ -4,7 +4,7 @@
  *
  *   npx tsx scripts/add-team-members.ts
  *
- * Пароль у всех общий: SEED_OWNER_PASSWORD env (или whiteone2026 по умолчанию).
+ * Пароль берётся ТОЛЬКО из SEED_OWNER_PASSWORD env — без него скрипт не запустится.
  */
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
@@ -20,7 +20,7 @@ const TEAM = [
 
 async function main() {
   const passwordHash = await bcrypt.hash(
-    process.env.SEED_OWNER_PASSWORD ?? "whiteone2026",
+    (() => { const p = process.env.SEED_OWNER_PASSWORD; if (!p) throw new Error("SEED_OWNER_PASSWORD не задан"); return p; })(),
     10,
   );
   for (const u of TEAM) {

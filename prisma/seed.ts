@@ -12,10 +12,12 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 async function main() {
-  const passwordHash = await bcrypt.hash(
-    process.env.SEED_OWNER_PASSWORD ?? "whiteone2026",
-    10,
-  );
+  // Пароль сида задаётся ТОЛЬКО через переменную окружения — общих дефолтов нет.
+  const seedPassword = process.env.SEED_OWNER_PASSWORD;
+  if (!seedPassword) {
+    throw new Error("SEED_OWNER_PASSWORD не задан — сид без пароля не запускается");
+  }
+  const passwordHash = await bcrypt.hash(seedPassword, 10);
 
   const owner = await prisma.user.upsert({
     where: { email: "alena@whiteone.ru" },
@@ -39,9 +41,11 @@ async function main() {
     { email: "katya@whiteone.ru",   name: "Катя",  role: "CONTENT_MANAGER" as const },
   ];
   for (const u of team) {
+    // update: только имя — повторный сид не должен возвращать доступ
+    // отключённому сотруднику (isActive) и не должен сбрасывать роль
     await prisma.user.upsert({
       where: { email: u.email },
-      update: { name: u.name, role: u.role, isActive: true },
+      update: { name: u.name },
       create: { ...u, passwordHash, isActive: true },
     });
     console.log(`✓ ${u.role}: ${u.email}`);
@@ -65,8 +69,7 @@ async function main() {
   });
   console.log("✓ Размерные сетки: 3");
 
-  console.log("\n✅ Готово. Войти: alena@whiteone.ru / whiteone2026");
-  console.log("   ⚠ Смени пароль через переменную SEED_OWNER_PASSWORD при первом seed на проде.");
+  console.log("\n✅ Готово. Логин владельца: alena@whiteone.ru, пароль — из SEED_OWNER_PASSWORD.");
 }
 
 main()

@@ -76,6 +76,44 @@ export function orderKanbanColumn(
 }
 
 /**
+ * ГАНТ ПЕРВИЧЕН (Алёна, 05.07.2026): «график Ганта и заполнение инфо внутри
+ * заказа первично; мы расставляем карточки в канбане так, как в Ганте; руками
+ * в канбане поменять Производство на ОТК нельзя; девочки не отмечают статусы —
+ * они двигают Гант». Единственное исключение — 4 колонки Разработки: там
+ * карточки двигают руками (это детализация ДО заказа, в Ганте её нет).
+ *
+ * Поэтому колонка «после заказа» считается ПО ДАТАМ заказа (позиция «сегодня»
+ * на полосе Ганта), а не по ручному статусу. Ручной статус остаётся для
+ * бизнес-операций (приёмка, платежи) и как бейдж-справка.
+ */
+export type OrderPhaseDates = {
+  handedToFactoryDate: Date | null;
+  readyAtFactoryDate: Date | null;
+  qcDate: Date | null;
+};
+
+/**
+ * Колонка канбана «после заказа» по датам Ганта.
+ * null → «сегодня» ещё до передачи на фабрику (или дата не заполнена):
+ * карточка остаётся в колонках разработки по стадии фасона.
+ * Пропущенная дата = фаза ещё не спланирована → считаем, что заказ в ней:
+ * шьют, пока не проставлен конец производства, и т.д.
+ */
+export function orderKanbanColumnByDates(
+  d: OrderPhaseDates,
+  todayIso: string,
+): "production" | "qc" | "delivery" | null {
+  const iso = (x: Date | null) => (x ? x.toISOString().slice(0, 10) : null);
+  const handed = iso(d.handedToFactoryDate);
+  if (!handed || todayIso < handed) return null;
+  const ready = iso(d.readyAtFactoryDate);
+  if (!ready || todayIso < ready) return "production";
+  const qc = iso(d.qcDate);
+  if (!qc || todayIso < qc) return "qc";
+  return "delivery";
+}
+
+/**
  * Этапы для выбора при создании заказа: 5 значений = 5 колонок канбана.
  * `label` — то, что видит Алёна; `value` — статус, который ляжет в БД.
  * Один этап ⇒ ровно одна колонка канбана и одна фаза Ганта.
@@ -93,3 +131,21 @@ export const ORDER_STATUS_VALUES = [
   "PREPARATION", "FABRIC_ORDERED", "SEWING", "QC", "READY_SHIP",
   "IN_TRANSIT", "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE",
 ] as const;
+
+/**
+ * «Реально запущенные» заказы — те, где производство ФАКТИЧЕСКИ началось
+ * (пошив и дальше). PREPARATION и FABRIC_ORDERED — это ещё разработка
+ * (ткань заказана ≠ шьётся), их НЕ засчитываем в «факт выпуска» план/факта
+ * и сезонных целей, иначе прогресс завышается незапущенными заказами.
+ */
+export const LAUNCHED_ORDER_STATUSES = [
+  "SEWING", "QC", "READY_SHIP", "IN_TRANSIT",
+  "WAREHOUSE_MSK", "PACKING", "SHIPPED_WB", "ON_SALE",
+] as const satisfies ReadonlyArray<OrderStatus>;
+
+const LAUNCHED_SET = new Set<OrderStatus>(LAUNCHED_ORDER_STATUSES);
+
+/** Заказ реально запущен в производство (пошив уже начался). */
+export function isOrderLaunched(status: OrderStatus): boolean {
+  return LAUNCHED_SET.has(status);
+}

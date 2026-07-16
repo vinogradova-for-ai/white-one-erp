@@ -51,6 +51,34 @@ export const SEASONS: ReadonlyArray<Season> = [
     months: [202612],
     categories: ["Пальто", "Полупальто", "Трикотажные костюмы"],
   },
+  // 2027 — заведены заранее по тем же правилам, чтобы с января экран «Цели»
+  // не откатывался молча на «Лето 2026» (аудит блок ④). Зима-2026 (декабрь)
+  // и зима-2027 (январь-февраль) — одна осенне-зимняя капсула, но разнесены
+  // по годам, чтобы дефолт всегда указывал на актуальный сезон.
+  {
+    key: "winter-2027",
+    title: "Зима 2027",
+    months: [202701, 202702],
+    categories: ["Пальто", "Полупальто", "Трикотажные костюмы"],
+  },
+  {
+    key: "summer-2027",
+    title: "Лето 2027",
+    months: [202706, 202707, 202708],
+    categories: ["Летние платья", "Летние костюмы", "Блузки"],
+  },
+  {
+    key: "autumn-2027",
+    title: "Осень 2027",
+    months: [202709, 202710, 202711],
+    categories: ["Пальто", "Полупальто", "Джинсы", "Брюки", "Трикотажные костюмы"],
+  },
+  {
+    key: "winter-2027-dec",
+    title: "Зима 2027 (декабрь)",
+    months: [202712],
+    categories: ["Пальто", "Полупальто", "Трикотажные костюмы"],
+  },
 ];
 
 export const ALL_PRODUCT_CATEGORIES: ReadonlyArray<string> = [
@@ -71,23 +99,98 @@ export function seasonFor(yearMonth: number): Season | null {
   return null;
 }
 
+// Значимые слова названия (>3 букв) в нижнем регистре.
+// «и/в/на» и короткие связки отбрасываем.
+function significantWords(s: string): string[] {
+  return s
+    .toLowerCase()
+    .trim()
+    .split(/[\s,]+/)
+    .filter((w) => w.length > 3);
+}
+
+// Два слова считаем «одним словом с учётом склонения», если общий префикс
+// достаточно длинный (≥4 буквы или всё короткое слово целиком). Так
+// «костюм»/«костюмы», «летний»/«летние» матчатся, а «пальто»/«полупальто» — НЕТ
+// (у них нет общего начала: одно начинается с «полу»).
+function sameWordStem(a: string, b: string): boolean {
+  if (a === b) return true;
+  const min = Math.min(a.length, b.length);
+  let common = 0;
+  while (common < min && a[common] === b[common]) common++;
+  return common >= 4;
+}
+
 /**
- * Категория модели подходит к категории сезона, если её название содержит
- * (или содержится в) название канонической категории — нечётко, lowercase.
- * Примеры:
- *   ProductModel.category="Платье"     vs "Летние платья"     → совпадает ("платье" ∈ "летние платья")
- *   ProductModel.category="Пальто"     vs "Пальто"            → совпадает
- *   ProductModel.category="Трикотаж"   vs "Трикотажные костюмы" → совпадает
- *   ProductModel.category="Новые товары" — не совпадает ни с чем (показываем отдельно)
+ * Насколько модель подходит к ОДНОЙ категории сезона (сила совпадения ≥ 0).
+ * 0 — не совпадает. Больше — совпадает точнее.
+ *
+ * Матчим по СЛОВАМ целиком (не подстрокой), поэтому «полупальто» больше НЕ
+ * матчится с «пальто» (это разные слова), а «летние платья» не тянет за собой
+ * «летние костюмы» по общему «летние» — их различает второе слово.
+ *
+ * Сила = число общих значимых слов; точное равенство названий — максимум.
  */
-export function matchSeasonCategory(modelCategory: string | null | undefined, seasonCategory: string): boolean {
-  if (!modelCategory) return false;
+export function seasonCategoryMatchScore(
+  modelCategory: string | null | undefined,
+  seasonCategory: string,
+): number {
+  if (!modelCategory) return 0;
   const a = modelCategory.toLowerCase().trim();
   const b = seasonCategory.toLowerCase().trim();
-  if (a === b) return true;
-  // Берём только значимые слова (>3 букв), чтобы «и/в/на» не мэтчились.
-  const words = b.split(/\s+/).filter((w) => w.length > 3);
-  return words.some((w) => a.includes(w));
+  if (a === b) return 1000; // точное совпадение — вне конкуренции
+  const aw = significantWords(a);
+  const bw = significantWords(b);
+  if (bw.length === 0) return 0;
+  // Сколько значимых слов категории сезона нашли пару в названии модели
+  // (с учётом склонения по общему корню).
+  const common = bw.filter((w) => aw.some((x) => sameWordStem(x, w))).length;
+  return common;
+}
+
+/**
+ * Единственная категория сезона, к которой относится модель, — ЛУЧШАЯ из всех
+ * (max score). Если ничьих несколько или совпадений нет — null (модель уходит
+ * в «прочее», а не двоится по нескольким чипам).
+ *
+ * Возвращает индекс лучшей категории в переданном списке.
+ * Примеры (categories = ["Пальто","Полупальто",…]):
+ *   "Полупальто"     → "Полупальто" (score 1000 vs 0 у «Пальто»)
+ *   "Пальто"         → "Пальто"
+ *   "Летний костюм"  → "Летние костюмы" (общее слово «костюм»), НЕ «Летние платья»
+ */
+export function resolveSeasonCategory(
+  modelCategory: string | null | undefined,
+  categories: ReadonlyArray<string>,
+): number {
+  let bestIdx = -1;
+  let bestScore = 0;
+  let tie = false;
+  for (let i = 0; i < categories.length; i++) {
+    const score = seasonCategoryMatchScore(modelCategory, categories[i]);
+    if (score > bestScore) {
+      bestScore = score;
+      bestIdx = i;
+      tie = false;
+    } else if (score === bestScore && score > 0) {
+      tie = true; // равная сила у двух категорий — не относим никуда
+    }
+  }
+  return tie ? -1 : bestIdx;
+}
+
+/**
+ * Категория модели подходит к категории сезона — с учётом всего набора
+ * категорий сезона, чтобы одна модель попала РОВНО в один чип (не двоилась).
+ * Используется при разбивке «По категориям сезона».
+ */
+export function matchSeasonCategory(
+  modelCategory: string | null | undefined,
+  seasonCategory: string,
+  seasonCategories: ReadonlyArray<string>,
+): boolean {
+  const idx = resolveSeasonCategory(modelCategory, seasonCategories);
+  return idx >= 0 && seasonCategories[idx] === seasonCategory;
 }
 
 /** Получить ключевое значимое слово категории — для отрисовки чипа. */

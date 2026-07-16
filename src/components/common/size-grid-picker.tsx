@@ -11,6 +11,8 @@ type Option = { id: string; name: string };
  *  - "40-60" — диапазон чисел (разворачивает с шагом 2: 40,42,44,...,60)
  *  - "40-46 step 1" — диапазон с указанием шага
  *  - "XS-XXL" — буквенная шкала (XS,S,M,L,XL,XXL)
+ *  - "52/170" — размер с ростовкой (слеш НЕ разбивает размер)
+ *  - "42/170-52/170" или "42-52/170" — диапазон ростовочных размеров
  */
 export function SizeGridPicker({
   value,
@@ -65,8 +67,8 @@ export function SizeGridPicker({
 
   if (mode === "create") {
     return (
-      <div className="space-y-2 rounded-lg border border-blue-200 bg-blue-50 p-3">
-        <div className="text-sm font-medium text-blue-900">Новая размерная сетка</div>
+      <div className="space-y-2 rounded-lg border border-blue-200 dark:border-blue-400/20 bg-blue-50 dark:bg-blue-400/10 p-3">
+        <div className="text-sm font-medium text-blue-900 dark:text-blue-300">Новая размерная сетка</div>
         <input
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -76,21 +78,22 @@ export function SizeGridPicker({
         <input
           value={form.sizesRaw}
           onChange={(e) => setForm({ ...form, sizesRaw: e.target.value })}
-          placeholder="Размеры: 40, 42, 44  •  или  40-60  •  или  XS-XXL"
+          placeholder="Размеры: 40, 42, 44  •  40-60  •  XS-XXL  •  ростовка: 52/170 или 42-52/170"
           className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
         />
         <div className="text-xs text-slate-600">
           <div>
             Примеры ввода: <code>40, 42, 44, 46</code> · <code>40-60</code> (шаг 2) ·{" "}
-            <code>40-46 step 1</code> · <code>XS-XXL</code>
+            <code>40-46 step 1</code> · <code>XS-XXL</code> · с ростовкой:{" "}
+            <code>52/170, 54/170</code> · <code>42-52/170</code>
           </div>
           {preview.length > 0 && (
-            <div className="mt-1 text-blue-900">
+            <div className="mt-1 text-blue-900 dark:text-blue-300">
               Получится: <b>{preview.join(", ")}</b>
             </div>
           )}
         </div>
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="text-xs text-red-600 dark:text-red-300">{error}</p>}
         <div className="flex gap-2">
           <button
             type="button"
@@ -156,7 +159,7 @@ function parseSizes(raw: string): string[] {
     .filter(Boolean);
 
   for (const token of tokens) {
-    // "40-60 step 1" или "40-60" или "XS-XXL"
+    // "40-60 step 1" или "40-60" или "XS-XXL" или "42/170-52/170" / "42-52/170"
     const rangeMatch = token.match(/^(\S+?)\s*[-–—]\s*(\S+?)(?:\s+(?:step|шаг)\s+(\d+))?$/i);
     if (rangeMatch) {
       const [, a, b, stepRaw] = rangeMatch;
@@ -167,10 +170,15 @@ function parseSizes(raw: string): string[] {
         continue;
       }
     }
-    // Если не разобрали как диапазон — пробуем раздробить по пробелам/слешам
-    const parts = token.split(/[\s/]+/).filter(Boolean);
+    // Если не разобрали как диапазон — дробим по пробелам.
+    // Слеш НЕ разбивает ростовку: «52/170» — один размер (правка Алёны 03.07).
+    const parts = token.split(/\s+/).filter(Boolean);
     for (const p of parts) {
-      result.push(p);
+      if (/^\d+([.,]\d+)?\/\d+$/.test(p)) {
+        result.push(p); // размер/рост целиком
+      } else {
+        result.push(...p.split("/").filter(Boolean));
+      }
     }
   }
 
@@ -187,6 +195,16 @@ function parseSizes(raw: string): string[] {
 }
 
 function expandRange(a: string, b: string, stepOverride?: number): string[] | null {
+  // Диапазон ростовочных размеров: "42/170-52/170" или "42-52/170" →
+  // 42/170, 44/170, ..., 52/170. Рост должен совпадать с обеих сторон.
+  const ra = a.match(/^(\d+)(?:\/(\d+))?$/);
+  const rb = b.match(/^(\d+)\/(\d+)$/);
+  if (ra && rb && (ra[2] === undefined || ra[2] === rb[2])) {
+    const growth = rb[2];
+    const base = expandRange(ra[1], rb[1], stepOverride);
+    if (base) return base.map((s) => `${s}/${growth}`);
+  }
+
   const na = Number(a);
   const nb = Number(b);
   if (Number.isFinite(na) && Number.isFinite(nb)) {

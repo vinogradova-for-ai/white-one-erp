@@ -74,7 +74,7 @@ export function PackagingOrderActions({ id, status }: { id: string; status: Pack
           <button
             onClick={() => changeStatus("CANCELLED")}
             disabled={busy}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-400/10"
           >
             Отменить
           </button>
@@ -82,12 +82,12 @@ export function PackagingOrderActions({ id, status }: { id: string; status: Pack
         <button
           onClick={remove}
           disabled={busy}
-          className="ml-auto rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+          className="ml-auto rounded-lg border border-red-200 bg-white px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-400/20 dark:text-red-300 dark:hover:bg-red-400/10"
         >
           Удалить заказ
         </button>
       </div>
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="text-xs text-red-600 dark:text-red-300">{error}</p>}
     </div>
   );
 }

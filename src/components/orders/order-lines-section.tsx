@@ -59,13 +59,18 @@ export function OrderLinesSection({
   const availableVariants = modelVariants.filter((v) => !usedVariantIds.has(v.id));
 
   const totalQty = initialLines.reduce((a, l) => a + l.quantity, 0);
+  const totalFact = initialLines.reduce((a, l) => a + (l.quantityActual ?? 0), 0);
   const totalCost = initialLines.reduce((a, l) => a + l.batchCost, 0);
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-slate-900">
-          Позиции ({initialLines.length}) · {formatNumber(totalQty)} шт · {formatCurrency(totalCost)}
+          Позиции ({initialLines.length}) · {formatNumber(totalQty)} шт
+          {totalFact > 0 && (
+            <span className="text-emerald-700 dark:text-emerald-300"> · факт {formatNumber(totalFact)}</span>
+          )}
+          {totalCost > 0 && <span className="text-slate-500 font-normal"> · {formatCurrency(totalCost)}</span>}
         </h2>
         {availableVariants.length > 0 && !addingOpen && (
           <button
@@ -78,18 +83,50 @@ export function OrderLinesSection({
         )}
       </div>
 
-      <div className="space-y-3">
-        {initialLines.map((line) => (
-          <LineCard
-            key={line.id}
-            orderId={orderId}
-            line={line}
-            sizes={sizes}
-            modelPhotoUrl={modelPhotoUrl}
-            canDelete={initialLines.length > 1}
-            onChanged={() => router.refresh()}
-          />
-        ))}
+      {/* Одна размерная матрица на весь заказ: строка = цвет (план + факт),
+          размеры в шапке один раз. На узких экранах таблица скроллится вбок,
+          колонка с цветом прилипает слева. */}
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <table className="w-full border-separate border-spacing-0 text-sm">
+          <thead>
+            <tr>
+              <th className="sticky left-0 z-10 bg-white px-3 py-2 text-left text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                Цвет
+              </th>
+              {sizes.length > 0 ? (
+                sizes.map((s) => (
+                  <th key={s} className="min-w-[52px] px-1 py-2 text-center text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                    {s}
+                  </th>
+                ))
+              ) : (
+                <th className="px-2 py-2 text-center text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                  Кол-во
+                </th>
+              )}
+              <th className="px-2 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-slate-500 whitespace-nowrap">
+                Итого
+              </th>
+              <th className="px-2 py-2 text-right text-[10px] font-medium uppercase tracking-wider text-slate-500 whitespace-nowrap">
+                Сумма
+              </th>
+              <th className="w-8" />
+            </tr>
+          </thead>
+          <tbody>
+            {initialLines.map((line) => (
+              <LineRows
+                key={line.id}
+                orderId={orderId}
+                line={line}
+                sizes={sizes}
+                modelPhotoUrl={modelPhotoUrl}
+                canDelete={initialLines.length > 1}
+                onChanged={() => router.refresh()}
+              />
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {addingOpen && (
@@ -108,7 +145,7 @@ export function OrderLinesSection({
   );
 }
 
-function LineCard({
+function LineRows({
   orderId,
   line,
   sizes,
@@ -132,13 +169,22 @@ function LineCard({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const qty = Object.values(plan).reduce((a, b) => a + (Number(b) || 0), 0);
-  const factQty = Object.values(fact).reduce((a, b) => a + (Number(b) || 0), 0);
+  const hasSizes = sizes.length > 0;
+  const qty = hasSizes
+    ? Object.values(plan).reduce((a, b) => a + (Number(b) || 0), 0)
+    : line.quantity;
+  const factQty = hasSizes
+    ? Object.values(fact).reduce((a, b) => a + (Number(b) || 0), 0)
+    : (line.quantityActual ?? 0);
   const factEmpty = factQty === 0;
 
   const dirty =
-    JSON.stringify(plan) !== JSON.stringify(line.sizeDistribution ?? {}) ||
-    JSON.stringify(fact) !== JSON.stringify(line.sizeDistributionActual ?? {});
+    hasSizes &&
+    (JSON.stringify(plan) !== JSON.stringify(line.sizeDistribution ?? {}) ||
+      JSON.stringify(fact) !== JSON.stringify(line.sizeDistributionActual ?? {}));
+
+  // Колонки: цвет + размеры (или «Кол-во») + итого + сумма + удаление
+  const colCount = 1 + (hasSizes ? sizes.length : 1) + 3;
 
   async function save() {
     setSaving(true);
@@ -182,147 +228,154 @@ function LineCard({
   }
 
   return (
-    <div className="group relative rounded-xl border border-slate-200 bg-white p-2.5">
-      {canDelete && (
-        <button
-          type="button"
-          onClick={remove}
-          disabled={saving}
-          aria-label="Удалить позицию"
-          title="Удалить позицию"
-          className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md text-slate-400 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 focus:opacity-100 disabled:opacity-30"
-        >
-          ✕
-        </button>
-      )}
-      {/* На мобиле фото+название+итоги стоят в одной строке, а размерная
-          матрица переносится на следующую строку с полной шириной (иначе
-          6 размеров на 390px зажимаются между фото и правым блоком в
-          ~3-5px колонки и цифры слипаются в «11155»).
-          На ≥md всё в одну строку как раньше. */}
-      <div className="flex flex-wrap items-start gap-3 md:flex-nowrap md:items-center">
-        <VariantVisual
-          variantPhotoUrl={line.photoUrl}
-          modelPhotoUrl={modelPhotoUrl}
-          colorName={line.colorName}
-          size={44}
-          hideBadge
-        />
-        <div className="min-w-0 order-3 basis-full md:order-none md:flex-1 md:basis-auto">
-          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-            <ColorChip name={line.colorName} />
-            <span className="truncate">{line.colorName}</span>
-            <span className="truncate text-[11px] font-normal text-slate-400">{line.sku}</span>
-          </div>
-          {sizes.length > 0 && (
-            <div className="mt-1.5 space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="w-10 shrink-0 text-[10px] uppercase tracking-wider text-slate-500">План</span>
-                <div className="flex-1 min-w-0">
-                  <SizeRow sizes={sizes} dist={plan} onChange={setPlan} accent="slate" />
-                </div>
+    <>
+      {/* Строка «план» — сверху границы группы цвета */}
+      <tr>
+        <td rowSpan={2} className="sticky left-0 z-10 border-t border-slate-200 bg-white px-3 py-1.5 align-middle">
+          <div className="flex items-center gap-2">
+            <VariantVisual
+              variantPhotoUrl={line.photoUrl}
+              modelPhotoUrl={modelPhotoUrl}
+              colorName={line.colorName}
+              size={36}
+              hideBadge
+            />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-[13px] font-semibold text-slate-900">
+                <ColorChip name={line.colorName} />
+                <span className="max-w-[120px] truncate">{line.colorName}</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="w-10 shrink-0 text-[10px] uppercase tracking-wider text-emerald-600">Факт</span>
-                <div className="flex-1 min-w-0">
-                  <SizeRow sizes={sizes} dist={fact} onChange={setFact} accent="emerald" placeholder="—" />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="ml-auto flex shrink-0 flex-col items-end gap-0.5 pl-2 pr-6">
-          <div className="flex items-baseline gap-1">
-            <span className="text-[9px] uppercase text-slate-400">план</span>
-            <div className="text-sm font-semibold text-slate-900">{qty} <span className="text-[11px] font-normal text-slate-500">шт</span></div>
-          </div>
-          <div
-            className="flex items-baseline gap-1"
-            title={
-              factEmpty
-                ? "Факт ещё не проставлен — заполни строку «Факт» после ОТК"
-                : factQty !== qty
-                  ? `Расхождение с планом: ${factQty > qty ? "+" : ""}${factQty - qty} шт`
-                  : "Факт совпадает с планом"
-            }
-          >
-            <span className={`text-[9px] uppercase ${factEmpty ? "text-slate-300" : "text-emerald-600"}`}>факт</span>
-            <div className={`text-sm font-semibold ${
-              factEmpty ? "text-slate-300" :
-              factQty !== qty ? "text-amber-700" :
-              "text-emerald-700"
-            }`}>
-              {factEmpty ? "—" : factQty}{!factEmpty && <span className="text-[11px] font-normal text-slate-500"> шт</span>}
+              <div className="max-w-[150px] truncate text-[10px] text-slate-400">{line.sku}</div>
             </div>
           </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">{formatCurrency(line.batchCost)}</div>
-          {dirty && (
+        </td>
+        {hasSizes ? (
+          sizes.map((s) => (
+            <td key={s} className="border-t border-slate-200 px-0.5 pt-1.5 align-middle">
+              <CellInput
+                value={plan[s]}
+                onChange={(n) => setPlan({ ...plan, [s]: n })}
+                accent="slate"
+              />
+            </td>
+          ))
+        ) : (
+          <td className="border-t border-slate-200 px-2 pt-1.5 text-center font-medium tabular-nums text-slate-900">
+            {formatNumber(line.quantity)}
+          </td>
+        )}
+        <td className="border-t border-slate-200 px-2 pt-1.5 text-right align-middle whitespace-nowrap">
+          <span className="mr-1 text-[9px] uppercase text-slate-400">план</span>
+          <span className="font-semibold tabular-nums text-slate-900">{formatNumber(qty)}</span>
+        </td>
+        <td rowSpan={2} className="border-t border-slate-200 px-2 py-1.5 text-right align-middle text-[12px] text-slate-500 whitespace-nowrap">
+          {line.batchCost > 0 ? formatCurrency(line.batchCost) : "—"}
+        </td>
+        <td rowSpan={2} className="border-t border-slate-200 px-1 py-1.5 text-center align-middle">
+          {canDelete && (
             <button
               type="button"
-              onClick={save}
+              onClick={remove}
               disabled={saving}
-              className="mt-1 rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+              aria-label="Удалить позицию"
+              title="Удалить позицию"
+              className="flex h-6 w-6 items-center justify-center rounded-md text-slate-300 transition hover:bg-red-50 dark:hover:bg-red-400/10 hover:text-red-600 dark:hover:text-red-300 disabled:opacity-30"
             >
-              {saving ? "…" : "Сохранить"}
+              ✕
             </button>
           )}
-        </div>
-      </div>
-      {error && <div className="mt-2 text-xs text-red-600">{error}</div>}
-    </div>
+        </td>
+      </tr>
+
+      {/* Строка «факт» — тонкая, изумрудная, без верхней границы */}
+      <tr>
+        {hasSizes ? (
+          sizes.map((s) => (
+            <td key={s} className="px-0.5 pb-1.5 align-middle">
+              <CellInput
+                value={fact[s]}
+                onChange={(n) => setFact({ ...fact, [s]: n })}
+                accent="emerald"
+                placeholder="—"
+              />
+            </td>
+          ))
+        ) : (
+          <td className="px-2 pb-1.5 text-center tabular-nums text-emerald-700 dark:text-emerald-300">
+            {line.quantityActual != null ? formatNumber(line.quantityActual) : "—"}
+          </td>
+        )}
+        <td
+          className="px-2 pb-1.5 text-right align-middle whitespace-nowrap"
+          title={
+            factEmpty
+              ? "Факт ещё не проставлен — заполни строку «Факт» после ОТК"
+              : factQty !== qty
+                ? `Расхождение с планом: ${factQty > qty ? "+" : ""}${factQty - qty} шт`
+                : "Факт совпадает с планом"
+          }
+        >
+          <span className={`mr-1 text-[9px] uppercase ${factEmpty ? "text-slate-300" : "text-emerald-600 dark:text-emerald-300"}`}>факт</span>
+          <span className={`font-semibold tabular-nums ${
+            factEmpty ? "text-slate-300" :
+            factQty !== qty ? "text-amber-700 dark:text-amber-300" :
+            "text-emerald-700 dark:text-emerald-300"
+          }`}>
+            {factEmpty ? "—" : formatNumber(factQty)}
+          </span>
+        </td>
+      </tr>
+
+      {/* Строка сохранения — появляется только когда есть несохранённые правки */}
+      {(dirty || error) && (
+        <tr>
+          <td colSpan={colCount} className="px-3 pb-2 text-right">
+            {error && <span className="mr-3 text-xs text-red-600 dark:text-red-300">{error}</span>}
+            {dirty && (
+              <button
+                type="button"
+                onClick={save}
+                disabled={saving}
+                className="rounded-md bg-slate-900 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+              >
+                {saving ? "…" : "Сохранить"}
+              </button>
+            )}
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
-function SizeRow({
-  sizes,
-  dist,
+function CellInput({
+  value,
   onChange,
   accent = "slate",
   placeholder,
 }: {
-  sizes: string[];
-  dist: Record<string, number>;
-  onChange: (v: Record<string, number>) => void;
+  value: number | undefined;
+  onChange: (n: number) => void;
   accent?: "slate" | "emerald";
   placeholder?: string;
 }) {
   const ringClass = accent === "emerald"
-    ? "border-emerald-200 focus:border-emerald-400 text-emerald-800"
+    ? "border-emerald-200 dark:border-emerald-400/20 focus:border-emerald-400 text-emerald-800 dark:text-emerald-300"
     : "border-slate-200 focus:border-slate-400 text-slate-900";
+  const isEmpty = value === undefined || value === 0;
   return (
-    <div>
-      <div
-        className="grid gap-1"
-        style={{ gridTemplateColumns: `repeat(${sizes.length}, minmax(0, 1fr))` }}
-      >
-        {sizes.map((s) => {
-          const val = dist[s];
-          const isEmpty = val === undefined || val === 0;
-          return (
-            <label key={s} className="block min-w-0">
-              {/* Подписи размеров рисуем только для верхнего ряда (План).
-                  Для нижнего ряда (Факт) — нет, чтобы не дублировать. */}
-              {accent === "slate" && (
-                <div className="text-center text-[10px] leading-none text-slate-500">{s}</div>
-              )}
-              <input
-                type="text"
-                inputMode="numeric"
-                value={isEmpty && placeholder ? "" : (val ?? 0)}
-                placeholder={placeholder}
-                onFocus={(e) => e.target.select()}
-                onChange={(e) => {
-                  const digits = e.target.value.replace(/\D/g, "");
-                  const n = digits === "" ? 0 : Number(digits);
-                  onChange({ ...dist, [s]: n });
-                }}
-                className={`mt-0.5 h-9 w-full rounded border bg-white px-1 text-center text-sm font-medium tabular-nums sm:h-7 sm:text-[11px] ${ringClass}`}
-              />
-            </label>
-          );
-        })}
-      </div>
-    </div>
+    <input
+      type="text"
+      inputMode="numeric"
+      value={isEmpty && placeholder ? "" : (value ?? 0)}
+      placeholder={placeholder}
+      onFocus={(e) => e.target.select()}
+      onChange={(e) => {
+        const digits = e.target.value.replace(/\D/g, "");
+        onChange(digits === "" ? 0 : Number(digits));
+      }}
+      className={`h-9 w-full min-w-[44px] rounded border bg-white px-1 text-center text-sm font-medium tabular-nums sm:h-8 sm:text-[12px] ${ringClass}`}
+    />
   );
 }
 
@@ -393,29 +446,30 @@ function AddLineForm({
         />
         <input
           type="number"
+          inputMode="numeric"
           min={1}
           value={qty}
           onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
           placeholder="шт"
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+          className="h-11 rounded-lg border border-slate-300 bg-white px-3 text-sm"
         />
         <button
           type="button"
           onClick={submit}
           disabled={saving || !variantId}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          className="flex h-11 items-center justify-center rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
         >
           {saving ? "Добавление…" : "Добавить"}
         </button>
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-600"
+          className="flex h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-600"
         >
           Отмена
         </button>
       </div>
-      {error && <div className="mt-2 text-xs text-red-600">{error}</div>}
+      {error && <div className="mt-2 text-xs text-red-600 dark:text-red-300">{error}</div>}
     </div>
   );
 }
