@@ -15,9 +15,22 @@ export const shipmentCreateSchema = z.object({
   amountUsdt: z.union([z.number(), z.string(), z.null()]).transform((v) => (v === "" || v == null ? null : Number(v))).pipe(z.number().min(0).nullable()).optional(),
   cargoPaidAt: z.string().optional().nullable(),
   arrivalActualDate: z.string().optional().nullable(),
+  // Деньги накладной раздельно (фрахт/страховка/упаковка груза) + фото накладной.
+  freightUsd: z.union([z.number(), z.string(), z.null()]).transform((v) => (v === "" || v == null ? null : Number(v))).pipe(z.number().min(0).nullable()).optional(),
+  insuranceUsd: z.union([z.number(), z.string(), z.null()]).transform((v) => (v === "" || v == null ? null : Number(v))).pipe(z.number().min(0).nullable()).optional(),
+  packingFeeUsd: z.union([z.number(), z.string(), z.null()]).transform((v) => (v === "" || v == null ? null : Number(v))).pipe(z.number().min(0).nullable()).optional(),
+  waybillPhotoUrls: z.array(z.string().max(1000)).max(20).optional(),
 });
 
 export const shipmentUpdateSchema = shipmentCreateSchema.partial();
+
+// Ручная поправка веса строки содержимого карго (партия / заказ упаковки).
+export const cargoLineWeightSchema = z.object({
+  weightKgOverride: z
+    .union([z.number(), z.string(), z.null()])
+    .transform((v) => (v === "" || v == null ? null : Number(v)))
+    .pipe(z.number().min(0).max(100000).nullable()),
+});
 
 // Привязка/отвязка заказа упаковки к поставке (упаковка едет тем же карго).
 export const shipmentPackagingOrderSchema = z.object({

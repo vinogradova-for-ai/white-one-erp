@@ -34,6 +34,9 @@ export const packagingCreateSchema = z.object({
   priceCurrency: z.enum(["RUB", "CNY"]).optional().nullable(),
   cnyRubRate: decimal,
 
+  // Вес штуки, г — для раскидки стоимости карго по весу.
+  weightG: z.number().int().min(0).optional().nullable(),
+
   // Жизненный цикл
   status: z.enum(PACKAGING_STATUSES).optional(),
   ownerId: z.string().optional().nullable(),

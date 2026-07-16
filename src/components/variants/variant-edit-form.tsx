@@ -4,12 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { DropzonePhotos } from "@/components/common/dropzone-photos";
 
-// Минимум: идентификация + фото. Остальные поля не редактируются здесь.
+// Минимум: идентификация + фото + вес штуки (для раскидки карго). Остальные
+// поля не редактируются здесь.
 type Initial = {
   sku: string;
   colorName: string;
   fabricColorCode: string;
   photoUrls: string[];
+  weightG: string; // вес штуки, граммы ("" = не задан)
 };
 
 export function VariantEditForm({
@@ -41,6 +43,7 @@ export function VariantEditForm({
         colorName: form.colorName,
         fabricColorCode: form.fabricColorCode || null,
         photoUrls: form.photoUrls,
+        weightG: form.weightG.trim() === "" ? null : Math.round(Number(form.weightG)),
       };
       const res = await fetch(`/api/variants/${variantId}`, {
         method: "PATCH",
@@ -70,6 +73,9 @@ export function VariantEditForm({
         </Field>
         <Field label="Артикул цвета у поставщика ткани" full>
           <input value={form.fabricColorCode} onChange={(e) => setForm({ ...form, fabricColorCode: e.target.value })} className={inputCls} placeholder="Код, чтобы повторно заказать ткань" />
+        </Field>
+        <Field label="Вес штуки, г (для раскидки карго по весу)">
+          <input value={form.weightG} onChange={(e) => setForm({ ...form, weightG: e.target.value })} inputMode="numeric" className={inputCls} placeholder="напр. 810" />
         </Field>
       </Section>
 

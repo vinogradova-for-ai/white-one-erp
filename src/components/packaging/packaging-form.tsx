@@ -24,6 +24,7 @@ type Initial = {
   unitPriceCny: string;
   priceCurrency: "RUB" | "CNY";
   cnyRubRate: string;
+  weightG: string; // вес штуки, г (для раскидки карго по весу)
   ownerId: string;
 };
 
@@ -43,6 +44,7 @@ const EMPTY: Omit<Initial, "id"> = {
   unitPriceCny: "",
   priceCurrency: "RUB",
   cnyRubRate: "",
+  weightG: "",
   ownerId: "",
 };
 
@@ -109,6 +111,7 @@ export function PackagingForm({
       unitPriceRub: hasRub ? Number(form.unitPriceRub) : null,
       unitPriceCny: hasCny ? Number(form.unitPriceCny) : null,
       cnyRubRate: hasCny && form.cnyRubRate ? Number(form.cnyRubRate) : null,
+      weightG: form.weightG.trim() === "" ? null : Math.round(Number(form.weightG)),
       ownerId: form.ownerId || null,
     };
 
@@ -282,6 +285,18 @@ export function PackagingForm({
             <> ≈ {(Number(form.unitPriceCny) * Number(form.cnyRubRate)).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽</>
           )}
         </p>
+        <label className="block md:w-1/3">
+          <span className="mb-1 block text-sm text-slate-700">Вес штуки, г</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={form.weightG}
+            onChange={(e) => setForm({ ...form, weightG: e.target.value })}
+            placeholder="напр. 25"
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+          />
+          <span className="mt-1 block text-xs text-slate-500">Для раскидки стоимости карго по весу.</span>
+        </label>
       </fieldset>
 
       {users.length > 0 && (

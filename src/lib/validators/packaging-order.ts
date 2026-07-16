@@ -60,6 +60,12 @@ export const packagingOrderUpdateSchema = z.object({
   arrivedDate: z.string().optional().nullable(),
   lines: z.array(packagingOrderLineSchema).optional(),
   payments: z.array(paymentInput).optional(),
+  // Ручная поправка веса заказа упаковки в карго, кг (null = авто из штук × вес штуки).
+  weightKgOverride: z
+    .union([z.number(), z.string(), z.null()])
+    .transform((v) => (v === "" || v == null ? null : Number(v)))
+    .pipe(z.number().min(0).max(100000).nullable())
+    .optional(),
 });
 
 export type PackagingOrderLineInput = z.infer<typeof packagingOrderLineSchema>;
