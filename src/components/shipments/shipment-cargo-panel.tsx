@@ -4,17 +4,16 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { DropzonePhotos } from "@/components/common/dropzone-photos";
 
-// Карго-накладная поставки (перенос листа «КАРГО»): номер, места, вес, деньги
-// накладной раздельно (фрахт/страховка/упаковка — итог сам), фото накладной,
-// оплата (фиксирует курс), факт прибытия. Редактируют те, у кого
-// shipment.manage; остальным — показ. Форма живёт и с телефона (Настя).
+// Карго-накладная поставки (перенос листа «КАРГО»): номер, места, вес, итог
+// к оплате, фото накладной, оплата и факт прибытия ГАЛКАМИ с датой (Алёна
+// 17.07: «мест/вес важно, остальное не нужно; оплачено — галка с датой; факт
+// прибытия — галка отметить приход и дату»). Детализация фрахт/страховка/
+// упаковка убрана из формы — Настя вбивает итог одной цифрой.
+// Редактируют те, у кого shipment.manage; остальным — показ. Живёт с телефона.
 export type CargoValues = {
   cargoNumber: string;
   placesCount: string;
   weightKg: string;
-  freightUsd: string;
-  insuranceUsd: string;
-  packingFeeUsd: string;
   amountUsdt: string;
   cargoPaidAt: string; // YYYY-MM-DD или ""
   arrivalActualDate: string; // YYYY-MM-DD или ""
@@ -29,6 +28,11 @@ function num(s: string): number | null {
   if (t === "") return null;
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
+}
+
+// «Сегодня» по МСК (сервер и Настя живут по Москве).
+function todayMsk(): string {
+  return new Date(Date.now() + 3 * 3600_000).toISOString().slice(0, 10);
 }
 
 export function ShipmentCargoPanel({
@@ -52,11 +56,7 @@ export function ShipmentCargoPanel({
     setSaved(false);
   }
 
-  // Итог накладной: сумма компонентов, если они разнесены; иначе поле USDT.
-  const parts = [num(v.freightUsd), num(v.insuranceUsd), num(v.packingFeeUsd)].filter(
-    (x): x is number => x != null,
-  );
-  const totalUsd = parts.length > 0 ? parts.reduce((a, b) => a + b, 0) : num(v.amountUsdt);
+  const totalUsd = num(v.amountUsdt);
 
   async function patch(body: Record<string, unknown>) {
     const res = await fetch(`/api/shipments/${shipmentId}`, {
@@ -79,11 +79,11 @@ export function ShipmentCargoPanel({
         cargoNumber: v.cargoNumber.trim() || null,
         placesCount: v.placesCount.trim() === "" ? null : Number(v.placesCount),
         weightKg: num(v.weightKg),
-        freightUsd: num(v.freightUsd),
-        insuranceUsd: num(v.insuranceUsd),
-        packingFeeUsd: num(v.packingFeeUsd),
-        // Итог: если компоненты разнесены — пишем их сумму, иначе ручной итог.
         amountUsdt: totalUsd,
+        // Детализация из формы убрана — итог единственный источник денег.
+        freightUsd: null,
+        insuranceUsd: null,
+        packingFeeUsd: null,
         cargoPaidAt: v.cargoPaidAt || null,
         arrivalActualDate: v.arrivalActualDate || null,
       });
@@ -111,12 +111,9 @@ export function ShipmentCargoPanel({
       ["№ накладной", fmt(v.cargoNumber)],
       ["Мест", fmt(v.placesCount)],
       ["Вес, кг", fmt(v.weightKg)],
-      ["Фрахт $", fmt(v.freightUsd)],
-      ["Страховка $", fmt(v.insuranceUsd)],
-      ["Упаковка $", fmt(v.packingFeeUsd)],
-      ["Итого $", totalUsd != null ? String(totalUsd) : "—"],
+      ["Итого $", fmt(v.amountUsdt)],
       ["Оплата карго", v.cargoPaidAt ? `оплачено ${v.cargoPaidAt}` : "не оплачено"],
-      ["Факт прибытия", fmt(v.arrivalActualDate)],
+      ["Прибытие", v.arrivalActualDate ? `приехало ${v.arrivalActualDate}` : "ещё едет"],
     ];
     return (
       <div className="space-y-3 rounded-2xl bg-white p-4 dark:bg-slate-900">
@@ -142,6 +139,9 @@ export function ShipmentCargoPanel({
     );
   }
 
+  const checkRow =
+    "flex min-h-[44px] items-center gap-2 rounded-lg border border-slate-300 px-3 dark:border-slate-600";
+
   return (
     <div className="space-y-3 rounded-2xl bg-white p-4 dark:bg-slate-900">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
@@ -155,40 +155,63 @@ export function ShipmentCargoPanel({
         </label>
         <label className="block">
           <span className="mb-1 block text-xs text-slate-500">Вес брутто, кг</span>
-          <input value={v.weightKg} onChange={(e) => set("weightKg", e.target.value)} inputMode="decimal" placeholder="1622" className={inputCls} />
+          <input value={v.weightKg} onChange={(e) => set("weightKg", e.target.value)} inputMode="decimal" className={inputCls} />
         </label>
+
         <label className="block">
-          <span className="mb-1 block text-xs text-slate-500">Фрахт (транспортировка), $</span>
-          <input value={v.freightUsd} onChange={(e) => set("freightUsd", e.target.value)} inputMode="decimal" placeholder="3244" className={inputCls} />
+          <span className="mb-1 block text-xs text-slate-500">Итого к оплате, $</span>
+          <input value={v.amountUsdt} onChange={(e) => set("amountUsdt", e.target.value)} inputMode="decimal" className={inputCls} />
         </label>
-        <label className="block">
-          <span className="mb-1 block text-xs text-slate-500">Страховка, $</span>
-          <input value={v.insuranceUsd} onChange={(e) => set("insuranceUsd", e.target.value)} inputMode="decimal" placeholder="78" className={inputCls} />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs text-slate-500">Упаковка груза, $</span>
-          <input value={v.packingFeeUsd} onChange={(e) => set("packingFeeUsd", e.target.value)} inputMode="decimal" placeholder="120" className={inputCls} />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs text-slate-500">
-            Итого к оплате, $ {parts.length > 0 ? "(считается само)" : ""}
-          </span>
-          <input
-            value={parts.length > 0 ? String(Math.round((totalUsd ?? 0) * 100) / 100) : v.amountUsdt}
-            onChange={(e) => set("amountUsdt", e.target.value)}
-            readOnly={parts.length > 0}
-            inputMode="decimal"
-            className={`${inputCls} ${parts.length > 0 ? "bg-slate-50 text-slate-500 dark:bg-slate-800/50" : ""}`}
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs text-slate-500">Карго оплачено (дата)</span>
-          <input type="date" value={v.cargoPaidAt} onChange={(e) => set("cargoPaidAt", e.target.value)} className={inputCls} />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs text-slate-500">Факт прибытия в Москву</span>
-          <input type="date" value={v.arrivalActualDate} onChange={(e) => set("arrivalActualDate", e.target.value)} className={inputCls} />
-        </label>
+
+        {/* Оплачено — галка; дата появляется с галкой (дефолт сегодня) */}
+        <div className="block">
+          <span className="mb-1 block text-xs text-slate-500">Оплата карго</span>
+          <div className={checkRow}>
+            <input
+              id="paid-check"
+              type="checkbox"
+              checked={v.cargoPaidAt !== ""}
+              onChange={(e) => set("cargoPaidAt", e.target.checked ? todayMsk() : "")}
+              className="h-5 w-5 accent-slate-900 dark:accent-slate-100"
+            />
+            <label htmlFor="paid-check" className="text-sm text-slate-700 dark:text-slate-300">
+              оплачено
+            </label>
+            {v.cargoPaidAt !== "" && (
+              <input
+                type="date"
+                value={v.cargoPaidAt}
+                onChange={(e) => set("cargoPaidAt", e.target.value)}
+                className="ml-auto h-8 rounded border border-slate-200 bg-transparent px-1.5 text-sm dark:border-slate-600 dark:text-slate-100"
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Приход — галка; дата появляется с галкой (дефолт сегодня) */}
+        <div className="block">
+          <span className="mb-1 block text-xs text-slate-500">Прибытие в Москву</span>
+          <div className={checkRow}>
+            <input
+              id="arrived-check"
+              type="checkbox"
+              checked={v.arrivalActualDate !== ""}
+              onChange={(e) => set("arrivalActualDate", e.target.checked ? todayMsk() : "")}
+              className="h-5 w-5 accent-slate-900 dark:accent-slate-100"
+            />
+            <label htmlFor="arrived-check" className="text-sm text-slate-700 dark:text-slate-300">
+              приехало
+            </label>
+            {v.arrivalActualDate !== "" && (
+              <input
+                type="date"
+                value={v.arrivalActualDate}
+                onChange={(e) => set("arrivalActualDate", e.target.value)}
+                className="ml-auto h-8 rounded border border-slate-200 bg-transparent px-1.5 text-sm dark:border-slate-600 dark:text-slate-100"
+              />
+            )}
+          </div>
+        </div>
       </div>
 
       <div>
@@ -212,7 +235,7 @@ export function ShipmentCargoPanel({
           </span>
         ) : v.cargoPaidAt ? (
           <span className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-700 dark:bg-amber-400/10 dark:text-amber-300">
-            курс оплаты не зафиксирован — пересохраните дату оплаты
+            курс оплаты зафиксируется после «Сохранить карго»
           </span>
         ) : totalUsd != null ? (
           <span className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-700 dark:bg-amber-400/10 dark:text-amber-300">
