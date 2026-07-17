@@ -168,6 +168,17 @@ export async function changeOrderStatus(params: {
           where: { id: u.id },
           data: { consumedQty: need },
         });
+        // Журнал мини-товарного учёта (17.07): расход Москвы той же транзакцией.
+        await tx.packagingMovement.create({
+          data: {
+            packagingItemId: u.packagingItemId,
+            date: new Date(),
+            kind: "PACK_MSK",
+            deltaMsk: -need,
+            note: `упаковано под заказ ${order.orderNumber}`,
+            createdById: actorId,
+          },
+        });
       }
     }
 
@@ -186,6 +197,17 @@ export async function changeOrderStatus(params: {
         await tx.orderPackaging.update({
           where: { id: c.id },
           data: { consumedQty: null },
+        });
+        // Журнал: возврат из упаковки (откат статуса) — той же транзакцией.
+        await tx.packagingMovement.create({
+          data: {
+            packagingItemId: c.packagingItemId,
+            date: new Date(),
+            kind: "PACK_MSK_ROLLBACK",
+            deltaMsk: c.consumedQty,
+            note: `возврат из упаковки · заказ ${order.orderNumber}`,
+            createdById: actorId,
+          },
         });
       }
     }

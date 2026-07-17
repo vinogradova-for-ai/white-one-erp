@@ -220,6 +220,8 @@ export const MOVEMENT_KIND_LABELS: Record<string, string> = {
   MOVE_CN_MSK: "переезд Китай → Москва",
   KIT_CN: "ушло комплектом (Китай)",
   SHIP_WB_MSK: "отгружено на ВБ (Москва)",
+  PACK_MSK: "упаковано под заказ (Москва)",
+  PACK_MSK_ROLLBACK: "возврат из упаковки (Москва)",
   ADJUST_CN: "инвентаризация Китай",
   ADJUST_MSK: "инвентаризация Москва",
 };
