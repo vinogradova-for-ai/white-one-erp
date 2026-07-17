@@ -25,6 +25,7 @@ const MORE_LINKS = [
   { href: "/costing", label: "Себестоимость", icon: "₽" },
   { href: "/payments", label: "Платежи", icon: "₽" },
   { href: "/shipments", label: "Карго", icon: "▣" },
+  { href: "/qc", label: "ОТК Китай", icon: "✓" },
   { href: "/incoming", label: "Заказы в пути", icon: "▤" },
   { href: "/warehouse", label: "Склад", icon: "▩" },
   { href: "/content-schedule", label: "Артикулы для фотосессии", icon: "✿" },

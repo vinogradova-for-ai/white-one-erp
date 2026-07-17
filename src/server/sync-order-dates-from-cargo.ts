@@ -122,3 +122,48 @@ export async function syncAllDatesForShipment(shipmentId: string, actorId: strin
 function jsonDates(d: Record<string, Date>): Record<string, string> {
   return Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v.toISOString().slice(0, 10)]));
 }
+
+/**
+ * Факты ОТК уточняют Гант (прожарка 17.07): партия принята к ОТК → конец
+ * «Производства» (readyAtFactoryDate) = дата начала самого раннего ОТК;
+ * ОТК завершён → конец «ОТК» (qcDate) = дата завершения самого позднего.
+ * Выезд карго может уточнить qcDate позже — побеждает последнее событие.
+ */
+export async function syncOrderDatesFromQc(orderId: string, actorId: string): Promise<void> {
+  try {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, deletedAt: null },
+      select: {
+        id: true,
+        readyAtFactoryDate: true,
+        qcDate: true,
+        chinaQcs: {
+          where: { deletedAt: null },
+          select: { date: true, finishedAt: true },
+        },
+      },
+    });
+    if (!order || order.chinaQcs.length === 0) return;
+
+    const starts = order.chinaQcs.map((q) => q.date);
+    const finishes = order.chinaQcs.map((q) => q.finishedAt).filter((d): d is Date => d != null);
+    const firstStart = new Date(Math.min(...starts.map((d) => d.getTime())));
+    const lastFinish = finishes.length ? new Date(Math.max(...finishes.map((d) => d.getTime()))) : null;
+
+    const data: Record<string, Date> = {};
+    if (!sameDay(order.readyAtFactoryDate, firstStart)) data.readyAtFactoryDate = firstStart;
+    if (lastFinish && !sameDay(order.qcDate, lastFinish)) data.qcDate = lastFinish;
+    if (Object.keys(data).length === 0) return;
+
+    await prisma.order.update({ where: { id: orderId }, data });
+    await logAudit({
+      action: "UPDATE",
+      entityType: "Order",
+      entityId: orderId,
+      userId: actorId,
+      changes: { ...jsonDates(data), note: "уточнено фактом ОТК" },
+    });
+  } catch (err) {
+    console.warn("[sync-order-dates-from-qc] failed:", (err as Error)?.message);
+  }
+}

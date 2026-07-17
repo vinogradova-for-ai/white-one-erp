@@ -505,18 +505,22 @@ model ProductVariant {
   @@index([deletedAt])
 }
 
-// ОТК Китай — выездная проверка качества на фабрике (Алёна 16.07: «заводим
-// ОТК, у него есть стоимость и заказ; работает как доставка — прикрепляем,
-// стоимость ложится в себестоимость»). Курс фиксируется на дату ОТК.
+// ОТК Китай — отдельное МЕРОПРИЯТИЕ, как карго (прожарка 17.07): к нему
+// принимаются ПАРТИИ заказа, есть факт начала (date) и факт завершения
+// (finishedAt), стоимость ложится в себестоимость. Факты уточняют Гант:
+// партия принята к ОТК → конец «Производства»; ОТК завершён → конец «ОТК».
+// Цепочка мероприятий: партия → ОТК → карго; связка мягкая (можно без ОТК).
 model ChinaQc {
   id          String    @id @default(cuid())
   orderId     String
   order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  date        DateTime  @db.Date
+  date        DateTime  @db.Date                    // факт начала (принята к ОТК)
+  finishedAt  DateTime? @db.Date                    // факт завершения (ОТК пройден)
   amount      Decimal   @db.Decimal(12, 2)
   currency    String    @default("CNY")            // CNY | USD | RUB
   rubRate     Decimal?  @db.Decimal(12, 4)          // ₽ за единицу валюты на дату (RUB = 1)
   comment     String?
+  batches     OrderBatch[] @relation("QcBatches")   // партии, принятые к этому ОТК
   createdById String
   createdBy   User      @relation("ChinaQcCreator", fields: [createdById], references: [id])
   deletedAt   DateTime?
@@ -704,6 +708,7 @@ model OrderBatch {
   weightKgOverride Decimal? @db.Decimal(10, 1)
 
   items      OrderBatchItem[]
+  qcEvents   ChinaQc[] @relation("QcBatches")
 
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
