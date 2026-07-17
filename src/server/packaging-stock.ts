@@ -21,6 +21,29 @@ import { prisma } from "@/lib/prisma";
 
 export type StockBalance = { cn: number; msk: number };
 
+/**
+ * ЯКОРЬ ИНВЕНТАРИЗАЦИИ (Алёна 17.07: «уточнить остатки и от них заново
+ * строить продолжение учёта»): пересчитанный факт уже включает всё, что
+ * физически случилось до пересчёта. Поэтому авто-движение с датой не позже
+ * последней инвентаризации склада НЕ применяется по этому складу — иначе
+ * задвоим то, что уже посчитано руками.
+ */
+async function inventoryAnchors(packagingItemId: string): Promise<{ cn: Date | null; msk: Date | null }> {
+  const [cn, msk] = await Promise.all([
+    prisma.packagingMovement.findFirst({
+      where: { packagingItemId, kind: "ADJUST_CN" },
+      orderBy: { date: "desc" },
+      select: { date: true },
+    }),
+    prisma.packagingMovement.findFirst({
+      where: { packagingItemId, kind: "ADJUST_MSK" },
+      orderBy: { date: "desc" },
+      select: { date: true },
+    }),
+  ]);
+  return { cn: cn?.date ?? null, msk: msk?.date ?? null };
+}
+
 async function createMovementIdempotent(data: {
   packagingItemId: string;
   date: Date;
@@ -32,13 +55,23 @@ async function createMovementIdempotent(data: {
   refId: string;
   createdById?: string | null;
 }): Promise<boolean> {
+  // Замок инвентаризации: обнуляем сторону, уже учтённую пересчётом.
+  const anchors = await inventoryAnchors(data.packagingItemId);
+  const d = { ...data };
+  if (d.deltaCn && anchors.cn && d.date <= anchors.cn) d.deltaCn = 0;
+  if (d.deltaMsk && anchors.msk && d.date <= anchors.msk) d.deltaMsk = 0;
+  if (!d.deltaCn && !d.deltaMsk) {
+    // Полностью до якоря — записываем нулевое движение-метку, чтобы источник
+    // считался обработанным (идемпотентность) и не всплывал после якоря.
+    d.note = `${d.note ?? ""} · до инвентаризации, остаток не менялся`.trim();
+  }
   try {
-    await prisma.packagingMovement.create({ data });
+    await prisma.packagingMovement.create({ data: d });
     // Легаси-поле stock = остаток Москвы.
-    if (data.deltaMsk) {
+    if (d.deltaMsk) {
       await prisma.packagingItem.update({
-        where: { id: data.packagingItemId },
-        data: { stock: { increment: data.deltaMsk } },
+        where: { id: d.packagingItemId },
+        data: { stock: { increment: d.deltaMsk } },
       });
     }
     return true;
@@ -162,14 +195,15 @@ export async function adjustPackagingStock(params: {
   const balances = await packagingBalances([params.packagingItemId]);
   const cur = balances.get(params.packagingItemId) ?? { cn: 0, msk: 0 };
   const delta = params.actualQty - (params.warehouse === "CN" ? cur.cn : cur.msk);
-  if (delta === 0) return;
+  // Даже нулевая дельта записывается: пересчёт = ЯКОРЬ, от которого учёт
+  // строится заново (события задним числом больше не двигают остаток).
   await prisma.packagingMovement.create({
     data: {
       packagingItemId: params.packagingItemId,
       date: new Date(),
       kind: params.warehouse === "CN" ? "ADJUST_CN" : "ADJUST_MSK",
       ...(params.warehouse === "CN" ? { deltaCn: delta } : { deltaMsk: delta }),
-      note: params.note?.trim() || "инвентаризация",
+      note: (params.note?.trim() || "инвентаризация") + (delta === 0 ? " · сошлось, якорь" : ""),
       createdById: params.actorId,
     },
   });
