@@ -531,6 +531,28 @@ model ChinaQc {
   @@index([deletedAt])
 }
 
+// Мини-товарный учёт УПАКОВКИ (Алёна 17.07): движения по складам Китай/Москва.
+// Остатки считаются суммой движений; PackagingItem.stock держим = остаток Москвы
+// (легаси-поле, обновляется теми же транзакциями). Идемпотентность автособытий —
+// уникальный индекс (packagingItemId, kind, refType, refId) для строк с refId.
+model PackagingMovement {
+  id              String        @id @default(cuid())
+  packagingItemId String
+  packagingItem   PackagingItem @relation(fields: [packagingItemId], references: [id], onDelete: Cascade)
+  date            DateTime      @db.Date
+  kind            String        // ARRIVAL_CN | MOVE_CN_MSK | KIT_CN | SHIP_WB_MSK | ADJUST_CN | ADJUST_MSK
+  deltaCn         Int           @default(0)
+  deltaMsk        Int           @default(0)
+  note            String?
+  refType         String?       // PackagingOrder | PackagingOrderBatch | Order
+  refId           String?
+  createdById     String?
+  createdAt       DateTime      @default(now())
+
+  @@index([packagingItemId, date])
+  @@index([refType, refId])
+}
+
 // GTIN Честного знака на цветомодель×размер. Присваивается ЧЗ после загрузки
 // IMPORT_K3; принимаем обратно выгрузкой (тот же файл с заполненным «Кодом
 // товара») на вкладке «Честный знак». Нужен для IMPORT_RD (декларации).
@@ -995,6 +1017,7 @@ model PackagingItem {
   statusLogs          PackagingItemStatusLog[]
   packagingOrderLines PackagingOrderLine[]
   packagingOrderBatchItems PackagingOrderBatchItem[]
+  movements           PackagingMovement[]
 
   @@index([type])
   @@index([isActive])
@@ -1242,6 +1265,10 @@ model PackagingOrderBatch {
 
   // Вес партии в карго, кг — ручная поправка (null = штуки × вес штуки).
   weightKgOverride Decimal?       @db.Decimal(10, 1)
+  // «В комплекте с товаром» (Алёна 17.07): упаковка укомплектована с одеждой
+  // ещё в Китае — вес сидит в весе товара (в раскидке не отдельная строка),
+  // списание со склада Китая в момент выезда.
+  inKit            Boolean        @default(false)
   note             String?
 
   items            PackagingOrderBatchItem[]

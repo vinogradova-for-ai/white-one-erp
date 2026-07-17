@@ -248,6 +248,7 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
         canManage={canManage}
         attached={shipment.packagingBatches.map((b) => ({
           batchId: b.id,
+          inKit: b.inKit,
           packagingOrderId: b.packagingOrder.id,
           orderNumber: b.packagingOrder.orderNumber,
           batchLabel:

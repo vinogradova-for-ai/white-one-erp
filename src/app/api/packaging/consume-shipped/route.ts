@@ -43,8 +43,22 @@ export async function POST() {
         // Не уводим остаток в минус: если Алёна уже поправила склад руками,
         // списываем что есть (различие — на её ручной корректировке).
         const item = await tx.packagingItem.findUnique({ where: { id: itemId }, select: { stock: true } });
+        const writeOff = Math.min(qty, Math.max(0, item?.stock ?? 0));
         const newStock = Math.max(0, (item?.stock ?? 0) - qty);
         await tx.packagingItem.update({ where: { id: itemId }, data: { stock: newStock } });
+        // История движений (мини-товарный учёт 17.07): расход Москвы.
+        if (writeOff > 0) {
+          await tx.packagingMovement.create({
+            data: {
+              packagingItemId: itemId,
+              date: new Date(),
+              kind: "SHIP_WB_MSK",
+              deltaMsk: -writeOff,
+              note: "списание по отгруженным заказам",
+              createdById: session.user.id,
+            },
+          });
+        }
       }
     });
 

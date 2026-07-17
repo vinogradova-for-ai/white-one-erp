@@ -8,9 +8,13 @@ import { PackagingStatusChanger } from "@/components/packaging/packaging-status-
 import { WriteOffButton } from "@/components/packaging/write-off-button";
 import { PhotoThumb } from "@/components/common/photo-thumb";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/format";
+import { syncPackagingArrivalsCn, packagingBalances, MOVEMENT_KIND_LABELS } from "@/server/packaging-stock";
+import { PackagingStockInventory } from "@/components/packaging/packaging-stock-inventory";
 
 export default async function PackagingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // Мини-товарный учёт (17.07): ленивые приходы Китая по завершённому производству.
+  await syncPackagingArrivalsCn();
   const item = await prisma.packagingItem.findUnique({
     where: { id },
     include: {
@@ -136,6 +140,26 @@ export default async function PackagingDetailPage({ params }: { params: Promise<
       });
     }
   }
+  // Журнал мини-товарного учёта (Китай/Москва) — источник правды с 17.07.
+  const [ledger, balances] = await Promise.all([
+    prisma.packagingMovement.findMany({
+      where: { packagingItemId: id },
+      orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+      take: 100,
+    }),
+    packagingBalances([id]),
+  ]);
+  const balance = balances.get(id) ?? { cn: 0, msk: 0 };
+  for (const m of ledger) {
+    const delta = m.deltaCn !== 0 ? m.deltaCn : m.deltaMsk;
+    const wh = m.deltaCn !== 0 && m.deltaMsk !== 0 ? "" : m.deltaCn !== 0 ? " · Китай" : " · Москва";
+    movements.push({
+      date: m.date,
+      delta,
+      label: `${MOVEMENT_KIND_LABELS[m.kind] ?? m.kind}${wh}`,
+      sub: m.note ?? undefined,
+    });
+  }
   movements.sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0));
   const recentMovements = movements.slice(0, 30);
 
@@ -219,6 +243,17 @@ export default async function PackagingDetailPage({ params }: { params: Promise<
           ) : null}
         </div>
       )}
+
+      {/* Остатки по складам (мини-товарный учёт 17.07) */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-sm dark:bg-slate-800">
+          🇨🇳 Китай: <b>{balance.cn.toLocaleString("ru-RU")}</b> шт
+        </span>
+        <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-sm dark:bg-slate-800">
+          🇷🇺 Москва: <b>{balance.msk.toLocaleString("ru-RU")}</b> шт
+        </span>
+        <PackagingStockInventory packagingItemId={item.id} cn={balance.cn} msk={balance.msk} />
+      </div>
 
       <div className="grid gap-4 md:grid-cols-4">
         <Metric
