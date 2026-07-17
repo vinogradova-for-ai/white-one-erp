@@ -36,6 +36,8 @@ export const cargoLineWeightSchema = z.object({
 // упаковка едет частями разными карго, как одежда).
 export const shipmentPackagingOrderSchema = z.object({
   packagingOrderId: z.string().min(1),
+  // «Сколько едет этим карго?» — пусто = весь остаток (прожарка 17.07).
+  qty: z.number().int().positive().optional().nullable(),
 });
 
 // Убрать партию упаковки из поставки.
@@ -55,6 +57,8 @@ export const shipmentStatusChangeSchema = z.object({
 // Добавить заказ в поставку — партия создаётся лениво, если её ещё нет.
 export const shipmentAddOrderSchema = z.object({
   orderId: z.string().min(1),
+  // «Сколько едет этим карго?» — пусто = весь остаток (прожарка 17.07).
+  qty: z.number().int().positive().optional().nullable(),
 });
 
 // Собрать поставку из выбранных заказов («Заказы в пути», чекбоксы).

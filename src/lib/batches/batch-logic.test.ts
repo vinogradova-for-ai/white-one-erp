@@ -5,6 +5,7 @@ import {
   allBatchesReceived,
   allBatchesShippedOrReceived,
   splitBatchPlan,
+  proportionalTake,
 } from "./batch-logic";
 
 describe("buildFullBatchItems", () => {
@@ -106,5 +107,48 @@ describe("splitBatchPlan", () => {
     const { keep, move } = splitBatchPlan([{ id: "a", plannedQty: 10 }], { a: 999 });
     expect(move.a).toBe(10);
     expect(keep.a).toBe(0);
+  });
+});
+
+describe("proportionalTake — «сколько едет этим карго»", () => {
+  const items = [
+    { id: "a", plannedQty: 600 },
+    { id: "b", plannedQty: 300 },
+    { id: "c", plannedQty: 100 },
+  ];
+
+  it("делит пропорционально и сумма сходится ровно", () => {
+    const m = proportionalTake(items, 500);
+    expect(m.a + m.b + m.c).toBe(500);
+    expect(m.a).toBe(300);
+    expect(m.b).toBe(150);
+    expect(m.c).toBe(50);
+  });
+
+  it("не превышает остаток позиции при кривых долях", () => {
+    const m = proportionalTake(
+      [{ id: "a", plannedQty: 1 }, { id: "b", plannedQty: 999 }],
+      500,
+    );
+    expect(m.a + m.b).toBe(500);
+    expect(m.a).toBeLessThanOrEqual(1);
+  });
+
+  it("take >= остатка — едет всё", () => {
+    const m = proportionalTake(items, 5000);
+    expect(m).toEqual({ a: 600, b: 300, c: 100 });
+  });
+
+  it("take = 0 — ничего не едет", () => {
+    const m = proportionalTake(items, 0);
+    expect(m).toEqual({ a: 0, b: 0, c: 0 });
+  });
+
+  it("сумма сходится на маленьких неровных числах", () => {
+    const m = proportionalTake(
+      [{ id: "a", plannedQty: 3 }, { id: "b", plannedQty: 3 }, { id: "c", plannedQty: 3 }],
+      5,
+    );
+    expect(m.a + m.b + m.c).toBe(5);
   });
 });

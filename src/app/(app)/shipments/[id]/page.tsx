@@ -70,8 +70,8 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
         select: {
           id: true,
           orderNumber: true,
-          batches: { select: { id: true, shipmentId: true } },
-          lines: { select: { packagingItem: { select: { name: true } } }, take: 3 },
+          batches: { select: { id: true, shipmentId: true, items: { select: { plannedQty: true } } } },
+          lines: { select: { quantity: true, packagingItem: { select: { name: true } } } },
         },
         orderBy: { orderedDate: "desc" },
         take: 100,
@@ -100,7 +100,8 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
           id: true,
           orderNumber: true,
           productModel: { select: { name: true } },
-          batches: { select: { id: true, shipmentId: true } },
+          lines: { select: { quantity: true } },
+          batches: { select: { id: true, shipmentId: true, items: { select: { plannedQty: true } } } },
         },
         orderBy: { createdAt: "desc" },
         take: 300,
@@ -108,9 +109,26 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
     : [];
 
   // Оставляем те, у кого нет партий вовсе или есть партия без поставки.
+  // Остаток «не уехало» = свободные партии (или весь заказ, если партий нет).
+  const remainingOf = (o: {
+    lines: Array<{ quantity: number }>;
+    batches: Array<{ shipmentId: string | null; items: Array<{ plannedQty: number }> }>;
+  }) =>
+    o.batches.length === 0
+      ? o.lines.reduce((a, l) => a + l.quantity, 0)
+      : o.batches
+          .filter((b) => b.shipmentId == null)
+          .reduce((a, b) => a + b.items.reduce((x, i) => x + i.plannedQty, 0), 0);
+
   const addable = candidateOrders
     .filter((o) => o.batches.length === 0 || o.batches.some((b) => b.shipmentId == null))
-    .map((o) => ({ id: o.id, orderNumber: o.orderNumber, modelName: o.productModel.name }));
+    .map((o) => ({
+      id: o.id,
+      orderNumber: o.orderNumber,
+      modelName: o.productModel.name,
+      remainingQty: remainingOf(o),
+    }))
+    .filter((o) => o.remainingQty > 0);
 
   const totalUnits = shipment.batches.reduce(
     (a, b) => a + b.items.reduce((x, i) => x + i.plannedQty, 0),
@@ -248,6 +266,7 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
           id: c.id,
           orderNumber: c.orderNumber,
           itemNames: pkgNames(c.lines),
+          remainingQty: remainingOf(c),
         }))}
       />
 
