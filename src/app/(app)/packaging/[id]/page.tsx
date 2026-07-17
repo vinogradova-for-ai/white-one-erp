@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { PACKAGING_TYPE_LABELS, PACKAGING_TYPE_ICONS, ORDER_STATUS_LABELS, ORDER_STATUS_COLORS } from "@/lib/constants";
 import { PACKAGING_STATUS_LABELS, PACKAGING_STATUS_COLORS } from "@/lib/status-machine/packaging-statuses";
-import { InlineNumberField } from "@/components/common/inline-number-field";
 import { PackagingStatusChanger } from "@/components/packaging/packaging-status-changer";
 import { WriteOffButton } from "@/components/packaging/write-off-button";
 import { PhotoThumb } from "@/components/common/photo-thumb";
@@ -140,28 +139,34 @@ export default async function PackagingDetailPage({ params }: { params: Promise<
       });
     }
   }
-  // Журнал мини-товарного учёта (Китай/Москва) — источник правды с 17.07.
+  // Журнал мини-товарного учёта — источник правды с 17.07. Движения делим по
+  // складам (Алёна 17.07: «понимать движение отдельно по Китаю и по Москве»);
+  // переезд Китай→Москва виден в обеих колонках (там −, тут +).
   const [ledger, balances] = await Promise.all([
     prisma.packagingMovement.findMany({
       where: { packagingItemId: id },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-      take: 100,
+      take: 200,
     }),
     packagingBalances([id]),
   ]);
   const balance = balances.get(id) ?? { cn: 0, msk: 0 };
+
+  const movesCn: Movement[] = [];
+  const movesMsk: Movement[] = [...movements]; // легаси-журнал (приходы/списания до 17.07) — это Москва
   for (const m of ledger) {
-    const delta = m.deltaCn !== 0 ? m.deltaCn : m.deltaMsk;
-    const wh = m.deltaCn !== 0 && m.deltaMsk !== 0 ? "" : m.deltaCn !== 0 ? " · Китай" : " · Москва";
-    movements.push({
-      date: m.date,
-      delta,
-      label: `${MOVEMENT_KIND_LABELS[m.kind] ?? m.kind}${wh}`,
-      sub: m.note ?? undefined,
-    });
+    const label = MOVEMENT_KIND_LABELS[m.kind] ?? m.kind;
+    if (m.deltaCn !== 0 || m.kind === "ADJUST_CN") {
+      movesCn.push({ date: m.date, delta: m.deltaCn !== 0 ? m.deltaCn : null, label, sub: m.note ?? undefined });
+    }
+    if (m.deltaMsk !== 0 || m.kind === "ADJUST_MSK") {
+      movesMsk.push({ date: m.date, delta: m.deltaMsk !== 0 ? m.deltaMsk : null, label, sub: m.note ?? undefined });
+    }
   }
-  movements.sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0));
-  const recentMovements = movements.slice(0, 30);
+  movesCn.sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0));
+  movesMsk.sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0));
+  const recentCn = movesCn.slice(0, 30);
+  const recentMsk = movesMsk.slice(0, 30);
 
   return (
     <div className="space-y-6">
@@ -255,22 +260,14 @@ export default async function PackagingDetailPage({ params }: { params: Promise<
         <PackagingStockInventory packagingItemId={item.id} cn={balance.cn} msk={balance.msk} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-5">
         <Metric
-          label="На складе"
-          value={item.stock}
-          accent={item.minStock != null && item.stock < item.minStock ? "warn" : undefined}
-          footer={item.minStock != null ? `мин: ${item.minStock}` : undefined}
-          inline={
-            <InlineNumberField
-              label=""
-              value={item.stock.toString()}
-              endpoint={`/api/packaging/${item.id}`}
-              field="stock"
-              suffix="шт"
-            />
-          }
+          label="Склад Москва"
+          value={balance.msk}
+          accent={item.minStock != null && balance.msk < item.minStock ? "warn" : undefined}
+          footer={`${item.minStock != null ? `мин: ${item.minStock} · ` : ""}правится инвентаризацией`}
         />
+        <Metric label="Склад Китай" value={balance.cn} footer="приходы с производства" />
         <Metric
           label="В производстве"
           value={inProduction}
@@ -383,36 +380,12 @@ export default async function PackagingDetailPage({ params }: { params: Promise<
         </div>
       </section>
 
-      {recentMovements.length > 0 && (
+      {(recentCn.length > 0 || recentMsk.length > 0) && (
         <section>
-          <h2 className="mb-3 text-lg font-semibold text-slate-900">Движения склада</h2>
-          <div className="rounded-2xl border border-slate-200 bg-white">
-            <ul className="divide-y divide-slate-100">
-              {recentMovements.map((m, idx) => (
-                <li key={idx} className="flex items-center justify-between gap-4 px-4 py-2.5 text-sm">
-                  <div className="min-w-0">
-                    {m.href ? (
-                      <Link href={m.href} className="font-medium text-slate-900 hover:underline">
-                        {m.label}
-                      </Link>
-                    ) : (
-                      <span className="font-medium text-slate-900">{m.label}</span>
-                    )}
-                    {m.sub && <div className="truncate text-xs text-slate-500">{m.sub}</div>}
-                  </div>
-                  <div className="flex shrink-0 items-baseline gap-3">
-                    {m.delta != null && (
-                      <span
-                        className={`font-semibold tabular-nums ${m.delta > 0 ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}`}
-                      >
-                        {m.delta > 0 ? "+" : "−"}{Math.abs(m.delta).toLocaleString("ru-RU")}
-                      </span>
-                    )}
-                    <span className="text-xs text-slate-500">{m.date ? formatDate(m.date) : "—"}</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
+          <h2 className="mb-3 text-lg font-semibold text-slate-900">Движения по складам</h2>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <MovementColumn title={`🇨🇳 Китай · остаток ${balance.cn.toLocaleString("ru-RU")} шт`} moves={recentCn} />
+            <MovementColumn title={`🇷🇺 Москва · остаток ${balance.msk.toLocaleString("ru-RU")} шт`} moves={recentMsk} />
           </div>
         </section>
       )}
@@ -499,6 +472,47 @@ function Metric({
       <div className="mt-1 text-2xl font-semibold text-slate-900">{value.toLocaleString("ru-RU")}</div>
       {inline && <div className="mt-2">{inline}</div>}
       {footer && <div className="mt-1 text-xs text-slate-500">{footer}</div>}
+    </div>
+  );
+}
+
+
+function MovementColumn({ title, moves }: { title: string; moves: Array<{ date: Date | null; delta: number | null; label: string; sub?: string; href?: string }> }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
+      <div className="border-b border-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-100">
+        {title}
+      </div>
+      {moves.length === 0 ? (
+        <div className="p-6 text-center text-sm text-slate-400">Движений пока нет</div>
+      ) : (
+        <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+          {moves.map((m, idx) => (
+            <li key={idx} className="flex items-center justify-between gap-4 px-4 py-2.5 text-sm">
+              <div className="min-w-0">
+                {m.href ? (
+                  <Link href={m.href} className="font-medium text-slate-900 hover:underline dark:text-slate-100">
+                    {m.label}
+                  </Link>
+                ) : (
+                  <span className="font-medium text-slate-900 dark:text-slate-100">{m.label}</span>
+                )}
+                {m.sub && <div className="truncate text-xs text-slate-500">{m.sub}</div>}
+              </div>
+              <div className="flex shrink-0 items-baseline gap-3">
+                {m.delta != null ? (
+                  <span className={`font-semibold tabular-nums ${m.delta > 0 ? "text-emerald-700 dark:text-emerald-300" : "text-rose-700 dark:text-rose-300"}`}>
+                    {m.delta > 0 ? "+" : "−"}{Math.abs(m.delta).toLocaleString("ru-RU")}
+                  </span>
+                ) : (
+                  <span className="text-xs text-slate-400">якорь</span>
+                )}
+                <span className="text-xs text-slate-500">{m.date ? formatDate(m.date) : "—"}</span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
