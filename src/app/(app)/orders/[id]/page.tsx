@@ -116,6 +116,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
       chinaQcs: {
         where: { deletedAt: null },
         orderBy: { date: "asc" },
+        include: { batches: { select: { id: true } } },
       },
     },
   });
@@ -338,13 +339,20 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
           orderId={order.id}
           canManage={canEditOrder}
           canDelete={canDeleteRecords}
+          batches={order.batches.map((b) => ({
+            id: b.id,
+            label: order.batches.length > 1 ? `партия ${b.index}` : "вся партия",
+            qty: b.items.reduce((a, i) => a + i.plannedQty, 0),
+          }))}
           items={order.chinaQcs.map((q) => ({
             id: q.id,
             date: q.date.toISOString(),
+            finishedAt: q.finishedAt ? q.finishedAt.toISOString() : null,
             amount: q.amount.toString(),
             currency: q.currency,
             rubRate: q.rubRate != null ? q.rubRate.toString() : null,
             comment: q.comment,
+            batchIds: q.batches.map((b) => b.id),
           }))}
         />
       </section>
