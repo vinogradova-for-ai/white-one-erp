@@ -92,6 +92,23 @@ export async function attachOrderToShipmentQty(
   shipmentId: string,
   qty: number | null,
 ): Promise<{ batchId: string; movedQty: number; leftQty: number } | null> {
+  const taken = await takePartialOrderBatch(tx, orderId, qty);
+  if (!taken) return null;
+  await tx.orderBatch.update({ where: { id: taken.batchId }, data: { shipmentId } });
+  return taken;
+}
+
+/**
+ * Выделить партию на qty штук из свободного остатка заказа (без привязки к
+ * мероприятию): qty пустой/≥остатка — вся свободная партия; меньше — партия
+ * делится пропорционально, возвращается НОВАЯ частичная. Используется и для
+ * карго, и для ОТК (Алёна 17.07: «ОТК тоже может заводиться частично»).
+ */
+export async function takePartialOrderBatch(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  qty: number | null,
+): Promise<{ batchId: string; movedQty: number; leftQty: number } | null> {
   const ensured = await ensureBatchForShipment(tx, orderId);
   if (!ensured) return null;
 
@@ -103,7 +120,6 @@ export async function attachOrderToShipmentQty(
   const total = batch.items.reduce((a, i) => a + i.plannedQty, 0);
 
   if (qty == null || qty >= total || total <= 0) {
-    await tx.orderBatch.update({ where: { id: batch.id }, data: { shipmentId } });
     return { batchId: batch.id, movedQty: total, leftQty: 0 };
   }
 
@@ -112,7 +128,7 @@ export async function attachOrderToShipmentQty(
     qty,
   );
 
-  // Исходная (свободная) партия худеет на уехавшее; нули удаляем.
+  // Исходная (свободная) партия худеет на выделенное; нули удаляем.
   for (const i of batch.items) {
     const keep = i.plannedQty - (move[i.id] ?? 0);
     if (keep <= 0) await tx.orderBatchItem.delete({ where: { id: i.id } });
@@ -128,7 +144,6 @@ export async function attachOrderToShipmentQty(
     data: {
       orderId,
       index: (agg._max.index ?? 0) + 1,
-      shipmentId,
       items: {
         create: batch.items
           .filter((i) => (move[i.id] ?? 0) > 0)
