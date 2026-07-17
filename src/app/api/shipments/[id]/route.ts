@@ -4,6 +4,7 @@ import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { shipmentUpdateSchema } from "@/lib/validators/shipment";
 import { logAudit } from "@/server/audit";
+import { syncAllDatesForShipment } from "@/server/sync-order-dates-from-cargo";
 import { getCbrRate } from "@/server/currency-rates";
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -69,6 +70,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       userId: session.user.id,
       changes: data,
     });
+
+    // Гант — план, уточняемый фактом: даты карго тянутся в даты заказов.
+    if (data.departDate !== undefined || data.arriveDate !== undefined || data.arrivalActualDate !== undefined) {
+      await syncAllDatesForShipment(id, session.user.id);
+    }
 
     return NextResponse.json({ shipment });
   } catch (e) {

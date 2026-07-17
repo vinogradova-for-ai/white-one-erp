@@ -4,6 +4,7 @@ import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { shipmentAddOrderSchema, shipmentRemoveBatchSchema } from "@/lib/validators/shipment";
 import { attachOrderToShipmentQty } from "@/server/batches";
+import { syncOrderDatesFromCargo } from "@/server/sync-order-dates-from-cargo";
 import { logAudit } from "@/server/audit";
 
 // Добавить заказ в поставку — партия создаётся лениво (см. ensureBatchForShipment).
@@ -41,6 +42,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       userId: session.user.id,
       changes: { addedOrder: orderId, batchId: result.batchId, movedQty: result.movedQty, leftQty: result.leftQty },
     });
+
+    await syncOrderDatesFromCargo([orderId], session.user.id);
 
     return NextResponse.json({ ok: true, batchId: result.batchId });
   } catch (e) {

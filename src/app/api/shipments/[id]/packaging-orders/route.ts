@@ -7,6 +7,7 @@ import {
   shipmentRemovePackagingBatchSchema,
 } from "@/lib/validators/shipment";
 import { attachPackagingOrderToShipmentQty } from "@/server/packaging-batches";
+import { syncPackagingDatesFromCargo } from "@/server/sync-order-dates-from-cargo";
 import { logAudit } from "@/server/audit";
 
 // POST /api/shipments/[id]/packaging-orders { packagingOrderId }
@@ -46,6 +47,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       userId: session.user.id,
       changes: { addedPackagingOrder: po.orderNumber, batchId: result.batchId },
     });
+    await syncPackagingDatesFromCargo([packagingOrderId]);
     return NextResponse.json({ ok: true, batchId: result.batchId });
   } catch (e) {
     return apiError(e);
