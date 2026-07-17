@@ -50,16 +50,6 @@ export const packagingBatchSplitSchema = z.object({
   move: z.record(z.string(), z.number().int().min(0)),
 });
 
-// Убрать партию упаковки из поставки.
-export const shipmentRemovePackagingBatchSchema = z.object({
-  batchId: z.string().min(1),
-});
-
-// Разбить партию упаковки: { batchItemId: qtyToMove } уезжает в новую партию.
-export const packagingBatchSplitSchema = z.object({
-  move: z.record(z.string(), z.number().int().min(0)),
-});
-
 export const shipmentStatusChangeSchema = z.object({
   status: z.enum(SHIPMENT_STATUSES),
 });
