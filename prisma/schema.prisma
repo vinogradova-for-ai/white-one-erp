@@ -774,6 +774,7 @@ model Shipment {
   deletedAt   DateTime?
 
   batches         OrderBatch[]
+  packagingBatches PackagingOrderBatch[]
   // Заказы упаковки едут тем же карго, что и одежда (лист КАРГО: сумки, бирки, плечики).
   packagingOrders PackagingOrder[]
 
@@ -988,6 +989,7 @@ model PackagingItem {
   payments            Payment[]
   statusLogs          PackagingItemStatusLog[]
   packagingOrderLines PackagingOrderLine[]
+  packagingOrderBatchItems PackagingOrderBatchItem[]
 
   @@index([type])
   @@index([isActive])
@@ -1178,10 +1180,11 @@ model PackagingOrder {
 
   deliveryMethod  DeliveryMethod?
 
-  // Каким карго едет (лист КАРГО: упаковка едет теми же накладными, что одежда).
+  // УСТАРЕЛО 17.07.2026: привязка к карго и вес живут на ПАРТИЯХ (batches),
+  // упаковка едет частями разными карго. Поля оставлены как архив данных
+  // до миграции — код их не читает и не пишет.
   shipmentId      String?
   shipment        Shipment?     @relation(fields: [shipmentId], references: [id])
-  // Вес заказа упаковки в карго, кг — ручная поправка (null = штуки × вес штуки).
   weightKgOverride Decimal?     @db.Decimal(10, 1)
 
   ownerId         String
@@ -1190,6 +1193,7 @@ model PackagingOrder {
   notes           String?
   payments        Payment[]
   lines           PackagingOrderLine[]
+  batches         PackagingOrderBatch[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -1215,6 +1219,49 @@ model PackagingOrderLine {
   createdAt        DateTime @default(now())
 
   @@index([packagingOrderId])
+  @@index([packagingItemId])
+}
+
+// Партия заказа упаковки — упаковка едет ЧАСТЯМИ разными карго (Алёна 17.07).
+// Зеркало OrderBatch у одежды, но без поштучной приёмки: факт прибытия
+// отслеживается статусом самого заказа упаковки.
+model PackagingOrderBatch {
+  id               String         @id @default(cuid())
+  packagingOrderId String
+  packagingOrder   PackagingOrder @relation(fields: [packagingOrderId], references: [id], onDelete: Cascade)
+  index            Int                                  // Номер партии 1..N («партия 1/2»)
+
+  // Карго, которым едет партия (null — ещё не назначена).
+  shipmentId       String?
+  shipment         Shipment?      @relation(fields: [shipmentId], references: [id], onDelete: SetNull)
+
+  // Вес партии в карго, кг — ручная поправка (null = штуки × вес штуки).
+  weightKgOverride Decimal?       @db.Decimal(10, 1)
+  note             String?
+
+  items            PackagingOrderBatchItem[]
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([packagingOrderId, index])
+  @@index([packagingOrderId])
+  @@index([shipmentId])
+}
+
+// Позиция партии упаковки: какая упаковка и сколько штук едет этой партией.
+model PackagingOrderBatchItem {
+  id              String              @id @default(cuid())
+  batchId         String
+  batch           PackagingOrderBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  packagingItemId String
+  packagingItem   PackagingItem       @relation(fields: [packagingItemId], references: [id])
+
+  plannedQty      Int
+
+  createdAt       DateTime @default(now())
+
+  @@index([batchId])
   @@index([packagingItemId])
 }
 

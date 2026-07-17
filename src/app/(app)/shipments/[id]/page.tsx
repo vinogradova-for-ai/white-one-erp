@@ -43,12 +43,15 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
           items: { orderBy: [{ colorName: "asc" }, { size: "asc" }] },
         },
       },
-      packagingOrders: {
-        orderBy: { orderedDate: "asc" },
+      packagingBatches: {
+        orderBy: { createdAt: "asc" },
         include: {
-          lines: {
+          packagingOrder: {
+            select: { id: true, orderNumber: true, status: true, batches: { select: { id: true } } },
+          },
+          items: {
             select: {
-              quantity: true,
+              plannedQty: true,
               packagingItem: { select: { name: true, photoUrl: true } },
             },
           },
@@ -59,19 +62,24 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
 
   if (!shipment) return notFound();
 
-  // Кандидаты-упаковка: ещё не в поставке и не отменённые.
-  const pkgCandidates = canManage
+  // Кандидаты-упаковка: не отменённые заказы, у которых нет партий вовсе
+  // (партия создастся лениво) или есть партия без карго.
+  const pkgCandidatesRaw = canManage
     ? await prisma.packagingOrder.findMany({
-        where: { shipmentId: null, status: { not: "CANCELLED" } },
+        where: { status: { not: "CANCELLED" } },
         select: {
           id: true,
           orderNumber: true,
+          batches: { select: { id: true, shipmentId: true } },
           lines: { select: { packagingItem: { select: { name: true } } }, take: 3 },
         },
         orderBy: { orderedDate: "desc" },
         take: 100,
       })
     : [];
+  const pkgCandidates = pkgCandidatesRaw.filter(
+    (p) => p.batches.length === 0 || p.batches.some((b) => b.shipmentId == null),
+  );
 
   const pkgNames = (lines: Array<{ packagingItem: { name: string } }>, total?: number) => {
     const names = lines.map((l) => l.packagingItem.name);
@@ -115,7 +123,9 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
   const allocation = await buildCargoAllocation(shipment.id);
   const lineHrefs = new Map<string, string>([
     ...shipment.batches.map((b) => [`batch:${b.id}`, `/orders/${b.order.id}`] as const),
-    ...shipment.packagingOrders.map((p) => [`pkg:${p.id}`, `/packaging-orders/${p.id}`] as const),
+    ...shipment.packagingBatches.map(
+      (b) => [`pkgbatch:${b.id}`, `/packaging-orders/${b.packagingOrder.id}`] as const,
+    ),
   ]);
 
   return (
@@ -214,16 +224,25 @@ export default async function ShipmentDetailPage({ params }: { params: Promise<{
         </section>
       ) : null}
 
-      {/* Упаковка едет тем же карго */}
+      {/* Упаковка едет тем же карго — партиями (может ехать частями) */}
       <ShipmentPackagingSection
         shipmentId={shipment.id}
         canManage={canManage}
-        attached={shipment.packagingOrders.map((p) => ({
-          id: p.id,
-          orderNumber: p.orderNumber,
-          itemNames: pkgNames(p.lines),
-          statusLabel: PACKAGING_ORDER_STATUS_LABELS[p.status],
-          statusCls: PACKAGING_ORDER_STATUS_COLORS[p.status],
+        attached={shipment.packagingBatches.map((b) => ({
+          batchId: b.id,
+          packagingOrderId: b.packagingOrder.id,
+          orderNumber: b.packagingOrder.orderNumber,
+          batchLabel:
+            b.packagingOrder.batches.length > 1
+              ? `партия ${b.index}/${b.packagingOrder.batches.length}`
+              : null,
+          qty: b.items.reduce((a, i) => a + i.plannedQty, 0),
+          itemNames: b.items
+            .slice(0, 2)
+            .map((i) => i.packagingItem.name)
+            .join(", ") + (b.items.length > 2 ? ` (+${b.items.length - 2})` : ""),
+          statusLabel: PACKAGING_ORDER_STATUS_LABELS[b.packagingOrder.status],
+          statusCls: PACKAGING_ORDER_STATUS_COLORS[b.packagingOrder.status],
         }))}
         candidates={pkgCandidates.map((c) => ({
           id: c.id,

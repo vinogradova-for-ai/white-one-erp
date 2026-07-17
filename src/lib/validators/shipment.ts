@@ -32,9 +32,20 @@ export const cargoLineWeightSchema = z.object({
     .pipe(z.number().min(0).max(100000).nullable()),
 });
 
-// Привязка/отвязка заказа упаковки к поставке (упаковка едет тем же карго).
+// Привязка заказа упаковки к поставке — партия создаётся лениво (17.07:
+// упаковка едет частями разными карго, как одежда).
 export const shipmentPackagingOrderSchema = z.object({
   packagingOrderId: z.string().min(1),
+});
+
+// Убрать партию упаковки из поставки.
+export const shipmentRemovePackagingBatchSchema = z.object({
+  batchId: z.string().min(1),
+});
+
+// Разбить партию упаковки: { batchItemId: qtyToMove } уезжает в новую партию.
+export const packagingBatchSplitSchema = z.object({
+  move: z.record(z.string(), z.number().int().min(0)),
 });
 
 export const shipmentStatusChangeSchema = z.object({

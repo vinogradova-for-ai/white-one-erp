@@ -64,7 +64,7 @@ export default async function ShipmentsPage() {
               (a, b) => a + b.items.reduce((x, i) => x + i.plannedQty, 0),
               0,
             );
-            const pkgCount = s.packagingOrders.length;
+            const pkgCount = s.packagingBatches.length;
             return (
               <Link
                 key={s.id}

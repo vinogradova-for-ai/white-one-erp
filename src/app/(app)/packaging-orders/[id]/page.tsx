@@ -6,6 +6,7 @@ import { PACKAGING_ORDER_STATUS_LABELS, PACKAGING_ORDER_STATUS_COLORS } from "@/
 import { DELIVERY_METHOD_LABELS } from "@/lib/constants";
 import { PhotoThumb } from "@/components/common/photo-thumb";
 import { PackagingOrderActions } from "@/components/packaging-orders/packaging-order-actions";
+import { PackagingBatchesSection } from "@/components/packaging-orders/packaging-batches-section";
 import { MarkPaidButton } from "@/components/payments/mark-paid-button";
 import { auth } from "@/lib/auth";
 import { can } from "@/lib/rbac";
@@ -39,6 +40,13 @@ export default async function PackagingOrderPage({ params }: { params: Promise<{
           packagingItem: { select: { id: true, name: true, photoUrl: true, stock: true } },
         },
       },
+      batches: {
+        orderBy: { index: "asc" },
+        include: {
+          shipment: { select: { id: true, number: true, status: true } },
+          items: { include: { packagingItem: { select: { name: true } } } },
+        },
+      },
       factory: { select: { id: true, name: true } },
       owner: { select: { id: true, name: true } },
       payments: true,
@@ -50,6 +58,7 @@ export default async function PackagingOrderPage({ params }: { params: Promise<{
   const session = await auth();
   const role = (session?.user as { role?: Role } | undefined)?.role;
   const canMarkPaid = role ? can(role, "payment.markPaid") : false;
+  const canManageShipments = role ? can(role, "shipment.manage") : false;
   const todayStart = moscowTodayStart();
 
   const totalQty = order.lines.reduce((a, l) => a + l.quantity, 0);
@@ -147,6 +156,29 @@ export default async function PackagingOrderPage({ params }: { params: Promise<{
           <Row label="Дедлайн поставки" value={formatDate(order.expectedDate)} />
           <Row label="Поступило" value={formatDate(order.arrivedDate)} />
         </Card>
+      </div>
+
+      {/* Партии и доставка: упаковка едет частями разными карго (17.07) */}
+      <div>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Партии и доставка
+        </h2>
+        <PackagingBatchesSection
+          canManage={canManageShipments}
+          totalBatches={order.batches.length}
+          batches={order.batches.map((b) => ({
+            id: b.id,
+            index: b.index,
+            shipment: b.shipment
+              ? { id: b.shipment.id, number: b.shipment.number, status: b.shipment.status }
+              : null,
+            items: b.items.map((i) => ({
+              id: i.id,
+              name: i.packagingItem.name,
+              plannedQty: i.plannedQty,
+            })),
+          }))}
+        />
       </div>
 
       {/* График платежей */}
