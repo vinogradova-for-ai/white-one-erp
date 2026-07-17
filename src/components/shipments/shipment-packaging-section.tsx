@@ -9,6 +9,7 @@ import Link from "next/link";
 // карго; привязка заказа создаёт партию лениво, отвязка убирает партию.
 export type PkgBatchInShipment = {
   batchId: string;
+  inKit: boolean;
   packagingOrderId: string;
   orderNumber: string;
   batchLabel: string | null; // «партия 1/2» или null, если партия одна
@@ -36,6 +37,21 @@ export function ShipmentPackagingSection({
   const [busy, setBusy] = useState(false);
 
   const picked = candidates.find((c) => c.id === pick) ?? null;
+
+  async function toggleKit(batchId: string, inKit: boolean) {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/packaging-batches/${batchId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inKit }),
+      });
+      if (!res.ok) alert((await res.json().catch(() => ({})))?.error?.message ?? "Не получилось");
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function call(method: "POST" | "DELETE", body: Record<string, unknown>) {
     setBusy(true);
@@ -80,6 +96,23 @@ export function ShipmentPackagingSection({
                   </span>
                 )}
               </Link>
+              {canManage ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void toggleKit(p.batchId, !p.inKit)}
+                  title="Комплект: упаковка укомплектована с товаром в Китае — вес в весе товара, списание с китайского склада при выезде"
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                    p.inKit
+                      ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-400/10 dark:text-indigo-300"
+                      : "bg-slate-100 text-slate-400 hover:text-slate-600 dark:bg-slate-800"
+                  }`}
+                >
+                  {p.inKit ? "🧷 комплект" : "комплект?"}
+                </button>
+              ) : p.inKit ? (
+                <span className="shrink-0 rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-700 dark:bg-indigo-400/10 dark:text-indigo-300">🧷 комплект</span>
+              ) : null}
               <span className={`shrink-0 rounded px-2 py-0.5 text-xs ${p.statusCls}`}>{p.statusLabel}</span>
               {canManage && (
                 <button

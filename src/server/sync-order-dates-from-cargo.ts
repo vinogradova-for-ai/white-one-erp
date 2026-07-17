@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { logAudit } from "@/server/audit";
+import { syncPackagingStockForShipment } from "@/server/packaging-stock";
 
 /**
  * Гант — план, который уточняется ФАКТОМ мероприятий (прожарка 17.07):
@@ -117,6 +118,8 @@ export async function syncAllDatesForShipment(shipmentId: string, actorId: strin
   ]);
   await syncOrderDatesFromCargo(batches.map((b) => b.orderId), actorId);
   await syncPackagingDatesFromCargo(pkgBatches.map((b) => b.packagingOrderId));
+  // Движения упаковки: перемещение по прибытии, расход комплектом по выезду.
+  await syncPackagingStockForShipment(shipmentId);
 }
 
 function jsonDates(d: Record<string, Date>): Record<string, string> {

@@ -5,8 +5,11 @@ import { PACKAGING_STATUS_LABELS, PACKAGING_STATUS_COLORS } from "@/lib/status-m
 import { PhotoThumb } from "@/components/common/photo-thumb";
 import { ClickableRow } from "@/components/common/clickable-row";
 import { ConsumeShippedButton } from "@/components/packaging/consume-shipped-button";
+import { syncPackagingArrivalsCn, packagingBalances } from "@/server/packaging-stock";
 
 export default async function PackagingListPage() {
+  // Мини-товарный учёт (17.07): ленивые приходы Китая по завершённому производству.
+  await syncPackagingArrivalsCn();
   // «Неучтённый расход» (правка №4): заказы отгружены, а упаковка не списана —
   // склад на бумаге больше, чем в реальности. Списывается кнопкой ниже.
   const unconsumedShipped = await prisma.orderPackaging.findMany({
@@ -47,7 +50,10 @@ export default async function PackagingListPage() {
     },
   });
 
+  const balances = await packagingBalances(items.map((i) => i.id));
+
   const rows = items.map((i) => {
+    const balance = balances.get(i.id) ?? { cn: 0, msk: 0 };
     const required = i.orderUsages.reduce((sum, u) => {
       const orderQty = u.order.lines.reduce((a, l) => a + l.quantity, 0);
       // Уже списанное со склада (заказ в «Упаковке») не считаем повторно:
@@ -71,6 +77,8 @@ export default async function PackagingListPage() {
       required: Math.ceil(required),
       shortage,
       lowStock: i.minStock != null && i.stock < i.minStock,
+      stockCn: balance.cn,
+      stockMsk: balance.msk,
     };
   });
 
@@ -177,9 +185,9 @@ export default async function PackagingListPage() {
             </div>
             <div className="mt-2 grid grid-cols-4 gap-2 text-[11px]">
               <div>
-                <div className="text-slate-400">Склад</div>
+                <div className="text-slate-400">🇨🇳 / 🇷🇺</div>
                 <div className={`font-semibold ${r.lowStock ? "text-amber-700 dark:text-amber-300" : "text-slate-900"}`}>
-                  {r.stock.toLocaleString("ru-RU")}
+                  {r.stockCn.toLocaleString("ru-RU")} / {r.stockMsk.toLocaleString("ru-RU")}
                 </div>
               </div>
               <div>
@@ -215,7 +223,7 @@ export default async function PackagingListPage() {
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Фото</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Название</th>
               <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-500">Тип</th>
-              <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">На складе</th>
+              <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Склад 🇨🇳 / 🇷🇺</th>
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">В производстве</th>
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">В пути</th>
               <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-500">Потребность</th>
@@ -247,7 +255,9 @@ export default async function PackagingListPage() {
                 </td>
                 <td className="px-3 py-2 text-right">
                   <span className={r.lowStock ? "font-semibold text-amber-700 dark:text-amber-300" : ""}>
-                    {r.stock.toLocaleString("ru-RU")}
+                    <span title="Китай">🇨🇳 {r.stockCn.toLocaleString("ru-RU")}</span>
+                    <span className="mx-1 text-slate-300">·</span>
+                    <span title="Москва">🇷🇺 {r.stockMsk.toLocaleString("ru-RU")}</span>
                   </span>
                   {r.minStock != null && (
                     <div className="text-[10px] text-slate-400">мин: {r.minStock}</div>

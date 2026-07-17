@@ -97,6 +97,8 @@ export async function buildCargoAllocation(shipmentId: string): Promise<CargoAll
   }
 
   for (const b of shipment.packagingBatches) {
+    // «В комплекте с товаром»: вес сидит в весе товара, отдельной строки нет.
+    if (b.inKit) continue;
     const qty = b.items.reduce((a, i) => a + i.plannedQty, 0);
     let grams = 0;
     let complete = b.items.length > 0;
