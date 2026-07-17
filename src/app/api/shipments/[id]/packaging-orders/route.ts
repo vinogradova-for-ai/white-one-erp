@@ -6,7 +6,7 @@ import {
   shipmentPackagingOrderSchema,
   shipmentRemovePackagingBatchSchema,
 } from "@/lib/validators/shipment";
-import { ensurePackagingBatchForShipment } from "@/server/packaging-batches";
+import { attachPackagingOrderToShipmentQty } from "@/server/packaging-batches";
 import { logAudit } from "@/server/audit";
 
 // POST /api/shipments/[id]/packaging-orders { packagingOrderId }
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const session = await requireAuth();
     assertCan(session.user.role, "shipment.manage");
     const { id: shipmentId } = await ctx.params;
-    const { packagingOrderId } = shipmentPackagingOrderSchema.parse(await req.json());
+    const { packagingOrderId, qty } = shipmentPackagingOrderSchema.parse(await req.json());
 
     const shipment = await prisma.shipment.findFirst({ where: { id: shipmentId, deletedAt: null } });
     if (!shipment) {
@@ -28,12 +28,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ error: { code: "not_found", message: "Заказ упаковки не найден" } }, { status: 404 });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      const batch = await ensurePackagingBatchForShipment(tx, packagingOrderId);
-      if (!batch) return null;
-      await tx.packagingOrderBatch.update({ where: { id: batch.batchId }, data: { shipmentId } });
-      return batch;
-    });
+    const result = await prisma.$transaction(async (tx) =>
+      attachPackagingOrderToShipmentQty(tx, packagingOrderId, shipmentId, qty ?? null),
+    );
 
     if (!result) {
       return NextResponse.json(

@@ -6,6 +6,7 @@ import {
   allBatchesReceived,
   allBatchesShippedOrReceived,
   aggregateReceipt,
+  proportionalTake,
   type OrderLineForBatch,
 } from "@/lib/batches/batch-logic";
 import { statusAtLeast } from "@/lib/queries/team-month-stats";
@@ -76,6 +77,74 @@ export async function ensureBatchForShipment(
   });
   return { batchId: batch.id };
 }
+
+/**
+ * Прикрепить заказ к карго с вопросом «сколько едет этим карго?» (прожарка
+ * 17.07, вариант Б): qty пустой или >= остатка — уезжает вся свободная партия;
+ * qty меньше — партия делится пропорционально по позициям (метод наибольших
+ * остатков), новая частичная партия цепляется к карго, остаток остаётся
+ * свободным для следующих отгрузок. Точная нарезка по цветам/размерам —
+ * ручным «Разбить» на карточке заказа.
+ */
+export async function attachOrderToShipmentQty(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  shipmentId: string,
+  qty: number | null,
+): Promise<{ batchId: string; movedQty: number; leftQty: number } | null> {
+  const ensured = await ensureBatchForShipment(tx, orderId);
+  if (!ensured) return null;
+
+  const batch = await tx.orderBatch.findUnique({
+    where: { id: ensured.batchId },
+    include: { items: true },
+  });
+  if (!batch) return null;
+  const total = batch.items.reduce((a, i) => a + i.plannedQty, 0);
+
+  if (qty == null || qty >= total || total <= 0) {
+    await tx.orderBatch.update({ where: { id: batch.id }, data: { shipmentId } });
+    return { batchId: batch.id, movedQty: total, leftQty: 0 };
+  }
+
+  const move = proportionalTake(
+    batch.items.map((i) => ({ id: i.id, plannedQty: i.plannedQty })),
+    qty,
+  );
+
+  // Исходная (свободная) партия худеет на уехавшее; нули удаляем.
+  for (const i of batch.items) {
+    const keep = i.plannedQty - (move[i.id] ?? 0);
+    if (keep <= 0) await tx.orderBatchItem.delete({ where: { id: i.id } });
+    else if (keep !== i.plannedQty)
+      await tx.orderBatchItem.update({ where: { id: i.id }, data: { plannedQty: keep } });
+  }
+
+  const agg = await tx.orderBatch.aggregate({
+    where: { orderId },
+    _max: { index: true },
+  });
+  const created = await tx.orderBatch.create({
+    data: {
+      orderId,
+      index: (agg._max.index ?? 0) + 1,
+      shipmentId,
+      items: {
+        create: batch.items
+          .filter((i) => (move[i.id] ?? 0) > 0)
+          .map((i) => ({
+            variantId: i.variantId,
+            colorName: i.colorName,
+            size: i.size,
+            plannedQty: move[i.id],
+          })),
+      },
+    },
+    select: { id: true },
+  });
+  return { batchId: created.id, movedQty: qty, leftQty: total - qty };
+}
+
 
 /**
  * Синхронизация статусов заказов при ВЫЕЗДЕ поставки (переход в IN_TRANSIT).

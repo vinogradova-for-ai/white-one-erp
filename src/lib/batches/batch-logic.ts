@@ -127,3 +127,56 @@ export function splitBatchPlan(
   }
   return { keep, move };
 }
+
+/**
+ * Пропорциональная нарезка: сколько штук каждой позиции уезжает, если из
+ * общего остатка едет take штук (Алёна, прожарка 17.07: «сколько едет этим
+ * карго?» — партия рождается в момент прикрепления, позиции делим
+ * пропорционально, точную нарезку по цветам/размерам можно поправить ручным
+ * разбиением). Метод наибольших остатков: сумма всегда сходится ровно в take.
+ */
+export function proportionalTake(
+  items: Array<{ id: string; plannedQty: number }>,
+  take: number,
+): Record<string, number> {
+  const total = items.reduce((a, i) => a + i.plannedQty, 0);
+  const out: Record<string, number> = {};
+  if (take <= 0 || total <= 0) {
+    for (const i of items) out[i.id] = 0;
+    return out;
+  }
+  if (take >= total) {
+    for (const i of items) out[i.id] = i.plannedQty;
+    return out;
+  }
+  // Целая часть + дробные остатки
+  const fractions: Array<{ id: string; frac: number; cap: number }> = [];
+  let allocated = 0;
+  for (const i of items) {
+    const exact = (take * i.plannedQty) / total;
+    const base = Math.floor(exact);
+    out[i.id] = base;
+    allocated += base;
+    fractions.push({ id: i.id, frac: exact - base, cap: i.plannedQty });
+  }
+  // Добираем недостающее по наибольшим дробям (не превышая позицию)
+  fractions.sort((a, b) => b.frac - a.frac);
+  let left = take - allocated;
+  for (const f of fractions) {
+    if (left <= 0) break;
+    if (out[f.id] < f.cap) {
+      out[f.id] += 1;
+      left -= 1;
+    }
+  }
+  // Крайний случай: у кого-то ещё есть ёмкость
+  if (left > 0) {
+    for (const i of items) {
+      while (left > 0 && out[i.id] < i.plannedQty) {
+        out[i.id] += 1;
+        left -= 1;
+      }
+    }
+  }
+  return out;
+}

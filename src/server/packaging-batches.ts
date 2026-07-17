@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { proportionalTake } from "@/lib/batches/batch-logic";
 
 /**
  * Ленивое получение/создание партии заказа УПАКОВКИ для добавления в карго —
@@ -44,4 +45,61 @@ export async function ensurePackagingBatchForShipment(
     select: { id: true },
   });
   return { batchId: batch.id };
+}
+
+/**
+ * Прикрепить заказ упаковки к карго с «сколько едет?» — зеркало
+ * attachOrderToShipmentQty у одежды (прожарка 17.07, вариант Б).
+ */
+export async function attachPackagingOrderToShipmentQty(
+  tx: Prisma.TransactionClient,
+  packagingOrderId: string,
+  shipmentId: string,
+  qty: number | null,
+): Promise<{ batchId: string; movedQty: number; leftQty: number } | null> {
+  const ensured = await ensurePackagingBatchForShipment(tx, packagingOrderId);
+  if (!ensured) return null;
+
+  const batch = await tx.packagingOrderBatch.findUnique({
+    where: { id: ensured.batchId },
+    include: { items: true },
+  });
+  if (!batch) return null;
+  const total = batch.items.reduce((a, i) => a + i.plannedQty, 0);
+
+  if (qty == null || qty >= total || total <= 0) {
+    await tx.packagingOrderBatch.update({ where: { id: batch.id }, data: { shipmentId } });
+    return { batchId: batch.id, movedQty: total, leftQty: 0 };
+  }
+
+  const move = proportionalTake(
+    batch.items.map((i) => ({ id: i.id, plannedQty: i.plannedQty })),
+    qty,
+  );
+
+  for (const i of batch.items) {
+    const keep = i.plannedQty - (move[i.id] ?? 0);
+    if (keep <= 0) await tx.packagingOrderBatchItem.delete({ where: { id: i.id } });
+    else if (keep !== i.plannedQty)
+      await tx.packagingOrderBatchItem.update({ where: { id: i.id }, data: { plannedQty: keep } });
+  }
+
+  const agg = await tx.packagingOrderBatch.aggregate({
+    where: { packagingOrderId },
+    _max: { index: true },
+  });
+  const created = await tx.packagingOrderBatch.create({
+    data: {
+      packagingOrderId,
+      index: (agg._max.index ?? 0) + 1,
+      shipmentId,
+      items: {
+        create: batch.items
+          .filter((i) => (move[i.id] ?? 0) > 0)
+          .map((i) => ({ packagingItemId: i.packagingItemId, plannedQty: move[i.id] })),
+      },
+    },
+    select: { id: true },
+  });
+  return { batchId: created.id, movedQty: qty, leftQty: total - qty };
 }

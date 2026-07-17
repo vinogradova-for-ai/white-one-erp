@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type AddableOrder = { id: string; orderNumber: string; modelName: string };
+type AddableOrder = { id: string; orderNumber: string; modelName: string; remainingQty: number };
 
 // Выбор заказа для добавления в поставку. Партия создаётся лениво на бэке.
 export function ShipmentAddOrder({
@@ -15,8 +15,11 @@ export function ShipmentAddOrder({
 }) {
   const router = useRouter();
   const [orderId, setOrderId] = useState("");
+  const [qty, setQty] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const picked = orders.find((o) => o.id === orderId) ?? null;
 
   async function add() {
     if (!orderId) return;
@@ -26,7 +29,10 @@ export function ShipmentAddOrder({
       const res = await fetch(`/api/shipments/${shipmentId}/batches`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId }),
+        body: JSON.stringify({
+          orderId,
+          qty: qty.trim() === "" ? null : Number(qty),
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -34,6 +40,7 @@ export function ShipmentAddOrder({
         return;
       }
       setOrderId("");
+      setQty("");
       router.refresh();
     } catch {
       setError("Сеть недоступна, попробуйте ещё раз");
@@ -55,16 +62,28 @@ export function ShipmentAddOrder({
       <div className="flex flex-col gap-2 sm:flex-row">
         <select
           value={orderId}
-          onChange={(e) => setOrderId(e.target.value)}
+          onChange={(e) => { setOrderId(e.target.value); setQty(""); }}
           className="h-11 flex-1 rounded-lg border border-slate-300 px-3 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
         >
           <option value="">Выберите заказ…</option>
           {orders.map((o) => (
             <option key={o.id} value={o.id}>
-              {o.orderNumber} · {o.modelName}
+              {o.orderNumber} · {o.modelName} · не уехало {o.remainingQty.toLocaleString("ru-RU")} шт
             </option>
           ))}
         </select>
+        {picked && (
+          <label className="flex h-11 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm dark:border-slate-600">
+            <span className="whitespace-nowrap text-xs text-slate-500">едет, шт</span>
+            <input
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+              placeholder={String(picked.remainingQty)}
+              inputMode="numeric"
+              className="w-20 bg-transparent text-sm outline-none dark:text-slate-100"
+            />
+          </label>
+        )}
         <button
           type="button"
           disabled={busy || !orderId}

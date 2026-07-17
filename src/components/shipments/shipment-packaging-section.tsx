@@ -17,7 +17,7 @@ export type PkgBatchInShipment = {
   statusLabel: string;
   statusCls: string;
 };
-export type PkgCandidate = { id: string; orderNumber: string; itemNames: string };
+export type PkgCandidate = { id: string; orderNumber: string; itemNames: string; remainingQty: number };
 
 export function ShipmentPackagingSection({
   shipmentId,
@@ -32,9 +32,12 @@ export function ShipmentPackagingSection({
 }) {
   const router = useRouter();
   const [pick, setPick] = useState("");
+  const [qty, setQty] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function call(method: "POST" | "DELETE", body: Record<string, string>) {
+  const picked = candidates.find((c) => c.id === pick) ?? null;
+
+  async function call(method: "POST" | "DELETE", body: Record<string, unknown>) {
     setBusy(true);
     try {
       const res = await fetch(`/api/shipments/${shipmentId}/packaging-orders`, {
@@ -48,6 +51,7 @@ export function ShipmentPackagingSection({
         return;
       }
       setPick("");
+      setQty("");
       router.refresh();
     } finally {
       setBusy(false);
@@ -97,20 +101,32 @@ export function ShipmentPackagingSection({
         <div className="flex flex-col gap-2 rounded-2xl bg-white p-4 sm:flex-row dark:bg-slate-900">
           <select
             value={pick}
-            onChange={(e) => setPick(e.target.value)}
+            onChange={(e) => { setPick(e.target.value); setQty(""); }}
             className="h-11 flex-1 rounded-lg border border-slate-300 px-3 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
           >
             <option value="">Добавить заказ упаковки…</option>
             {candidates.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.orderNumber} · {c.itemNames}
+                {c.orderNumber} · {c.itemNames} · не уехало {c.remainingQty.toLocaleString("ru-RU")} шт
               </option>
             ))}
           </select>
+          {picked && (
+            <label className="flex h-11 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm dark:border-slate-600">
+              <span className="whitespace-nowrap text-xs text-slate-500">едет, шт</span>
+              <input
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+                placeholder={String(picked.remainingQty)}
+                inputMode="numeric"
+                className="w-20 bg-transparent text-sm outline-none dark:text-slate-100"
+              />
+            </label>
+          )}
           <button
             type="button"
             disabled={busy || !pick}
-            onClick={() => call("POST", { packagingOrderId: pick })}
+            onClick={() => call("POST", { packagingOrderId: pick, qty: qty.trim() === "" ? null : Number(qty) })}
             className="h-11 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
           >
             {busy ? "Добавляю…" : "Добавить"}

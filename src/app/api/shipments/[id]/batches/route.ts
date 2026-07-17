@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
 import { assertCan } from "@/lib/rbac";
 import { shipmentAddOrderSchema, shipmentRemoveBatchSchema } from "@/lib/validators/shipment";
-import { ensureBatchForShipment } from "@/server/batches";
+import { attachOrderToShipmentQty } from "@/server/batches";
 import { logAudit } from "@/server/audit";
 
 // Добавить заказ в поставку — партия создаётся лениво (см. ensureBatchForShipment).
@@ -12,7 +12,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     const session = await requireAuth();
     assertCan(session.user.role, "shipment.manage");
     const { id: shipmentId } = await ctx.params;
-    const { orderId } = shipmentAddOrderSchema.parse(await req.json());
+    const { orderId, qty } = shipmentAddOrderSchema.parse(await req.json());
 
     const shipment = await prisma.shipment.findFirst({ where: { id: shipmentId, deletedAt: null } });
     if (!shipment) {
@@ -23,12 +23,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ error: { code: "not_found", message: "Заказ не найден" } }, { status: 404 });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      const batch = await ensureBatchForShipment(tx, orderId);
-      if (!batch) return null;
-      await tx.orderBatch.update({ where: { id: batch.batchId }, data: { shipmentId } });
-      return batch;
-    });
+    const result = await prisma.$transaction(async (tx) =>
+      attachOrderToShipmentQty(tx, orderId, shipmentId, qty ?? null),
+    );
 
     if (!result) {
       return NextResponse.json(
@@ -42,7 +39,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       entityType: "Shipment",
       entityId: shipmentId,
       userId: session.user.id,
-      changes: { addedOrder: orderId, batchId: result.batchId },
+      changes: { addedOrder: orderId, batchId: result.batchId, movedQty: result.movedQty, leftQty: result.leftQty },
     });
 
     return NextResponse.json({ ok: true, batchId: result.batchId });
