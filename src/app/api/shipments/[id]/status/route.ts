@@ -1,3 +1,4 @@
+import { syncAllDatesForShipment } from "@/server/sync-order-dates-from-cargo";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, apiError } from "@/server/api-helpers";
@@ -52,6 +53,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       });
     }
 
+    await syncAllDatesForShipment(id, session.user.id);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return apiError(e);

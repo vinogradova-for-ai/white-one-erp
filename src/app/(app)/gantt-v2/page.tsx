@@ -81,6 +81,13 @@ export default async function GanttV2Page() {
         lines: {
           select: { quantity: true, productVariant: { select: { colorName: true, photoUrls: true } } },
         },
+        batches: {
+          where: { shipmentId: { not: null } },
+          select: {
+            items: { select: { plannedQty: true } },
+            shipment: { select: { departDate: true } },
+          },
+        },
       },
     }),
     // Защита от рассинхронизации БД и схемы (см. HANDOFF: «Локальная БД может расходиться»):
@@ -216,6 +223,15 @@ export default async function GanttV2Page() {
       bars[i].nearlyDue = !done && !overdue && daysToEnd >= 0 && daysToEnd <= NEARLY_DUE_DAYS;
     }
 
+    // «Уехало X из Y шт» — факт частичных отгрузок карго (прожарка 17.07).
+    const shippedQty = o.batches
+      .filter((b) => b.shipment?.departDate != null)
+      .reduce((a, b) => a + b.items.reduce((x, i) => x + i.plannedQty, 0), 0);
+    if (shippedQty > 0 && shippedQty < totalQty) {
+      const shipBar = bars.find((b) => b.key === "shipping");
+      if (shipBar) shipBar.title = `Доставка · уехало ${shippedQty.toLocaleString("ru-RU")} из ${totalQty.toLocaleString("ru-RU")} шт`;
+    }
+
     const thumbs = o.lines.map((l) => ({
       photoUrl: l.productVariant?.photoUrls?.[0] ?? o.productModel.photoUrls?.[0] ?? null,
       colorName: l.productVariant?.colorName ?? null,
@@ -226,7 +242,10 @@ export default async function GanttV2Page() {
       id: o.id,
       href: `/orders/${o.id}`,
       title: `${o.productModel.name} · #${o.orderNumber}`,
-      subtitle: `${colors} · ${totalQty} шт`,
+      subtitle:
+        shippedQty > 0 && shippedQty < totalQty
+          ? `${colors} · уехало ${shippedQty.toLocaleString("ru-RU")} из ${totalQty.toLocaleString("ru-RU")} шт`
+          : `${colors} · ${totalQty} шт`,
       statusLabel: ORDER_STATUS_LABELS[o.status as keyof typeof ORDER_STATUS_LABELS],
       brand: o.productModel.brand,
       factoryId: o.factory?.id ?? null,
