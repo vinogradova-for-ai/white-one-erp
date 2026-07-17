@@ -8,7 +8,7 @@ import { formatNumber } from "@/lib/format";
 // Раскидка стоимости карго по весу (Алёна, прожарка 15-16.07.2026).
 // Сервер посчитал — здесь показ + правка веса строки (поправка руками).
 export type AllocationRow = {
-  key: string;              // "batch:<id>" | "pkg:<id>"
+  key: string;              // "batch:<id>" | "pkgbatch:<id>"
   kind: "batch" | "packaging";
   label: string;
   href: string;
@@ -58,7 +58,7 @@ export function ShipmentCostAllocation({
     setBusyKey(row.key);
     try {
       const id = row.key.split(":")[1];
-      const url = row.kind === "batch" ? `/api/batches/${id}` : `/api/packaging-orders/${id}`;
+      const url = row.kind === "batch" ? `/api/batches/${id}` : `/api/packaging-batches/${id}`;
       const res = await fetch(url, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

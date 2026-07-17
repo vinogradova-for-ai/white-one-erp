@@ -30,8 +30,11 @@ export async function buildCargoAllocation(shipmentId: string): Promise<CargoAll
           items: true,
         },
       },
-      packagingOrders: {
-        include: { lines: { include: { packagingItem: { select: { id: true, name: true, weightG: true } } } } },
+      packagingBatches: {
+        include: {
+          packagingOrder: { select: { id: true, orderNumber: true, batches: { select: { id: true } } } },
+          items: { include: { packagingItem: { select: { id: true, name: true, weightG: true } } } },
+        },
       },
     },
   });
@@ -93,31 +96,36 @@ export async function buildCargoAllocation(shipmentId: string): Promise<CargoAll
     });
   }
 
-  for (const p of shipment.packagingOrders) {
-    const qty = p.lines.reduce((a, l) => a + l.quantity, 0);
+  for (const b of shipment.packagingBatches) {
+    const qty = b.items.reduce((a, i) => a + i.plannedQty, 0);
     let grams = 0;
-    let complete = p.lines.length > 0;
-    for (const l of p.lines) {
-      if (l.packagingItem.weightG != null && l.packagingItem.weightG > 0) {
-        grams += l.packagingItem.weightG * l.quantity;
+    let complete = b.items.length > 0;
+    for (const i of b.items) {
+      if (i.packagingItem.weightG != null && i.packagingItem.weightG > 0) {
+        grams += i.packagingItem.weightG * i.plannedQty;
       } else {
         complete = false;
         missingWeights.push({
           kind: "packaging-item",
-          id: l.packagingItem.id,
-          label: l.packagingItem.name,
-          href: `/packaging/${l.packagingItem.id}`,
+          id: i.packagingItem.id,
+          label: i.packagingItem.name,
+          href: `/packaging/${i.packagingItem.id}`,
         });
       }
     }
-    const firstName = p.lines[0]?.packagingItem.name ?? "упаковка";
+    const firstName = b.items[0]?.packagingItem.name ?? "упаковка";
+    const nameLabel = `${firstName}${b.items.length > 1 ? ` (+${b.items.length - 1})` : ""}`;
+    const label =
+      b.packagingOrder.batches.length > 1
+        ? `${b.packagingOrder.orderNumber} · ${nameLabel} · партия ${b.index}`
+        : `${b.packagingOrder.orderNumber} · ${nameLabel}`;
     lines.push({
-      key: `pkg:${p.id}`,
+      key: `pkgbatch:${b.id}`,
       kind: "packaging",
-      label: `${p.orderNumber} · ${firstName}${p.lines.length > 1 ? ` (+${p.lines.length - 1})` : ""}`,
+      label,
       qty,
       autoWeightKg: complete && grams > 0 ? Math.round(grams / 100) / 10 : null,
-      overrideWeightKg: p.weightKgOverride != null ? Number(p.weightKgOverride) : null,
+      overrideWeightKg: b.weightKgOverride != null ? Number(b.weightKgOverride) : null,
     });
   }
 

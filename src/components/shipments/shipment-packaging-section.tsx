@@ -4,11 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-// Упаковка в поставке: заказы упаковки едут тем же карго, что и одежда
-// (лист КАРГО: сумки, бирки, плечики, чехлы). Привязка/отвязка + переход в заказ.
-export type PkgInShipment = {
-  id: string;
+// Упаковка в поставке — ПАРТИЯМИ (Алёна 17.07): один заказ упаковки может
+// ехать частями разными карго, как заказы одежды. Здесь висят партии этого
+// карго; привязка заказа создаёт партию лениво, отвязка убирает партию.
+export type PkgBatchInShipment = {
+  batchId: string;
+  packagingOrderId: string;
   orderNumber: string;
+  batchLabel: string | null; // «партия 1/2» или null, если партия одна
+  qty: number;
   itemNames: string; // «Сумки для пальто, бирки (+2)»
   statusLabel: string;
   statusCls: string;
@@ -22,7 +26,7 @@ export function ShipmentPackagingSection({
   canManage,
 }: {
   shipmentId: string;
-  attached: PkgInShipment[];
+  attached: PkgBatchInShipment[];
   candidates: PkgCandidate[];
   canManage: boolean;
 }) {
@@ -30,13 +34,13 @@ export function ShipmentPackagingSection({
   const [pick, setPick] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function call(method: "POST" | "DELETE", packagingOrderId: string) {
+  async function call(method: "POST" | "DELETE", body: Record<string, string>) {
     setBusy(true);
     try {
       const res = await fetch(`/api/shipments/${shipmentId}/packaging-orders`, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ packagingOrderId }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
@@ -61,19 +65,25 @@ export function ShipmentPackagingSection({
       {attached.length > 0 && (
         <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white dark:divide-slate-800 dark:bg-slate-900">
           {attached.map((p) => (
-            <li key={p.id} className="flex items-center gap-3 px-4 py-3">
-              <Link href={`/packaging-orders/${p.id}`} className="min-w-0 flex-1 hover:underline">
+            <li key={p.batchId} className="flex items-center gap-3 px-4 py-3">
+              <Link href={`/packaging-orders/${p.packagingOrderId}`} className="min-w-0 flex-1 hover:underline">
                 <span className="font-mono text-xs text-slate-500">{p.orderNumber}</span>
                 <span className="ml-2 text-sm text-slate-900 dark:text-slate-100">📦 {p.itemNames}</span>
+                <span className="ml-2 text-xs text-slate-400">{p.qty} шт</span>
+                {p.batchLabel && (
+                  <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    {p.batchLabel}
+                  </span>
+                )}
               </Link>
               <span className={`shrink-0 rounded px-2 py-0.5 text-xs ${p.statusCls}`}>{p.statusLabel}</span>
               {canManage && (
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => call("DELETE", p.id)}
+                  onClick={() => call("DELETE", { batchId: p.batchId })}
                   className="shrink-0 rounded-lg border border-slate-300 px-2.5 py-1 text-xs text-slate-500 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600"
-                  title="Убрать из поставки"
+                  title="Убрать партию из поставки"
                 >
                   Убрать
                 </button>
@@ -100,7 +110,7 @@ export function ShipmentPackagingSection({
           <button
             type="button"
             disabled={busy || !pick}
-            onClick={() => call("POST", pick)}
+            onClick={() => call("POST", { packagingOrderId: pick })}
             className="h-11 rounded-lg bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
           >
             {busy ? "Добавляю…" : "Добавить"}

@@ -27,9 +27,9 @@ type ShipmentForPreview = {
       productModel: { name: string; artikulBase: string | null; photoUrls: string[] };
     };
   }>;
-  packagingOrders: Array<{
-    lines: Array<{
-      quantity: number;
+  packagingBatches: Array<{
+    items: Array<{
+      plannedQty: number;
       packagingItem: { name: string; photoUrl: string | null };
     }>;
   }>;
@@ -47,11 +47,11 @@ export const CARGO_PREVIEW_INCLUDE = {
       },
     },
   },
-  packagingOrders: {
+  packagingBatches: {
     select: {
-      lines: {
+      items: {
         select: {
-          quantity: true,
+          plannedQty: true,
           packagingItem: { select: { name: true, photoUrl: true } },
         },
       },
@@ -71,12 +71,12 @@ export function buildCargoPreview(s: ShipmentForPreview): CargoPreview {
       qty: qty > 0 ? qty : null,
     });
   }
-  for (const p of s.packagingOrders) {
-    for (const l of p.lines) {
+  for (const b of s.packagingBatches) {
+    for (const i of b.items) {
       items.push({
-        photoUrl: l.packagingItem.photoUrl,
-        label: l.packagingItem.name,
-        qty: l.quantity > 0 ? l.quantity : null,
+        photoUrl: i.packagingItem.photoUrl,
+        label: i.packagingItem.name,
+        qty: i.plannedQty > 0 ? i.plannedQty : null,
       });
     }
   }

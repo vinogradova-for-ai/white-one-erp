@@ -88,9 +88,10 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
       return NextResponse.json({ error: { code: "not_found", message: "Поставка не найдена" } }, { status: 404 });
     }
 
-    // Отвязываем партии от поставки (SetNull) и мягко гасим поставку.
+    // Отвязываем партии (одежда + упаковка) от поставки и мягко гасим поставку.
     await prisma.$transaction(async (tx) => {
       await tx.orderBatch.updateMany({ where: { shipmentId: id }, data: { shipmentId: null } });
+      await tx.packagingOrderBatch.updateMany({ where: { shipmentId: id }, data: { shipmentId: null } });
       await tx.shipment.update({ where: { id }, data: { deletedAt: new Date() } });
     });
 
