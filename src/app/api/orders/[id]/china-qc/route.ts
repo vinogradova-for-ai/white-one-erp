@@ -6,6 +6,7 @@ import { assertCan } from "@/lib/rbac";
 import { getCbrRate } from "@/server/currency-rates";
 import { logAudit } from "@/server/audit";
 import { syncOrderDatesFromQc } from "@/server/sync-order-dates-from-cargo";
+import { takePartialOrderBatch } from "@/server/batches";
 
 // ОТК Китай на заказе: добавить проверку (дата, сумма, валюта — курс ЦБ
 // фиксируется на дату ОТК) / мягко удалить.
@@ -17,6 +18,9 @@ const createSchema = z.object({
   comment: z.string().max(500).optional().nullable(),
   // Партии заказа, принятые к этому ОТК (прожарка 17.07: ОТК — мероприятие).
   batchIds: z.array(z.string().min(1)).optional(),
+  // «Сколько штук на проверку?» — частичный ОТК: партия выделится сама
+  // из свободного остатка (Алёна 17.07: «ОТК тоже может заводиться частично»).
+  qty: z.number().int().positive().optional().nullable(),
 });
 
 const updateSchema = z.object({
@@ -47,6 +51,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       }
     }
 
+    // Частичный ОТК: если партии не выбраны, а штуки заданы — выделяем
+    // частичную партию из свободного остатка (как «сколько едет» у карго).
+    let connectIds = data.batchIds ?? [];
+    if (connectIds.length === 0 && data.qty != null) {
+      const taken = await prisma.$transaction((tx) => takePartialOrderBatch(tx, orderId, data.qty ?? null));
+      if (taken) connectIds = [taken.batchId];
+    }
+
     const qc = await prisma.chinaQc.create({
       data: {
         orderId,
@@ -56,8 +68,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
         rubRate,
         comment: data.comment ?? null,
         createdById: session.user.id,
-        ...(data.batchIds?.length
-          ? { batches: { connect: data.batchIds.map((id) => ({ id })) } }
+        ...(connectIds.length
+          ? { batches: { connect: connectIds.map((id) => ({ id })) } }
           : {}),
       },
     });

@@ -45,7 +45,7 @@ export function ChinaQcSection({
   canDelete: boolean;
 }) {
   const router = useRouter();
-  const [form, setForm] = useState({ date: "", amount: "", currency: "CNY", comment: "" });
+  const [form, setForm] = useState({ date: "", amount: "", currency: "CNY", comment: "", qty: "" });
   const [formBatches, setFormBatches] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
 
@@ -77,9 +77,10 @@ export function ChinaQcSection({
         currency: form.currency,
         comment: form.comment || null,
         batchIds: Array.from(formBatches),
+        qty: formBatches.size === 0 && form.qty.trim() !== "" ? Number(form.qty) : null,
       });
       if (ok) {
-        setForm({ date: "", amount: "", currency: "CNY", comment: "" });
+        setForm({ date: "", amount: "", currency: "CNY", comment: "", qty: "" });
         setFormBatches(new Set());
       }
     } finally {
@@ -206,6 +207,20 @@ export function ChinaQcSection({
             >
               {busy ? "Сохраняю…" : "+ ОТК"}
             </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <label className="flex h-9 items-center gap-2 rounded-lg border border-slate-300 px-2.5 dark:border-slate-600">
+              <span className="whitespace-nowrap text-xs text-slate-500">на проверку, шт</span>
+              <input
+                value={form.qty}
+                onChange={(e) => setForm((p) => ({ ...p, qty: e.target.value }))}
+                placeholder="частично"
+                inputMode="numeric"
+                disabled={formBatches.size > 0}
+                className="w-20 bg-transparent text-sm outline-none disabled:opacity-40 dark:text-slate-100"
+              />
+            </label>
+            <span className="text-[11px] text-slate-400">— партия выделится сама, или отметь готовые партии ниже</span>
           </div>
           {batches.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
