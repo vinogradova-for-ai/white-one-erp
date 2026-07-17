@@ -110,6 +110,9 @@ export default async function PackagingListPage() {
               ({unconsumedShipped.length} строк) — остатки на складе показаны с этим излишком
             </span>
           </div>
+          <Link href="/packaging/inventory" className="inline-flex min-h-[36px] items-center rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">
+            📋 Инвентаризация
+          </Link>
           <ConsumeShippedButton totalQty={unconsumedQty} rows={unconsumedShipped.length} />
         </div>
       )}
