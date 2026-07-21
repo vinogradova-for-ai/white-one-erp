@@ -60,15 +60,30 @@ export function OrdersListClient({
   const [mode, setMode] = usePersistedState<"active" | "all">("orders:mode:v1", "active");
   // §4: быстрый чип «⚠ опаздывают» — показать только заказы с просроченным прибытием.
   const [lateOnly, setLateOnly] = useState(false);
+  const [search, setSearch] = useState("");
   const warehouseIdx = ORDER_STATUS_ORDER.indexOf("WAREHOUSE_MSK");
 
   const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
     const base = orders.filter((o) => {
       if (mode === "active" && ORDER_STATUS_ORDER.indexOf(o.status) >= warehouseIdx) return false;
       if (lateOnly && o.lateDays <= 0) return false;
       if (filters.category.length && !filters.category.includes(o.productModel.category)) return false;
       if (filters.ownerId.length && !filters.ownerId.includes(o.owner.id)) return false;
       if (filters.status.length && !filters.status.includes(o.status)) return false;
+      if (query) {
+        const hay = [
+          o.orderNumber,
+          o.productModel.name,
+          o.productModel.category,
+          o.factory?.name ?? "",
+          o.owner.name,
+          ...o.lines.map((l) => l.productVariant.colorName),
+        ]
+          .join(" ")
+          .toLowerCase();
+        if (!hay.includes(query)) return false;
+      }
       return true;
     });
     if (mode !== "active") return base;
@@ -79,7 +94,7 @@ export function OrdersListClient({
       if (!b.arrivalPlannedDate) return -1;
       return a.arrivalPlannedDate.localeCompare(b.arrivalPlannedDate);
     });
-  }, [orders, filters, mode, lateOnly, warehouseIdx]);
+  }, [orders, filters, mode, lateOnly, search, warehouseIdx]);
 
   const arrivedCount = useMemo(
     () => orders.filter((o) => ORDER_STATUS_ORDER.indexOf(o.status) >= warehouseIdx).length,
@@ -105,6 +120,27 @@ export function OrdersListClient({
           >
             + Заказ
           </Link>
+        </div>
+        {/* Поиск на мобиле — отдельной строкой, чтобы был на виду (Алёна 22.07) */}
+        <div className="relative mt-2 md:hidden">
+          <input
+            type="search"
+            inputMode="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск: изделие, №, цвет, фабрика…"
+            className="h-10 w-full rounded-lg border border-slate-300 bg-white pl-3 pr-9 text-sm text-slate-900 placeholder:text-slate-400"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              aria-label="Очистить поиск"
+              className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center text-slate-400"
+            >
+              ✕
+            </button>
+          )}
         </div>
         {/* Фильтры: мобайл — лента, десктоп — в общей полосе с заголовком */}
         <div className="no-scrollbar mt-2 flex items-center gap-2 overflow-x-auto md:mt-0 md:flex-wrap">
@@ -180,6 +216,25 @@ export function OrdersListClient({
             onChange={(v) => setFilters((f) => ({ ...f, status: v }))}
             widthClass="w-64"
           />
+          <div className="relative hidden md:block">
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Поиск…"
+              className="h-8 w-44 rounded-md border border-slate-300 bg-white pl-2.5 pr-7 text-xs text-slate-900 placeholder:text-slate-400"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                aria-label="Очистить поиск"
+                className="absolute right-0.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center text-slate-400"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

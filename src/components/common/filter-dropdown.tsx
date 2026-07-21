@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+
+/** Ширины панели в px — нужны, чтобы прижать fixed-панель к краю экрана. */
+const PANEL_WIDTH_PX: Record<string, number> = { "w-56": 224, "w-64": 256 };
 
 /**
  * Мульти-выбор фильтра — кастомный dropdown с чекбоксами.
@@ -21,12 +24,25 @@ export function FilterDropdown({
   widthClass?: string;
 }) {
   const [open, setOpen] = useState(false);
+  // Панель рендерится fixed по координатам кнопки: absolute-вариант обрезался
+  // лентами с overflow-x-auto (мобильные фильтры /orders — скрин Алёны 22.07).
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const openPanel = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) {
+      const w = PANEL_WIDTH_PX[widthClass] ?? 224;
+      setPos({ top: r.bottom + 4, left: Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) });
+    }
+    setOpen(true);
+  };
   const active = value.length > 0;
   return (
     <div className="relative">
       <button
+        ref={btnRef}
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => (open ? setOpen(false) : openPanel())}
         className={`flex h-11 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium whitespace-nowrap transition md:h-auto md:py-1.5 ${
           active
             ? "border-slate-900 bg-slate-900 text-white"
@@ -37,10 +53,13 @@ export function FilterDropdown({
         {active && <span className="rounded-full bg-white/20 px-1.5 text-[10px]">{value.length}</span>}
         <span className="text-[10px]">▾</span>
       </button>
-      {open && (
+      {open && pos && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className={`absolute left-0 top-full z-40 mt-1 max-h-72 max-w-[calc(100vw-2rem)] ${widthClass} overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg`}>
+          <div
+            style={{ top: pos.top, left: pos.left }}
+            className={`fixed z-40 max-h-72 max-w-[calc(100vw-1rem)] ${widthClass} overflow-auto rounded-lg border border-slate-200 bg-white p-1 shadow-lg`}
+          >
             {options.length === 0 && (
               <div className="px-3 py-2 text-xs text-slate-400">Нет вариантов</div>
             )}
