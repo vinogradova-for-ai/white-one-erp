@@ -4,7 +4,8 @@ import { authConfig } from "@/lib/auth.config";
 
 // manifest.webmanifest — публичный: браузер/установленная PWA тянет манифест
 // без кук, иначе «на экран домой» ловит редирект на /login.
-const PUBLIC_PATHS = ["/login", "/api/auth", "/api/health", "/_next", "/favicon.ico", "/manifest.webmanifest"];
+// /api/external — служебный вход Студии, защищён своим Bearer-токеном внутри роута.
+const PUBLIC_PATHS = ["/login", "/api/auth", "/api/health", "/api/external", "/_next", "/favicon.ico", "/manifest.webmanifest"];
 
 const { auth } = NextAuth(authConfig);
 

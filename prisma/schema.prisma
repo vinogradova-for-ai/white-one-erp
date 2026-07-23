@@ -261,6 +261,9 @@ model Sample {
   verdictDate    DateTime?    // когда дали вердикт (ок / на доработку)
   verdictNote    String?      // текст вердикта: что не так / что ок
 
+  // образец физически забрали на съёмку/контент (Студия); ставит продуктовый или Катя
+  pulledForContentAt DateTime?
+
   photoUrls      String[]
 
   createdById    String?
