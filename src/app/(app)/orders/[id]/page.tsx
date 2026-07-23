@@ -353,6 +353,7 @@ export default async function OrderDetailPage({ params }: { params: Promise<{ id
             rubRate: q.rubRate != null ? q.rubRate.toString() : null,
             comment: q.comment,
             batchIds: q.batches.map((b) => b.id),
+            measureCheckOk: q.measureCheckOk,
           }))}
         />
       </section>

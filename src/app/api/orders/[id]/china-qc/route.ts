@@ -28,6 +28,9 @@ const updateSchema = z.object({
   // Галка «ОТК завершён» с датой; null — снять завершение.
   finishedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   batchIds: z.array(z.string().min(1)).optional(),
+  // Факт-чек размерной сетки: контрольные замеры совпали с заявленными (ТЗ Студии).
+  measureCheckOk: z.boolean().optional().nullable(),
+  measureCheckNote: z.string().max(300).optional().nullable(),
 });
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -112,6 +115,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         ...(data.batchIds !== undefined
           ? { batches: { set: data.batchIds.map((id) => ({ id })) } }
           : {}),
+        ...(data.measureCheckOk !== undefined ? { measureCheckOk: data.measureCheckOk } : {}),
+        ...(data.measureCheckNote !== undefined ? { measureCheckNote: data.measureCheckNote } : {}),
       },
     });
 

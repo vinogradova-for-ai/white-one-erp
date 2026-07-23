@@ -142,6 +142,22 @@ export default async function ModelDetailPage({ params }: { params: Promise<{ id
           >
             Редактировать
           </Link>
+          <Link
+            href={`/models/${model.id}/measurements`}
+            className="flex h-10 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+          >
+            📐 Замеры
+          </Link>
+          {model.artikulBase && (
+            <a
+              href={`https://white-one-ctr.vercel.app/studia?q=${encodeURIComponent(model.artikulBase)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex h-10 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-700 hover:bg-slate-50 active:bg-slate-100"
+            >
+              🎬 Студия
+            </a>
+          )}
           {/* «Передумала» для фасона с историей заказов: снять с разработки
               вместо запрещённого удаления (Алёна 05.07). */}
           {sessionUser?.role && can(sessionUser.role as Role, "product.update", model.ownerId, currentUserId) && (
