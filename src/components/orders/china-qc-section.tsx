@@ -20,6 +20,8 @@ export type ChinaQcItem = {
   rubRate: string | null;
   comment: string | null;
   batchIds: string[];
+  // факт-чек размерной сетки на приёмке (ТЗ Студии): null — не проверяли
+  measureCheckOk?: boolean | null;
 };
 
 export type OrderBatchOption = { id: string; label: string; qty: number };
@@ -122,6 +124,27 @@ export function ChinaQcSection({
                     <span className="text-xs text-slate-400">≈ {Math.round(rub).toLocaleString("ru-RU")} ₽</span>
                   )}
                   {it.comment && <span className="text-xs text-slate-400">· {it.comment}</span>}
+                  {/* Факт-чек сетки: обмер 3-4 контрольных точек сверен с заявленной таблицей */}
+                  {canManage ? (
+                    <button
+                      type="button"
+                      title="Контрольные замеры совпали с заявленной сеткой?"
+                      onClick={() => void api("PATCH", { qcId: it.id, measureCheckOk: it.measureCheckOk === true ? false : it.measureCheckOk === false ? null : true })}
+                      className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                        it.measureCheckOk === true
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300"
+                          : it.measureCheckOk === false
+                            ? "bg-red-50 text-red-700 dark:bg-red-400/10 dark:text-red-300"
+                            : "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                      }`}
+                    >
+                      📐 сетка: {it.measureCheckOk === true ? "совпала ✓" : it.measureCheckOk === false ? "разъехалась ✕" : "не сверяли"}
+                    </button>
+                  ) : (
+                    it.measureCheckOk !== null && it.measureCheckOk !== undefined && (
+                      <span className="text-[11px] text-slate-400">📐 сетка: {it.measureCheckOk ? "совпала ✓" : "разъехалась ✕"}</span>
+                    )
+                  )}
                   {canManage && (
                     <span className="ml-auto flex items-center gap-2">
                       {it.finishedAt ? (

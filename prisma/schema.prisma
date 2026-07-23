@@ -428,6 +428,7 @@ model ProductModel {
   packagingItems   ModelPackaging[]
   samples     Sample[]
   regulatoryDocs RegulatoryDoc[] @relation("ModelRegulatoryDocs")
+  measurements Measurement[]
 
   // Фасон разрабатывается в рамках плана-направления («Планирование»)
   brandPlanId String?
@@ -523,6 +524,9 @@ model ChinaQc {
   currency    String    @default("CNY")            // CNY | USD | RUB
   rubRate     Decimal?  @db.Decimal(12, 4)          // ₽ за единицу валюты на дату (RUB = 1)
   comment     String?
+  // факт-чек размерной сетки на приёмке: контрольные замеры совпали с заявленными
+  measureCheckOk   Boolean?
+  measureCheckNote String?
   batches     OrderBatch[] @relation("QcBatches")   // партии, принятые к этому ОТК
   createdById String
   createdBy   User      @relation("ChinaQcCreator", fields: [createdById], references: [id])
@@ -1379,4 +1383,20 @@ model BoardItem {
 
   @@index([deletedAt])
   @@index([z])
+}
+
+// Замеры изделия (мерочный лист): фасон × размер × параметр → сантиметры.
+// Источник правды размерных сеток для Студии/карточек ВБ (ТЗ Студии, этап 2).
+model Measurement {
+  id             String       @id @default(cuid())
+  productModelId String
+  productModel   ProductModel @relation(fields: [productModelId], references: [id], onDelete: Cascade)
+  size           String
+  param          String
+  valueCm        Float?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([productModelId, size, param])
+  @@index([productModelId])
 }

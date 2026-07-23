@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
   const models = await prisma.productModel.findMany({
     where: { deletedAt: null },
     select: {
+      id: true,
       name: true,
       brand: true,
       category: true,
@@ -33,6 +34,7 @@ export async function GET(req: NextRequest) {
       plannedLaunchMonth: true,
       status: true,
       sizeGrid: { select: { sizes: true } },
+      measurements: { select: { size: true, param: true, valueCm: true } },
       variants: {
         where: { deletedAt: null, status: { not: "DISCONTINUED" } },
         select: { sku: true, colorName: true, photoUrls: true },
@@ -63,8 +65,16 @@ export async function GET(req: NextRequest) {
   const articles = models.flatMap((m) => {
     const order = m.orders[0] ?? null;
     const sample = m.samples[0] ?? null;
+    // замеры в формате Студии: {bySize: {размер: {параметр: см}}}
+    const bySize: Record<string, Record<string, number | null>> = {};
+    (m.measurements ?? []).forEach((mm) => {
+      (bySize[mm.size] = bySize[mm.size] ?? {})[mm.param] = mm.valueCm;
+    });
+    const measurements = (m.measurements ?? []).length ? { bySize } : null;
     return m.variants.map((v) => ({
       sku: v.sku,
+      modelId: m.id,
+      measurements,
       artikulBase: m.artikulBase,
       modelName: m.name,
       brand: m.brand,

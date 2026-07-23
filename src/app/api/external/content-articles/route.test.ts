@@ -16,7 +16,9 @@ vi.mock("@/lib/prisma", () => ({
           photoUrls: ["https://blob/model.jpg"],
           plannedLaunchMonth: 202609,
           status: "IN_PRODUCTION",
+          id: "m1",
           sizeGrid: { sizes: ["42", "44"] },
+          measurements: [{ size: "42", param: "Обхват груди", valueCm: 90 }],
           variants: [{ sku: "П_038_шоколад", colorName: "шоколад", photoUrls: [] }],
           samples: [{ status: "RECEIVED", receivedDate: new Date("2026-07-01"), pulledForContentAt: null }],
           orders: [
